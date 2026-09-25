@@ -342,14 +342,6 @@
             return Math.max(Math.min(canvas.width, canvas.height) * 0.045, 18);
         }
 
-        function getWorldCenterOffset(scale) {
-            const angle = Math.random() * Math.PI * 2;
-            return {
-                x: Math.cos(angle) * scale,
-                y: Math.sin(angle) * scale
-            };
-        }
-
         class SpikeBall {
             constructor(sides, x, y, radius, speed = 1.45, direction = Math.random() * Math.PI * 2) {
                 this.sides = sides;
@@ -738,8 +730,6 @@
         }
         window.addEventListener('resize', resize);
         resize();
-        spikeCanvas.width = canvas.width;
-        spikeCanvas.height = canvas.height;
 
         let activeBall = null;
         let activeSpike = null;
@@ -907,6 +897,8 @@
         function startZoomHold(direction, e) {
             if (e.cancelable) e.preventDefault();
             e.stopPropagation();
+            zoomOutButton.setPointerCapture?.(e.pointerId);
+            zoomInButton.setPointerCapture?.(e.pointerId);
 
             zoomHoldDirection = direction;
             lastZoomTime = 0;
