@@ -5,21 +5,72 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Animated Metaballs (GPU Optimized)</title>
     <style>
-        body, html { 
-             margin: 0; 
-             padding: 0; 
-             width: 100%; 
-             height: 100%; 
-             overflow: hidden; 
-             background-color: #000;
-             overscroll-behavior: none; 
-             touch-action: none; 
-         }
-        canvas { display: block; width: 100vw; height: 100vh; }
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #000;
+            overscroll-behavior: none;
+            touch-action: none;
+        }
+
+        body {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #metaball-window {
+            position: relative;
+            width: min(92vw, 1100px);
+            height: min(78vh, 700px);
+            overflow: hidden;
+            border-radius: 32px;
+            background: rgba(255, 255, 255, 0.035);
+            border: 2px solid rgba(255, 255, 255, 0.16);
+            box-shadow:
+                inset 0 1px 0 rgba(255, 255, 255, 0.22),
+                inset 0 -1px 0 rgba(255, 255, 255, 0.06),
+                0 0 35px rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            touch-action: none;
+        }
+
+        #metaball-window::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            border-radius: inherit;
+            pointer-events: none;
+            box-shadow:
+                inset 0 0 18px rgba(255, 255, 255, 0.08),
+                inset 0 0 2px rgba(255, 255, 255, 0.35);
+            z-index: 1;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            border-radius: inherit;
+        }
+
+        @media (max-width: 600px) {
+            #metaball-window {
+                width: 92vw;
+                height: 76vh;
+                border-radius: 26px;
+            }
+        }
     </style>
 </head>
 <body>
-    <canvas id="canvas"></canvas>
+    <div id="metaball-window">
+        <canvas id="canvas"></canvas>
+    </div>
     <script>
         const canvas = document.getElementById('canvas');
         const gl = canvas.getContext('webgl');
@@ -135,8 +186,9 @@
         ]);
 
         function resize() {
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
+            const rect = canvas.getBoundingClientRect();
+            canvas.width = Math.max(1, Math.round(rect.width));
+            canvas.height = Math.max(1, Math.round(rect.height));
             gl.viewport(0, 0, canvas.width, canvas.height);
             balls.forEach(b => b.resize());
         }
@@ -148,7 +200,11 @@
         function getMousePos(e) {
             const clientX = e.touches ? e.touches[0].clientX : e.clientX;
             const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-            return { x: clientX, y: canvas.height - clientY };
+            const rect = canvas.getBoundingClientRect();
+            return {
+                x: clientX - rect.left,
+                y: rect.height - (clientY - rect.top)
+            };
         }
 
         function onStart(e) {
