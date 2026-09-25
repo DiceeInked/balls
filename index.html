@@ -474,12 +474,67 @@
         });
 
         function setZoom(nextZoom) {
-            cameraZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, Number(nextZoom.toFixed(1))));
+            cameraZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, nextZoom));
             clampCamera();
         }
 
-        document.getElementById('zoom-out').addEventListener('click', () => setZoom(cameraZoom - 0.1));
-        document.getElementById('zoom-in').addEventListener('click', () => setZoom(cameraZoom + 0.1));
+        let zoomHoldDirection = 0;
+        let zoomHoldFrame = null;
+        let lastZoomTime = 0;
+        const ZOOM_SPEED = 1.15;
+
+        function updateZoomHold(timestamp) {
+            if (!zoomHoldDirection) {
+                zoomHoldFrame = null;
+                return;
+            }
+
+            if (!lastZoomTime) lastZoomTime = timestamp;
+            const deltaSeconds = Math.min((timestamp - lastZoomTime) / 1000, 0.05);
+            lastZoomTime = timestamp;
+
+            setZoom(cameraZoom + zoomHoldDirection * ZOOM_SPEED * deltaSeconds);
+
+            zoomHoldFrame = requestAnimationFrame(updateZoomHold);
+        }
+
+        function startZoomHold(direction, e) {
+            if (e.cancelable) e.preventDefault();
+            e.stopPropagation();
+
+            zoomHoldDirection = direction;
+            lastZoomTime = 0;
+
+            if (zoomHoldFrame === null) {
+                zoomHoldFrame = requestAnimationFrame(updateZoomHold);
+            }
+        }
+
+        function stopZoomHold(e) {
+            if (e) e.stopPropagation();
+            zoomHoldDirection = 0;
+            lastZoomTime = 0;
+
+            if (zoomHoldFrame !== null) {
+                cancelAnimationFrame(zoomHoldFrame);
+                zoomHoldFrame = null;
+            }
+        }
+
+        const zoomOutButton = document.getElementById('zoom-out');
+        const zoomInButton = document.getElementById('zoom-in');
+
+        zoomOutButton.addEventListener('pointerdown', e => startZoomHold(-1, e));
+        zoomInButton.addEventListener('pointerdown', e => startZoomHold(1, e));
+
+        [zoomOutButton, zoomInButton].forEach(button => {
+            button.addEventListener('pointerup', stopZoomHold);
+            button.addEventListener('pointercancel', stopZoomHold);
+            button.addEventListener('pointerleave', e => {
+                if (e.pointerType === 'mouse') stopZoomHold(e);
+            });
+            button.addEventListener('lostpointercapture', stopZoomHold);
+        });
 
         function animate() {
             balls.forEach((ball, i) => {
