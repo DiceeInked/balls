@@ -24,7 +24,7 @@
 
         #metaball-window {
             position: relative;
-            width: min(88vw, 82vh, 1000px);
+            width: min(94vw, 90vh, 1100px);
             aspect-ratio: 1 / 1;
             height: auto;
             box-sizing: border-box;
@@ -60,12 +60,96 @@
             width: 100%;
             height: 100%;
             border-radius: inherit;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+
+        #zoom-controls {
+            position: absolute;
+            right: max(14px, env(safe-area-inset-right));
+            bottom: max(14px, env(safe-area-inset-bottom));
+            z-index: 5;
+            display: flex;
+            gap: 10px;
+            pointer-events: auto;
+        }
+
+        .zoom-button {
+            width: 56px;
+            height: 56px;
+            padding: 0;
+            border: 1px solid rgba(255, 255, 255, 0.22);
+            border-radius: 17px;
+            background: rgba(255, 255, 255, 0.11);
+            color: rgba(255, 255, 255, 0.96);
+            box-shadow:
+                inset 0 1px 0 rgba(255, 255, 255, 0.26),
+                inset 0 -1px 0 rgba(255, 255, 255, 0.06),
+                0 6px 22px rgba(0, 0, 0, 0.24),
+                0 0 18px rgba(255, 255, 255, 0.06);
+            -webkit-backdrop-filter: blur(16px) saturate(140%);
+            backdrop-filter: blur(16px) saturate(140%);
+            font: 600 30px/1 Arial, sans-serif;
+            cursor: pointer;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
+            -webkit-user-select: none;
+            user-select: none;
+            -webkit-appearance: none;
+            appearance: none;
+            display: grid;
+            place-items: center;
+        }
+
+        .zoom-button:active {
+            background: rgba(255, 255, 255, 0.18);
+            transform: scale(0.96);
+        }
+
+        @media (min-width: 1025px) {
+            #zoom-controls {
+                right: 18px;
+                bottom: 18px;
+            }
+
+            .zoom-button {
+                width: 48px;
+                height: 48px;
+                border-radius: 15px;
+                font-size: 26px;
+            }
         }
 
         @media (max-width: 600px) {
             #metaball-window {
-                width: 88vw;
+                width: min(94vw, 90vh, 1100px);
                 border-radius: 26px;
+            }
+
+            #zoom-controls {
+                right: max(12px, env(safe-area-inset-right));
+                bottom: max(12px, env(safe-area-inset-bottom));
+                gap: 8px;
+            }
+
+            .zoom-button {
+                width: 52px;
+                height: 52px;
+                border-radius: 15px;
+                font-size: 28px;
+            }
+        }
+
+        @supports (height: 1dvh) {
+            #metaball-window {
+                width: min(94vw, 90dvh, 1100px);
+            }
+        }
+
+        @media (hover: hover) and (pointer: fine) {
+            .zoom-button:hover {
+                background: rgba(255, 255, 255, 0.15);
+                border-color: rgba(255, 255, 255, 0.28);
             }
         }
     </style>
@@ -115,11 +199,13 @@
                 }
 
                 float gridSize = 28.0;
+                float lineWidth = 1.5 / u_zoom;
                 vec2 gridCell = abs(fract(worldPos / gridSize) - 0.5);
                 vec2 gridDistance = gridCell * gridSize;
-                float verticalLine = 1.0 - smoothstep(0.0, 0.8, gridDistance.x);
-                float horizontalLine = 1.0 - smoothstep(0.0, 0.8, gridDistance.y);
-                float gridStrength = clamp((verticalLine + horizontalLine) * 0.25, 0.0, 1.0);
+                float verticalLine = 1.0 - smoothstep(0.0, lineWidth, gridDistance.x);
+                float horizontalLine = 1.0 - smoothstep(0.0, lineWidth, gridDistance.y);
+                float gridLine = max(verticalLine, horizontalLine);
+                float gridStrength = gridLine * 0.25;
 
                 if (totalInfluence > 1.2) {
                     gl_FragColor = vec4(colorSum / totalInfluence, 1.0);
@@ -291,14 +377,12 @@
         let lastWorldX = 0;
         let lastWorldY = 0;
 
-        function getMousePos(e) {
-            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        function getPointerPos(e) {
             const rect = canvas.getBoundingClientRect();
 
             return {
-                x: clientX - rect.left,
-                y: rect.height - (clientY - rect.top)
+                x: e.clientX - rect.left,
+                y: rect.height - (e.clientY - rect.top)
             };
         }
 
@@ -311,8 +395,11 @@
 
         function onStart(e) {
             if (e.cancelable) e.preventDefault();
+            if (e.pointerType === 'mouse' && e.button !== 0) return;
 
-            const pos = getMousePos(e);
+            canvas.setPointerCapture?.(e.pointerId);
+
+            const pos = getPointerPos(e);
             const worldPos = screenToWorld(pos);
 
             activeBall = balls.find(
@@ -334,7 +421,7 @@
         function onMove(e) {
             if (e.cancelable) e.preventDefault();
 
-            const pos = getMousePos(e);
+            const pos = getPointerPos(e);
 
             if (activeBall) {
                 const worldPos = screenToWorld(pos);
@@ -361,19 +448,32 @@
             }
         }
 
-        function onEnd() {
+        function onEnd(e) {
             if (activeBall) activeBall.isDragging = false;
             activeBall = null;
             isPanning = false;
+
+            if (e?.pointerId != null && canvas.hasPointerCapture?.(e.pointerId)) {
+                canvas.releasePointerCapture(e.pointerId);
+            }
         }
 
-        window.addEventListener('mousedown', onStart);
-        window.addEventListener('mousemove', onMove);
-        window.addEventListener('mouseup', onEnd);
-         
-        window.addEventListener('touchstart', onStart, { passive: false });
-        window.addEventListener('touchmove', onMove, { passive: false });
-        window.addEventListener('touchend', onEnd);
+        canvas.addEventListener('pointerdown', onStart, { passive: false });
+        canvas.addEventListener('pointermove', onMove, { passive: false });
+        canvas.addEventListener('pointerup', onEnd);
+        canvas.addEventListener('pointercancel', onEnd);
+        canvas.addEventListener('lostpointercapture', onEnd);
+
+        const zoomButtons = [
+            document.getElementById('zoom-out'),
+            document.getElementById('zoom-in')
+        ];
+
+        zoomButtons.forEach(button => {
+            button.addEventListener('pointerdown', e => e.stopPropagation());
+            button.addEventListener('pointerup', e => e.stopPropagation());
+            button.addEventListener('click', e => e.stopPropagation());
+        });
 
         function setZoom(nextZoom) {
             cameraZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, Number(nextZoom.toFixed(1))));
