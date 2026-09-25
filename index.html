@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Animated Metaballs (GPU Optimized)</title>
+    <title>Animated Metaballs &amp; Spike Balls</title>
     <style>
         body, html {
             margin: 0;
@@ -49,6 +49,17 @@
             border-radius: inherit;
             -webkit-user-select: none;
             user-select: none;
+        }
+
+        #spike-canvas {
+            position: absolute;
+            inset: 0;
+            z-index: 2;
+            display: block;
+            width: 100%;
+            height: 100%;
+            border-radius: inherit;
+            pointer-events: none;
         }
 
         #zoom-controls {
@@ -154,6 +165,7 @@
     <div id="metaball-stage">
         <div id="metaball-window">
             <canvas id="canvas"></canvas>
+            <canvas id="spike-canvas" aria-hidden="true"></canvas>
         </div>
         <div id="zoom-controls" aria-label="Zoom controls">
             <button class="zoom-button" id="zoom-out" type="button" aria-label="Zoom out">−</button>
@@ -162,6 +174,8 @@
     </div>
     <script>
         const canvas = document.getElementById('canvas');
+        const spikeCanvas = document.getElementById('spike-canvas');
+        const spikeCtx = spikeCanvas.getContext('2d');
         const gl = canvas.getContext('webgl', { alpha: true });
         if (!gl) alert('WebGL not supported');
 
@@ -317,6 +331,334 @@
             }
         }
 
+        const MAX_SPIKES = 64;
+        const SPIKE_CHILD_RADIUS_SCALE = 0.55;
+        const SPIKE_COLLISION_COOLDOWN = 8;
+        const SPIKE_COLOR = 'rgba(196, 202, 202, 0.94)';
+        const SPIKE_EDGE_COLOR = 'rgba(145, 152, 152, 0.96)';
+        const spikeBalls = [];
+
+        function getInitialSpikeRadius() {
+            return Math.max(Math.min(canvas.width, canvas.height) * 0.045, 18);
+        }
+
+        function getWorldCenterOffset(scale) {
+            const angle = Math.random() * Math.PI * 2;
+            return {
+                x: Math.cos(angle) * scale,
+                y: Math.sin(angle) * scale
+            };
+        }
+
+        class SpikeBall {
+            constructor(sides, x, y, radius, speed = 1.45, direction = Math.random() * Math.PI * 2) {
+                this.sides = sides;
+                this.x = x;
+                this.y = y;
+                this.radius = radius;
+                this.rotation = Math.random() * Math.PI * 2;
+                this.angularVelocity = (Math.random() * 2 - 1) * 0.028;
+                this.vx = Math.cos(direction) * speed;
+                this.vy = Math.sin(direction) * speed;
+                this.isDragging = false;
+                this.collisionCooldown = 0;
+            }
+        }
+
+        function clampSpike(spike) {
+            spike.x = Math.max(spike.radius, Math.min(getWorldWidth() - spike.radius, spike.x));
+            spike.y = Math.max(spike.radius, Math.min(getWorldHeight() - spike.radius, spike.y));
+        }
+
+        function bounceSpikeFromWalls(spike) {
+            if (spike.collisionCooldown > 0 || spike.isDragging) return false;
+
+            let collided = false;
+
+            if (spike.x - spike.radius <= 0) {
+                spike.x = spike.radius;
+                spike.vx = Math.abs(spike.vx || 0.8);
+                collided = true;
+            } else if (spike.x + spike.radius >= getWorldWidth()) {
+                spike.x = getWorldWidth() - spike.radius;
+                spike.vx = -Math.abs(spike.vx || 0.8);
+                collided = true;
+            }
+
+            if (spike.y - spike.radius <= 0) {
+                spike.y = spike.radius;
+                spike.vy = Math.abs(spike.vy || 0.8);
+                collided = true;
+            } else if (spike.y + spike.radius >= getWorldHeight()) {
+                spike.y = getWorldHeight() - spike.radius;
+                spike.vy = -Math.abs(spike.vy || 0.8);
+                collided = true;
+            }
+
+            if (collided) {
+                spike.angularVelocity *= -0.82;
+            }
+
+            return collided;
+        }
+
+        function resolveSpikePairCollision(a, b) {
+            const dx = b.x - a.x;
+            const dy = b.y - a.y;
+            const minimumDistance = a.radius + b.radius;
+            const distance = Math.hypot(dx, dy);
+
+            if (distance >= minimumDistance) return false;
+
+            const nx = distance > 0.0001 ? dx / distance : 1;
+            const ny = distance > 0.0001 ? dy / distance : 0;
+            const overlap = minimumDistance - distance;
+
+            a.x -= nx * (overlap * 0.5 + 0.15);
+            a.y -= ny * (overlap * 0.5 + 0.15);
+            b.x += nx * (overlap * 0.5 + 0.15);
+            b.y += ny * (overlap * 0.5 + 0.15);
+
+            const aNormalVelocity = a.vx * nx + a.vy * ny;
+            if (aNormalVelocity > 0) {
+                a.vx -= 2 * aNormalVelocity * nx;
+                a.vy -= 2 * aNormalVelocity * ny;
+            }
+
+            const bNormalVelocity = b.vx * nx + b.vy * ny;
+            if (bNormalVelocity < 0) {
+                b.vx -= 2 * bNormalVelocity * nx;
+                b.vy -= 2 * bNormalVelocity * ny;
+            }
+
+            const aTangent = -a.vx * ny + a.vy * nx;
+            const bTangent = -b.vx * ny + b.vy * nx;
+            a.angularVelocity += aTangent * 0.0015;
+            b.angularVelocity -= bTangent * 0.0015;
+
+            a.collisionCooldown = SPIKE_COLLISION_COOLDOWN;
+            b.collisionCooldown = SPIKE_COLLISION_COOLDOWN;
+            return true;
+        }
+
+        function makeSpikeChildren(parent) {
+            const nextSides = parent.sides / 2;
+            if (nextSides < 2) return [];
+
+            const childRadius = Math.max(parent.radius * SPIKE_CHILD_RADIUS_SCALE, 2.8);
+            const parentSpeed = Math.max(Math.hypot(parent.vx, parent.vy), 1.0);
+            const baseAngle = Math.atan2(parent.vy, parent.vx);
+            const spreadAngle = 0.24;
+            const separationAngle = baseAngle + Math.PI * 0.5;
+            const separationDistance = childRadius * 1.15;
+            const children = [];
+
+            for (const sign of [-1, 1]) {
+                const offset = sign * separationDistance;
+                const childX = parent.x + Math.cos(separationAngle) * offset;
+                const childY = parent.y + Math.sin(separationAngle) * offset;
+                const direction = baseAngle + sign * spreadAngle;
+                const child = new SpikeBall(
+                    nextSides,
+                    childX,
+                    childY,
+                    childRadius,
+                    parentSpeed * 1.03,
+                    direction
+                );
+
+                child.angularVelocity =
+                    -parent.angularVelocity * 0.72 +
+                    sign * 0.022;
+                child.collisionCooldown = SPIKE_COLLISION_COOLDOWN;
+                clampSpike(child);
+                children.push(child);
+            }
+
+            return children;
+        }
+
+        const particles = [];
+
+        function emitSpikeParticles(x, y) {
+            const count = 12;
+            for (let i = 0; i < count; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const speed = 0.7 + Math.random() * 1.8;
+                particles.push({
+                    x,
+                    y,
+                    vx: Math.cos(angle) * speed,
+                    vy: Math.sin(angle) * speed,
+                    size: 1.4 + Math.random() * 2.0,
+                    life: 0.45 + Math.random() * 0.35,
+                    maxLife: 0.8
+                });
+            }
+        }
+
+        function updateSpikePhysics() {
+            const splitSet = new Set();
+
+            for (const spike of spikeBalls) {
+                if (spike.collisionCooldown > 0) {
+                    spike.collisionCooldown--;
+                }
+
+                if (spike.isDragging) continue;
+
+                spike.x += spike.vx;
+                spike.y += spike.vy;
+                spike.rotation += spike.angularVelocity;
+                spike.angularVelocity *= 0.9995;
+
+                clampSpike(spike);
+
+                if (bounceSpikeFromWalls(spike)) {
+                    splitSet.add(spike);
+                }
+            }
+
+            for (let i = 0; i < spikeBalls.length; i++) {
+                const a = spikeBalls[i];
+                if (a.isDragging || splitSet.has(a) || a.collisionCooldown > 0) continue;
+
+                for (let j = i + 1; j < spikeBalls.length; j++) {
+                    const b = spikeBalls[j];
+                    if (b.isDragging || splitSet.has(b) || b.collisionCooldown > 0) continue;
+
+                    if (resolveSpikePairCollision(a, b)) {
+                        splitSet.add(a);
+                        splitSet.add(b);
+                        break;
+                    }
+                }
+            }
+
+            if (splitSet.size > 0) {
+                const survivors = [];
+                const spawned = [];
+
+                for (const spike of spikeBalls) {
+                    if (!splitSet.has(spike)) {
+                        survivors.push(spike);
+                        continue;
+                    }
+
+                    if (spike.sides <= 2) {
+                        emitSpikeParticles(spike.x, spike.y);
+                        continue;
+                    }
+
+                    const availableSlots = MAX_SPIKES - (survivors.length + spawned.length);
+                    if (availableSlots >= 2) {
+                        spawned.push(...makeSpikeChildren(spike));
+                    } else {
+                        survivors.push(spike);
+                    }
+                }
+
+                spikeBalls.length = 0;
+                spikeBalls.push(...survivors, ...spawned);
+            }
+        }
+
+        function worldToScreen(x, y) {
+            return {
+                x: (x - camera.x) * cameraZoom + canvas.width * 0.5,
+                y: canvas.height * 0.5 - (y - camera.y) * cameraZoom
+            };
+        }
+
+        function drawSpikeShape(spike) {
+            const center = worldToScreen(spike.x, spike.y);
+
+            if (
+                center.x + spike.radius * cameraZoom < 0 ||
+                center.x - spike.radius * cameraZoom > canvas.width ||
+                center.y + spike.radius * cameraZoom < 0 ||
+                center.y - spike.radius * cameraZoom > canvas.height
+            ) {
+                return;
+            }
+
+            spikeCtx.save();
+            spikeCtx.beginPath();
+
+            if (spike.sides === 2) {
+                const dx = Math.cos(spike.rotation) * spike.radius * cameraZoom;
+                const dy = Math.sin(spike.rotation) * spike.radius * cameraZoom;
+
+                spikeCtx.moveTo(center.x - dx, center.y + dy);
+                spikeCtx.lineTo(center.x + dx, center.y - dy);
+                spikeCtx.strokeStyle = SPIKE_COLOR;
+                spikeCtx.lineWidth = Math.max(2, Math.min(5, 2.8 * Math.max(cameraZoom, 0.55)));
+                spikeCtx.lineCap = 'round';
+                spikeCtx.stroke();
+                spikeCtx.restore();
+                return;
+            }
+
+            for (let i = 0; i < spike.sides; i++) {
+                const angle = spike.rotation + (Math.PI * 2 * i) / spike.sides;
+                const x = center.x + Math.cos(angle) * spike.radius * cameraZoom;
+                const y = center.y - Math.sin(angle) * spike.radius * cameraZoom;
+
+                if (i === 0) {
+                    spikeCtx.moveTo(x, y);
+                } else {
+                    spikeCtx.lineTo(x, y);
+                }
+            }
+
+            spikeCtx.closePath();
+            spikeCtx.fillStyle = SPIKE_COLOR;
+            spikeCtx.fill();
+
+            spikeCtx.strokeStyle = SPIKE_EDGE_COLOR;
+            spikeCtx.lineWidth = Math.max(1, Math.min(2.5, 1.2 * Math.max(cameraZoom, 0.75)));
+            spikeCtx.stroke();
+            spikeCtx.restore();
+        }
+
+        function updateAndDrawOverlay() {
+            spikeCtx.clearRect(0, 0, spikeCanvas.width, spikeCanvas.height);
+
+            for (const spike of spikeBalls) {
+                drawSpikeShape(spike);
+            }
+
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const particle = particles[i];
+                particle.x += particle.vx;
+                particle.y += particle.vy;
+                particle.vx *= 0.96;
+                particle.vy *= 0.96;
+                particle.life -= 0.016;
+
+                if (particle.life <= 0) {
+                    particles.splice(i, 1);
+                    continue;
+                }
+
+                const screen = worldToScreen(particle.x, particle.y);
+                const alpha = Math.max(0, particle.life / particle.maxLife);
+
+                spikeCtx.save();
+                spikeCtx.beginPath();
+                spikeCtx.arc(
+                    screen.x,
+                    screen.y,
+                    particle.size * Math.max(cameraZoom, 0.65),
+                    0,
+                    Math.PI * 2
+                );
+                spikeCtx.fillStyle = 'rgba(220, 225, 225, ' + (alpha * 0.8) + ')';
+                spikeCtx.fill();
+                spikeCtx.restore();
+            }
+        }
+
         // Added a 4th Metaball instance with RGB (0, 0, 0) for black
         const balls = [
             new Metaball(0, 1, 0.78), 
@@ -359,16 +701,48 @@
                     clampBall(ball);
                 });
 
+                const spikeRadius = getInitialSpikeRadius();
+                const spikeXOffset = Math.max(halfViewWidth * 0.44, spikeRadius * 2.5);
+                const spikeYOffset = halfViewHeight * 0.18;
+
+                spikeBalls.push(
+                    new SpikeBall(
+                        16,
+                        camera.x - spikeXOffset,
+                        camera.y + spikeYOffset,
+                        spikeRadius,
+                        1.5,
+                        0.05
+                    ),
+                    new SpikeBall(
+                        16,
+                        camera.x + spikeXOffset,
+                        camera.y - spikeYOffset,
+                        spikeRadius,
+                        1.5,
+                        Math.PI - 0.05
+                    )
+                );
+
+                spikeBalls.forEach(clampSpike);
                 initialized = true;
             } else {
                 balls.forEach(clampBall);
+                spikeBalls.forEach(clampSpike);
                 clampCamera();
+                spikeBalls.forEach(clampSpike);
             }
+
+            spikeCanvas.width = canvas.width;
+            spikeCanvas.height = canvas.height;
         }
         window.addEventListener('resize', resize);
         resize();
+        spikeCanvas.width = canvas.width;
+        spikeCanvas.height = canvas.height;
 
         let activeBall = null;
+        let activeSpike = null;
         let isPanning = false;
         let lastMouseX = 0;
         let lastMouseY = 0;
@@ -400,6 +774,18 @@
             const pos = getPointerPos(e);
             const worldPos = screenToWorld(pos);
 
+            activeSpike = spikeBalls.find(
+                spike => Math.hypot(spike.x - worldPos.x, spike.y - worldPos.y) < spike.radius
+            ) || null;
+
+            if (activeSpike) {
+                activeSpike.isDragging = true;
+                activeSpike.collisionCooldown = 0;
+                lastWorldX = worldPos.x;
+                lastWorldY = worldPos.y;
+                return;
+            }
+
             activeBall = balls.find(
                 b => Math.hypot(b.x - worldPos.x, b.y - worldPos.y) < b.radius
             ) || null;
@@ -420,6 +806,24 @@
             if (e.cancelable) e.preventDefault();
 
             const pos = getPointerPos(e);
+
+            if (activeSpike) {
+                const worldPos = screenToWorld(pos);
+                const dx = worldPos.x - lastWorldX;
+                const dy = worldPos.y - lastWorldY;
+
+                activeSpike.vx = dx;
+                activeSpike.vy = dy;
+                activeSpike.angularVelocity = (dx - dy) * 0.006;
+                activeSpike.x = worldPos.x;
+                activeSpike.y = worldPos.y;
+
+                clampSpike(activeSpike);
+
+                lastWorldX = activeSpike.x;
+                lastWorldY = activeSpike.y;
+                return;
+            }
 
             if (activeBall) {
                 const worldPos = screenToWorld(pos);
@@ -447,6 +851,8 @@
         }
 
         function onEnd(e) {
+            if (activeSpike) activeSpike.isDragging = false;
+            activeSpike = null;
             if (activeBall) activeBall.isDragging = false;
             activeBall = null;
             isPanning = false;
@@ -544,6 +950,9 @@
                 posRadArray[idx + 1] = ball.y;
                 posRadArray[idx + 2] = ball.radius;
             });
+
+            updateSpikePhysics();
+            updateAndDrawOverlay();
 
             gl.uniform2f(resUniform, canvas.width, canvas.height);
             gl.uniform2f(cameraUniform, camera.x, camera.y);
