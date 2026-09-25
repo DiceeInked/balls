@@ -3,204 +3,415 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Animated Metaballs (GPU Optimized)</title>
+    <meta name="theme-color" content="#000000">
+    <title>Animated Metaballs</title>
     <style>
-        body, html { 
-             margin: 0; 
-             padding: 0; 
-             width: 100%; 
-             height: 100%; 
-             overflow: hidden; 
-             background-color: #000;
-             overscroll-behavior: none; 
-             touch-action: none; 
-         }
-        canvas { display: block; width: 100vw; height: 100vh; }
+        html,
+        body {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background: #000;
+            overscroll-behavior: none;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            touch-action: none;
+        }
+
+        #error {
+            position: fixed;
+            inset: 0;
+            display: grid;
+            place-items: center;
+            padding: 24px;
+            box-sizing: border-box;
+            color: #fff;
+            background: #000;
+            font: 16px/1.5 system-ui, sans-serif;
+            text-align: center;
+        }
     </style>
 </head>
 <body>
-    <canvas id="canvas"></canvas>
+    <canvas id="canvas" aria-label="Interactive animated metaballs"></canvas>
+    <div id="error" hidden></div>
+
     <script>
-        const canvas = document.getElementById('canvas');
-        const gl = canvas.getContext('webgl');
-        if (!gl) alert('WebGL not supported');
+        "use strict";
 
-        const vsSource = `
-            attribute vec2 position;
-            void main() { gl_Position = vec4(position, 0.0, 1.0); }
-        `;
+        const canvas = document.getElementById("canvas");
+        const errorElement = document.getElementById("error");
+        const gl = canvas.getContext("webgl", {
+            antialias: false,
+            alpha: false,
+            depth: false,
+            stencil: false,
+            preserveDrawingBuffer: false
+        });
 
-        // Updated array size to [4] and loop condition to i < 4 to handle the fourth ball
-        const fsSource = `
-            precision mediump float;
-            uniform vec2 u_resolution;
-            uniform vec3 u_ballsPosRad[4];
-            uniform vec3 u_ballsColor[4];
-            void main() {
-                vec2 st = gl_FragCoord.xy;
-                float totalInfluence = 0.0;
-                vec3 colorSum = vec3(0.0);
-                for (int i = 0; i < 4; i++) {
-                    vec3 ball = u_ballsPosRad[i];
-                    float distanceSq = dot(st - ball.xy, st - ball.xy);
-                    if (distanceSq > 0.0) {
+        function showError(message) {
+            canvas.hidden = true;
+            errorElement.textContent = message;
+            errorElement.hidden = false;
+        }
+
+        if (!gl) {
+            showError("WebGL is not available in this browser.");
+        } else {
+            const BALLS = [
+                { color: [0, 1, 0.78] },
+                { color: [1, 0.93, 0] },
+                { color: [1, 0, 0.33] },
+                { color: [0, 0, 0] }
+            ];
+
+            const BALL_COUNT = BALLS.length;
+
+            const vertexShaderSource = `
+                attribute vec2 position;
+
+                void main() {
+                    gl_Position = vec4(position, 0.0, 1.0);
+                }
+            `;
+
+            const fragmentShaderSource = `
+                precision mediump float;
+
+                uniform float u_pixelRatio;
+                uniform vec3 u_ballsPosRad[${BALL_COUNT}];
+                uniform vec3 u_ballsColor[${BALL_COUNT}];
+
+                void main() {
+                    vec2 point = gl_FragCoord.xy / u_pixelRatio;
+                    float totalInfluence = 0.0;
+                    vec3 colorSum = vec3(0.0);
+
+                    for (int i = 0; i < ${BALL_COUNT}; i++) {
+                        vec3 ball = u_ballsPosRad[i];
+                        vec2 offset = point - ball.xy;
+                        float distanceSq = max(dot(offset, offset), 0.0001);
                         float influence = (ball.z * ball.z) / distanceSq;
+
                         totalInfluence += influence;
                         colorSum += u_ballsColor[i] * influence;
                     }
+
+                    if (totalInfluence > 1.2) {
+                        gl_FragColor = vec4(colorSum / totalInfluence, 1.0);
+                    } else {
+                        gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
+                    }
                 }
-                gl_FragColor = totalInfluence > 1.2 ? vec4(colorSum / totalInfluence, 1.0) : vec4(0.0, 0.0, 0.0, 1.0);
+            `;
+
+            function createShader(type, source) {
+                const shader = gl.createShader(type);
+
+                if (!shader) {
+                    return null;
+                }
+
+                gl.shaderSource(shader, source);
+                gl.compileShader(shader);
+
+                if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+                    console.error(gl.getShaderInfoLog(shader));
+                    gl.deleteShader(shader);
+                    return null;
+                }
+
+                return shader;
             }
-        `;
 
-        function createShader(type, source) {
-            const shader = gl.createShader(type);
-            gl.shaderSource(shader, source);
-            gl.compileShader(shader);
-            return shader;
-        }
+            const vertexShader = createShader(gl.VERTEX_SHADER, vertexShaderSource);
+            const fragmentShader = createShader(gl.FRAGMENT_SHADER, fragmentShaderSource);
 
-        const program = gl.createProgram();
-        gl.attachShader(program, createShader(gl.VERTEX_SHADER, vsSource));
-        gl.attachShader(program, createShader(gl.FRAGMENT_SHADER, fsSource));
-        gl.linkProgram(program);
-        gl.useProgram(program);
+            if (!vertexShader || !fragmentShader) {
+                showError("The WebGL shaders could not be compiled.");
+            } else {
+                const program = gl.createProgram();
 
-        const positionAttribute = gl.getAttribLocation(program, "position");
-        const resUniform = gl.getUniformLocation(program, "u_resolution");
-        const posRadUniform = gl.getUniformLocation(program, "u_ballsPosRad");
-        const colorUniform = gl.getUniformLocation(program, "u_ballsColor");
+                gl.attachShader(program, vertexShader);
+                gl.attachShader(program, fragmentShader);
+                gl.linkProgram(program);
 
-        const buffer = gl.createBuffer();
-        gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
-        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, -1,1, 1,-1, 1,1]), gl.STATIC_DRAW);
-        gl.enableVertexAttribArray(positionAttribute);
-        gl.vertexAttribPointer(positionAttribute, 2, gl.FLOAT, false, 0, 0);
+                gl.deleteShader(vertexShader);
+                gl.deleteShader(fragmentShader);
 
-        class Metaball {
-            constructor(r, g, b) {
-                this.color = [r, g, b];
-                this.x = Math.random() * canvas.width;
-                this.y = Math.random() * canvas.height;
-                const angle = Math.random() * Math.PI * 2;
-                
-                this.normalSpeed = 4; 
-                this.vx = Math.cos(angle) * this.normalSpeed;
-                this.vy = Math.sin(angle) * this.normalSpeed;
-                
-                this.isDragging = false;
-                this.resize();
-            }
-            resize() {
-                this.radius = Math.max(Math.min(canvas.width, canvas.height) * 0.12, 60);
-            }
-            update() {
-                if (this.isDragging) return;
-                const currentSpeed = Math.hypot(this.vx, this.vy);
-                if (currentSpeed > 0.001) {
-                    const targetSpeed = currentSpeed + (this.normalSpeed - currentSpeed) * 0.02;
-                    this.vx = (this.vx / currentSpeed) * targetSpeed;
-                    this.vy = (this.vy / currentSpeed) * targetSpeed;
+                if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+                    console.error(gl.getProgramInfoLog(program));
+                    gl.deleteProgram(program);
+                    showError("The WebGL program could not be linked.");
                 } else {
-                    const angle = Math.random() * Math.PI * 2;
-                    this.vx = Math.cos(angle) * this.normalSpeed;
-                    this.vy = Math.sin(angle) * this.normalSpeed;
+                    gl.useProgram(program);
+
+                    const positionAttribute = gl.getAttribLocation(program, "position");
+                    const pixelRatioUniform = gl.getUniformLocation(program, "u_pixelRatio");
+                    const posRadUniform = gl.getUniformLocation(program, "u_ballsPosRad");
+                    const colorUniform = gl.getUniformLocation(program, "u_ballsColor");
+
+                    if (
+                        positionAttribute < 0 ||
+                        !pixelRatioUniform ||
+                        !posRadUniform ||
+                        !colorUniform
+                    ) {
+                        gl.deleteProgram(program);
+                        showError("The WebGL program is missing a required variable.");
+                    } else {
+                        const buffer = gl.createBuffer();
+
+                        gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+                        gl.bufferData(
+                            gl.ARRAY_BUFFER,
+                            new Float32Array([
+                                -1, -1,
+                                 1, -1,
+                                -1,  1,
+                                -1,  1,
+                                 1, -1,
+                                 1,  1
+                            ]),
+                            gl.STATIC_DRAW
+                        );
+
+                        gl.enableVertexAttribArray(positionAttribute);
+                        gl.vertexAttribPointer(
+                            positionAttribute,
+                            2,
+                            gl.FLOAT,
+                            false,
+                            0,
+                            0
+                        );
+
+                        class Metaball {
+                            constructor(color) {
+                                this.color = color;
+                                this.x = 0;
+                                this.y = 0;
+                                this.vx = 0;
+                                this.vy = 0;
+                                this.normalSpeed = 240;
+                                this.isDragging = false;
+                                this.radius = 60;
+                            }
+
+                            resize(width, height) {
+                                this.radius = Math.max(Math.min(width, height) * 0.12, 60);
+                                this.x = Math.max(
+                                    this.radius,
+                                    Math.min(width - this.radius, this.x)
+                                );
+                                this.y = Math.max(
+                                    this.radius,
+                                    Math.min(height - this.radius, this.y)
+                                );
+                            }
+
+                            update(deltaTime, width, height) {
+                                if (this.isDragging) {
+                                    return;
+                                }
+
+                                const currentSpeed = Math.hypot(this.vx, this.vy);
+
+                                if (currentSpeed > 0.001) {
+                                    const targetSpeed = currentSpeed +
+                                        (this.normalSpeed - currentSpeed) * Math.min(deltaTime * 1.2, 1);
+
+                                    this.vx = (this.vx / currentSpeed) * targetSpeed;
+                                    this.vy = (this.vy / currentSpeed) * targetSpeed;
+                                } else {
+                                    const angle = Math.random() * Math.PI * 2;
+                                    this.vx = Math.cos(angle) * this.normalSpeed;
+                                    this.vy = Math.sin(angle) * this.normalSpeed;
+                                }
+
+                                this.x += this.vx * deltaTime;
+                                this.y += this.vy * deltaTime;
+
+                                if (
+                                    this.x - this.radius <= 0 ||
+                                    this.x + this.radius >= width
+                                ) {
+                                    this.vx *= -1;
+                                }
+
+                                if (
+                                    this.y - this.radius <= 0 ||
+                                    this.y + this.radius >= height
+                                ) {
+                                    this.vy *= -1;
+                                }
+
+                                this.x = Math.max(
+                                    this.radius,
+                                    Math.min(width - this.radius, this.x)
+                                );
+                                this.y = Math.max(
+                                    this.radius,
+                                    Math.min(height - this.radius, this.y)
+                                );
+                            }
+                        }
+
+                        const balls = BALLS.map(({ color }) => new Metaball(color));
+                        const posRadArray = new Float32Array(BALL_COUNT * 3);
+                        const colorArray = new Float32Array(
+                            BALLS.flatMap(({ color }) => color)
+                        );
+
+                        let viewportWidth = 0;
+                        let viewportHeight = 0;
+                        let devicePixelRatio = 1;
+
+                        function resize() {
+                            viewportWidth = window.innerWidth;
+                            viewportHeight = window.innerHeight;
+                            devicePixelRatio = Math.min(window.devicePixelRatio || 1, 2);
+
+                            const displayWidth = Math.max(
+                                1,
+                                Math.round(viewportWidth * devicePixelRatio)
+                            );
+                            const displayHeight = Math.max(
+                                1,
+                                Math.round(viewportHeight * devicePixelRatio)
+                            );
+
+                            if (
+                                canvas.width !== displayWidth ||
+                                canvas.height !== displayHeight
+                            ) {
+                                canvas.width = displayWidth;
+                                canvas.height = displayHeight;
+                            }
+
+                            gl.viewport(0, 0, displayWidth, displayHeight);
+                            balls.forEach(ball => ball.resize(viewportWidth, viewportHeight));
+                        }
+
+                        window.addEventListener("resize", resize, { passive: true });
+                        resize();
+
+                        for (const ball of balls) {
+                            ball.x = ball.radius +
+                                Math.random() * Math.max(0, viewportWidth - ball.radius * 2);
+                            ball.y = ball.radius +
+                                Math.random() * Math.max(0, viewportHeight - ball.radius * 2);
+
+                            const angle = Math.random() * Math.PI * 2;
+                            ball.vx = Math.cos(angle) * ball.normalSpeed;
+                            ball.vy = Math.sin(angle) * ball.normalSpeed;
+                        }
+
+                        let activeBall = null;
+                        let lastPointerX = 0;
+                        let lastPointerY = 0;
+                        let lastFrameTime = performance.now();
+
+                        function getPointerPosition(event) {
+                            const rect = canvas.getBoundingClientRect();
+
+                            return {
+                                x: event.clientX - rect.left,
+                                y: rect.height - (event.clientY - rect.top)
+                            };
+                        }
+
+                        function onPointerDown(event) {
+                            const position = getPointerPosition(event);
+
+                            activeBall = balls.find(
+                                ball => Math.hypot(
+                                    ball.x - position.x,
+                                    ball.y - position.y
+                                ) < ball.radius
+                            ) || null;
+
+                            if (!activeBall) {
+                                return;
+                            }
+
+                            activeBall.isDragging = true;
+                            lastPointerX = position.x;
+                            lastPointerY = position.y;
+                            canvas.setPointerCapture(event.pointerId);
+                        }
+
+                        function onPointerMove(event) {
+                            if (!activeBall) {
+                                return;
+                            }
+
+                            const position = getPointerPosition(event);
+
+                            activeBall.vx = position.x - lastPointerX;
+                            activeBall.vy = position.y - lastPointerY;
+                            activeBall.x = position.x;
+                            activeBall.y = position.y;
+
+                            lastPointerX = position.x;
+                            lastPointerY = position.y;
+                        }
+
+                        function endPointerDrag(event) {
+                            if (!activeBall) {
+                                return;
+                            }
+
+                            activeBall.isDragging = false;
+
+                            if (canvas.hasPointerCapture(event.pointerId)) {
+                                canvas.releasePointerCapture(event.pointerId);
+                            }
+
+                            activeBall = null;
+                        }
+
+                        canvas.addEventListener("pointerdown", onPointerDown);
+                        canvas.addEventListener("pointermove", onPointerMove);
+                        canvas.addEventListener("pointerup", endPointerDrag);
+                        canvas.addEventListener("pointercancel", endPointerDrag);
+
+                        function animate(currentTime) {
+                            const deltaTime = Math.min(
+                                (currentTime - lastFrameTime) / 1000,
+                                0.05
+                            );
+
+                            lastFrameTime = currentTime;
+
+                            balls.forEach((ball, index) => {
+                                ball.update(deltaTime, viewportWidth, viewportHeight);
+
+                                const offset = index * 3;
+                                posRadArray[offset] = ball.x;
+                                posRadArray[offset + 1] = ball.y;
+                                posRadArray[offset + 2] = ball.radius;
+                            });
+
+                            gl.uniform1f(pixelRatioUniform, devicePixelRatio);
+                            gl.uniform3fv(posRadUniform, posRadArray);
+                            gl.uniform3fv(colorUniform, colorArray);
+                            gl.drawArrays(gl.TRIANGLES, 0, 6);
+
+                            requestAnimationFrame(animate);
+                        }
+
+                        requestAnimationFrame(animate);
+                    }
                 }
-                this.x += this.vx;
-                this.y += this.vy;
-                if (this.x - this.radius <= 0 || this.x + this.radius >= canvas.width) this.vx *= -1;
-                if (this.y - this.radius <= 0 || this.y + this.radius >= canvas.height) this.vy *= -1;
-                this.x = Math.max(this.radius, Math.min(canvas.width - this.radius, this.x));
-                this.y = Math.max(this.radius, Math.min(canvas.height - this.radius, this.y));
             }
         }
-
-        // Added a 4th Metaball instance with RGB (0, 0, 0) for black
-        const balls = [
-            new Metaball(0, 1, 0.78), 
-            new Metaball(1, 0.93, 0), 
-            new Metaball(1, 0, 0.33),
-            new Metaball(0, 0, 0)
-        ];
-
-        // Adjusted size to 12 (4 balls * 3 elements each)
-        const posRadArray = new Float32Array(12);
-        
-        // Added the color values (0, 0, 0) to the flat color array
-        const colorArray = new Float32Array([
-            0, 1, 0.78, 
-            1, 0.93, 0, 
-            1, 0, 0.33,
-            0, 0, 0
-        ]);
-
-        function resize() {
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
-            gl.viewport(0, 0, canvas.width, canvas.height);
-            balls.forEach(b => b.resize());
-        }
-        window.addEventListener('resize', resize);
-        resize();
-
-        let activeBall = null, lastMouseX = 0, lastMouseY = 0;
-
-        function getMousePos(e) {
-            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-            return { x: clientX, y: canvas.height - clientY };
-        }
-
-        function onStart(e) {
-            if (e.cancelable) e.preventDefault();
-            const pos = getMousePos(e);
-            activeBall = balls.find(b => Math.hypot(b.x - pos.x, b.y - pos.y) < b.radius) || null;
-            if (activeBall) {
-                activeBall.isDragging = true;
-                lastMouseX = pos.x;
-                lastMouseY = pos.y;
-            }
-        }
-
-        function onMove(e) {
-            if (e.cancelable) e.preventDefault(); 
-            if (!activeBall) return;
-            const pos = getMousePos(e);
-            activeBall.vx = pos.x - lastMouseX;
-            activeBall.vy = pos.y - lastMouseY;
-            activeBall.x = lastMouseX = pos.x;
-            activeBall.y = lastMouseY = pos.y;
-        }
-
-        function onEnd() {
-            if (activeBall) activeBall.isDragging = false;
-            activeBall = null;
-        }
-
-        window.addEventListener('mousedown', onStart);
-        window.addEventListener('mousemove', onMove);
-        window.addEventListener('mouseup', onEnd);
-         
-        window.addEventListener('touchstart', onStart, { passive: false });
-        window.addEventListener('touchmove', onMove, { passive: false });
-        window.addEventListener('touchend', onEnd);
-
-        function animate() {
-            balls.forEach((ball, i) => {
-                ball.update();
-                const idx = i * 3;
-                posRadArray[idx] = ball.x;
-                posRadArray[idx + 1] = ball.y;
-                posRadArray[idx + 2] = ball.radius;
-            });
-
-            gl.uniform2f(resUniform, canvas.width, canvas.height);
-            gl.uniform3fv(posRadUniform, posRadArray);
-            gl.uniform3fv(colorUniform, colorArray);
-            gl.drawArrays(gl.TRIANGLES, 0, 6);
-            requestAnimationFrame(animate);
-        }
-        animate();
     </script>
 </body>
 </html>
