@@ -73,6 +73,10 @@
 <body>
     <div id="metaball-window">
         <canvas id="canvas"></canvas>
+        <div id="zoom-controls" aria-label="Zoom controls">
+            <button class="zoom-button" id="zoom-out" type="button" aria-label="Zoom out">−</button>
+            <button class="zoom-button" id="zoom-in" type="button" aria-label="Zoom in">+</button>
+        </div>
     </div>
     <script>
         const canvas = document.getElementById('canvas');
@@ -113,16 +117,9 @@
                 float gridSize = 28.0;
                 vec2 gridCell = abs(fract(worldPos / gridSize) - 0.5);
                 vec2 gridDistance = gridCell * gridSize;
-                float verticalLine = 1.0 - smoothstep(0.0, 0.9, gridDistance.x);
-                float horizontalLine = 1.0 - smoothstep(0.0, 0.9, gridDistance.y);
-                float gridStrength = clamp((verticalLine + horizontalLine) * 0.22, 0.0, 1.0);
-
-                float edgeDistance = min(
-                    min(screenPos.x, u_resolution.x - screenPos.x),
-                    min(screenPos.y, u_resolution.y - screenPos.y)
-                );
-                float edgeFade = 1.0 - smoothstep(24.0, 120.0, edgeDistance);
-                gridStrength *= edgeFade;
+                float verticalLine = 1.0 - smoothstep(0.0, 0.8, gridDistance.x);
+                float horizontalLine = 1.0 - smoothstep(0.0, 0.8, gridDistance.y);
+                float gridStrength = clamp((verticalLine + horizontalLine) * 0.25, 0.0, 1.0);
 
                 if (totalInfluence > 1.2) {
                     gl_FragColor = vec4(colorSum / totalInfluence, 1.0);
@@ -161,7 +158,9 @@
         gl.vertexAttribPointer(positionAttribute, 2, gl.FLOAT, false, 0, 0);
 
         const WORLD_SCALE = 4;
-        const CAMERA_ZOOM = 1.8;
+        let cameraZoom = 1.8;
+        const MIN_ZOOM = 0.25;
+        const MAX_ZOOM = 8.0;
         const camera = { x: 0, y: 0 };
 
         function getWorldWidth() {
@@ -173,8 +172,8 @@
         }
 
         function clampCamera() {
-            const halfViewWidth = canvas.width / (2 * CAMERA_ZOOM);
-            const halfViewHeight = canvas.height / (2 * CAMERA_ZOOM);
+            const halfViewWidth = canvas.width / (2 * cameraZoom);
+            const halfViewHeight = canvas.height / (2 * cameraZoom);
 
             camera.x = Math.max(
                 halfViewWidth,
@@ -267,8 +266,8 @@
                 camera.x = getWorldWidth() / 2;
                 camera.y = getWorldHeight() / 2;
 
-                const halfViewWidth = canvas.width / (2 * CAMERA_ZOOM);
-                const halfViewHeight = canvas.height / (2 * CAMERA_ZOOM);
+                const halfViewWidth = canvas.width / (2 * cameraZoom);
+                const halfViewHeight = canvas.height / (2 * cameraZoom);
 
                 balls.forEach(ball => {
                     ball.x = camera.x + (Math.random() * 2 - 1) * Math.max(1, halfViewWidth - ball.radius);
@@ -305,8 +304,8 @@
 
         function screenToWorld(pos) {
             return {
-                x: camera.x + (pos.x - canvas.width / 2) / CAMERA_ZOOM,
-                y: camera.y + (pos.y - canvas.height / 2) / CAMERA_ZOOM
+                x: camera.x + (pos.x - canvas.width / 2) / cameraZoom,
+                y: camera.y + (pos.y - canvas.height / 2) / cameraZoom
             };
         }
 
@@ -353,8 +352,8 @@
             }
 
             if (isPanning) {
-                camera.x -= (pos.x - lastMouseX) / CAMERA_ZOOM;
-                camera.y -= (pos.y - lastMouseY) / CAMERA_ZOOM;
+                camera.x -= (pos.x - lastMouseX) / cameraZoom;
+                camera.y -= (pos.y - lastMouseY) / cameraZoom;
                 clampCamera();
 
                 lastMouseX = pos.x;
@@ -376,6 +375,14 @@
         window.addEventListener('touchmove', onMove, { passive: false });
         window.addEventListener('touchend', onEnd);
 
+        function setZoom(nextZoom) {
+            cameraZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, Number(nextZoom.toFixed(1))));
+            clampCamera();
+        }
+
+        document.getElementById('zoom-out').addEventListener('click', () => setZoom(cameraZoom - 0.1));
+        document.getElementById('zoom-in').addEventListener('click', () => setZoom(cameraZoom + 0.1));
+
         function animate() {
             balls.forEach((ball, i) => {
                 ball.update();
@@ -387,7 +394,7 @@
 
             gl.uniform2f(resUniform, canvas.width, canvas.height);
             gl.uniform2f(cameraUniform, camera.x, camera.y);
-            gl.uniform1f(zoomUniform, CAMERA_ZOOM);
+            gl.uniform1f(zoomUniform, cameraZoom);
             gl.uniform3fv(posRadUniform, posRadArray);
             gl.uniform3fv(colorUniform, colorArray);
             gl.drawArrays(gl.TRIANGLES, 0, 6);
