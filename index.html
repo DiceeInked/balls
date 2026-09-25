@@ -154,8 +154,8 @@
 
                     const positionAttribute = gl.getAttribLocation(program, "position");
                     const pixelRatioUniform = gl.getUniformLocation(program, "u_pixelRatio");
-                    const posRadUniform = gl.getUniformLocation(program, "u_ballsPosRad");
-                    const colorUniform = gl.getUniformLocation(program, "u_ballsColor");
+                    const posRadUniform = gl.getUniformLocation(program, "u_ballsPosRad[0]");
+                    const colorUniform = gl.getUniformLocation(program, "u_ballsColor[0]");
 
                     if (
                         positionAttribute < 0 ||
