@@ -22,11 +22,16 @@
             justify-content: center;
         }
 
-        #metaball-window {
+        #metaball-stage {
             position: relative;
             width: min(94vw, 90vh, 1100px);
             aspect-ratio: 1 / 1;
-            height: auto;
+        }
+
+        #metaball-window {
+            position: relative;
+            width: 100%;
+            height: 100%;
             box-sizing: border-box;
             overflow: hidden;
             border-radius: 32px;
@@ -66,8 +71,8 @@
 
         #zoom-controls {
             position: absolute;
-            right: max(14px, env(safe-area-inset-right));
-            bottom: max(14px, env(safe-area-inset-bottom));
+            left: calc(100% + 14px);
+            bottom: 18px;
             z-index: 5;
             display: flex;
             gap: 10px;
@@ -115,7 +120,7 @@
             .zoom-button {
                 width: 48px;
                 height: 48px;
-                border-radius: 15px;
+                border-radius: 50%;
                 font-size: 26px;
             }
         }
@@ -127,22 +132,34 @@
             }
 
             #zoom-controls {
-                right: max(12px, env(safe-area-inset-right));
-                bottom: max(12px, env(safe-area-inset-bottom));
+                left: calc(100% + 10px);
+                bottom: 12px;
                 gap: 8px;
             }
 
             .zoom-button {
                 width: 52px;
                 height: 52px;
-                border-radius: 15px;
+                border-radius: 50%;
                 font-size: 28px;
             }
         }
 
         @supports (height: 1dvh) {
-            #metaball-window {
+            #metaball-stage {
                 width: min(94vw, 90dvh, 1100px);
+            }
+        }
+
+        @media (max-width: 500px) {
+            #metaball-stage {
+                width: min(86vw, 84dvh, 900px);
+            }
+
+            #zoom-controls {
+                left: 50%;
+                bottom: -66px;
+                transform: translateX(-50%);
             }
         }
 
@@ -155,8 +172,10 @@
     </style>
 </head>
 <body>
-    <div id="metaball-window">
-        <canvas id="canvas"></canvas>
+    <div id="metaball-stage">
+        <div id="metaball-window">
+            <canvas id="canvas"></canvas>
+        </div>
         <div id="zoom-controls" aria-label="Zoom controls">
             <button class="zoom-button" id="zoom-out" type="button" aria-label="Zoom out">−</button>
             <button class="zoom-button" id="zoom-in" type="button" aria-label="Zoom in">+</button>
@@ -198,19 +217,19 @@
                     }
                 }
 
-                float gridSize = 28.0;
-                float lineWidth = 1.5 / u_zoom;
-                vec2 gridCell = abs(fract(worldPos / gridSize) - 0.5);
-                vec2 gridDistance = gridCell * gridSize;
-                float verticalLine = 1.0 - smoothstep(0.0, lineWidth, gridDistance.x);
-                float horizontalLine = 1.0 - smoothstep(0.0, lineWidth, gridDistance.y);
-                float gridLine = max(verticalLine, horizontalLine);
-                float gridStrength = gridLine * 0.25;
+                float dotSpacing = 34.0;
+                vec2 dotCenter = floor(worldPos / dotSpacing + 0.5) * dotSpacing;
+                float dotDistance = distance(worldPos, dotCenter);
+
+                // The dot stays readable at low zoom but does not scale without limit.
+                float dotRadius = clamp(2.4 / u_zoom, 1.0, 3.2);
+                float dotMask = 1.0 - smoothstep(dotRadius, dotRadius + 0.8, dotDistance);
+                float dotStrength = dotMask * 0.34;
 
                 if (totalInfluence > 1.2) {
                     gl_FragColor = vec4(colorSum / totalInfluence, 1.0);
-                } else if (gridStrength > 0.001) {
-                    gl_FragColor = vec4(vec3(1.0), gridStrength);
+                } else if (dotStrength > 0.001) {
+                    gl_FragColor = vec4(vec3(0.55), dotStrength);
                 } else {
                     gl_FragColor = vec4(0.0, 0.0, 0.0, 0.0);
                 }
