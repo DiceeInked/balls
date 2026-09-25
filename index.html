@@ -74,22 +74,15 @@
                 linear-gradient(90deg, rgba(255, 255, 255, 0.5) 1px, transparent 1px);
             background-size: 40px 40px;
             background-position: 0 0;
-            -webkit-mask-image: linear-gradient(
-                to bottom,
-                #000 0%,
-                transparent 10%,
-                transparent 90%,
-                #000 100%
-            );
-            mask-image: linear-gradient(
-                to bottom,
-                #000 0%,
-                transparent 10%,
-                transparent 90%,
-                #000 100%
-            );
+            -webkit-mask-image:
+                linear-gradient(to right, #000 0%, transparent 12%, transparent 88%, #000 100%),
+                linear-gradient(to bottom, #000 0%, transparent 12%, transparent 88%, #000 100%);
+            mask-image:
+                linear-gradient(to right, #000 0%, transparent 12%, transparent 88%, #000 100%),
+                linear-gradient(to bottom, #000 0%, transparent 12%, transparent 88%, #000 100%);
             -webkit-mask-composite: intersect;
             mask-composite: intersect;
+            -webkit-mask-composite: source-in;
         }
 
         @media (max-width: 600px) {
@@ -106,7 +99,7 @@
     </div>
     <script>
         const canvas = document.getElementById('canvas');
-        const gl = canvas.getContext('webgl');
+        const gl = canvas.getContext('webgl', { alpha: true });
         if (!gl) alert('WebGL not supported');
 
         const vsSource = `
@@ -133,7 +126,7 @@
                         colorSum += u_ballsColor[i] * influence;
                     }
                 }
-                gl_FragColor = totalInfluence > 1.2 ? vec4(colorSum / totalInfluence, 1.0) : vec4(0.0, 0.0, 0.0, 1.0);
+                gl_FragColor = totalInfluence > 1.2 ? vec4(colorSum / totalInfluence, 1.0) : vec4(0.0, 0.0, 0.0, 0.0);
             }
         `;
 
