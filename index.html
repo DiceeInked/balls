@@ -192,7 +192,7 @@
             uniform float u_zoom;
             uniform vec3 u_ballsPosRad[4];
             uniform vec3 u_ballsColor[4];
-            uniform vec3 u_spikesPosRad[64];
+            uniform vec3 u_spikesPosRad[16];
             uniform int u_spikeCount;
 
             void main() {
@@ -201,6 +201,7 @@
 
                 float totalInfluence = 0.0;
                 vec3 colorSum = vec3(0.0);
+                float metaballInfluence = 0.0;
 
                 for (int i = 0; i < 4; i++) {
                     vec3 ball = u_ballsPosRad[i];
@@ -208,6 +209,7 @@
                     if (distanceSq > 0.0) {
                         float influence = (ball.z * ball.z) / distanceSq;
                         totalInfluence += influence;
+                        metaballInfluence += influence;
                         colorSum += u_ballsColor[i] * influence;
                     }
                 }
@@ -240,8 +242,8 @@
                 float dotMask = 1.0 - smoothstep(dotRadius, dotRadius + 0.8, dotDistance);
                 float dotStrength = dotMask * 0.34;
 
-                if (totalInfluence > 1.2) {
-                    gl_FragColor = vec4(colorSum / totalInfluence, 1.0);
+                if (metaballInfluence > 0.2 && totalInfluence > 1.2) {
+                    gl_FragColor = vec4(colorSum / metaballInfluence, 1.0);
                 } else if (dotStrength > 0.001) {
                     gl_FragColor = vec4(vec3(0.55), dotStrength);
                 } else {
@@ -684,7 +686,7 @@
 
         // Adjusted size to 12 (4 balls * 3 elements each)
         const posRadArray = new Float32Array(12);
-        const spikePosRadArray = new Float32Array(64 * 3);
+        const spikePosRadArray = new Float32Array(16 * 3);
 
         // Added the color values (0, 0, 0) to the flat color array
         const colorArray = new Float32Array([
@@ -973,7 +975,7 @@
             gl.uniform2f(resUniform, canvas.width, canvas.height);
             gl.uniform2f(cameraUniform, camera.x, camera.y);
             gl.uniform1f(zoomUniform, cameraZoom);
-            const visibleSpikeCount = Math.min(spikeBalls.length, 64);
+            const visibleSpikeCount = Math.min(spikeBalls.length, 16);
             for (let i = 0; i < visibleSpikeCount; i++) {
                 const spike = spikeBalls[i];
                 const idx = i * 3;
