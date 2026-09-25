@@ -24,8 +24,10 @@
 
         #metaball-window {
             position: relative;
-            width: min(92vw, 1100px);
-            height: min(78vh, 700px);
+            width: min(88vw, 82vh, 1000px);
+            aspect-ratio: 1 / 1;
+            height: auto;
+            box-sizing: border-box;
             overflow: hidden;
             border-radius: 32px;
             background: rgba(255, 255, 255, 0.035);
@@ -60,8 +62,7 @@
 
         @media (max-width: 600px) {
             #metaball-window {
-                width: 92vw;
-                height: 76vh;
+                width: 88vw;
                 border-radius: 26px;
             }
         }
