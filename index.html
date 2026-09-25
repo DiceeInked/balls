@@ -62,29 +62,6 @@
             border-radius: inherit;
         }
 
-        #metaball-window::after {
-            content: "";
-            position: absolute;
-            inset: 0;
-            border-radius: inherit;
-            pointer-events: none;
-            z-index: 0;
-            background-image:
-                linear-gradient(rgba(255, 255, 255, 0.5) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(255, 255, 255, 0.5) 1px, transparent 1px);
-            background-size: 40px 40px;
-            background-position: 0 0;
-            -webkit-mask-image:
-                linear-gradient(to right, #000 0%, transparent 12%, transparent 88%, #000 100%),
-                linear-gradient(to bottom, #000 0%, transparent 12%, transparent 88%, #000 100%);
-            mask-image:
-                linear-gradient(to right, #000 0%, transparent 12%, transparent 88%, #000 100%),
-                linear-gradient(to bottom, #000 0%, transparent 12%, transparent 88%, #000 100%);
-            -webkit-mask-composite: intersect;
-            mask-composite: add;
-            -webkit-mask-composite: source-over;
-        }
-
         @media (max-width: 600px) {
             #metaball-window {
                 width: 88vw;
@@ -111,22 +88,49 @@
         const fsSource = `
             precision mediump float;
             uniform vec2 u_resolution;
+            uniform vec2 u_camera;
+            uniform float u_zoom;
             uniform vec3 u_ballsPosRad[4];
             uniform vec3 u_ballsColor[4];
+
             void main() {
-                vec2 st = gl_FragCoord.xy;
+                vec2 screenPos = gl_FragCoord.xy;
+                vec2 worldPos = u_camera + (screenPos - 0.5 * u_resolution) / u_zoom;
+
                 float totalInfluence = 0.0;
                 vec3 colorSum = vec3(0.0);
+
                 for (int i = 0; i < 4; i++) {
                     vec3 ball = u_ballsPosRad[i];
-                    float distanceSq = dot(st - ball.xy, st - ball.xy);
+                    float distanceSq = dot(worldPos - ball.xy, worldPos - ball.xy);
                     if (distanceSq > 0.0) {
                         float influence = (ball.z * ball.z) / distanceSq;
                         totalInfluence += influence;
                         colorSum += u_ballsColor[i] * influence;
                     }
                 }
-                gl_FragColor = totalInfluence > 1.2 ? vec4(colorSum / totalInfluence, 1.0) : vec4(0.0, 0.0, 0.0, 0.0);
+
+                float gridSize = 28.0;
+                vec2 gridCell = abs(fract(worldPos / gridSize) - 0.5);
+                vec2 gridDistance = gridCell * gridSize;
+                float verticalLine = 1.0 - smoothstep(0.0, 0.9, gridDistance.x);
+                float horizontalLine = 1.0 - smoothstep(0.0, 0.9, gridDistance.y);
+                float gridStrength = clamp((verticalLine + horizontalLine) * 0.22, 0.0, 1.0);
+
+                float edgeDistance = min(
+                    min(screenPos.x, u_resolution.x - screenPos.x),
+                    min(screenPos.y, u_resolution.y - screenPos.y)
+                );
+                float edgeFade = 1.0 - smoothstep(24.0, 120.0, edgeDistance);
+                gridStrength *= edgeFade;
+
+                if (totalInfluence > 1.2) {
+                    gl_FragColor = vec4(colorSum / totalInfluence, 1.0);
+                } else if (gridStrength > 0.001) {
+                    gl_FragColor = vec4(vec3(1.0), gridStrength);
+                } else {
+                    gl_FragColor = vec4(0.0, 0.0, 0.0, 0.0);
+                }
             }
         `;
 
@@ -145,6 +149,8 @@
 
         const positionAttribute = gl.getAttribLocation(program, "position");
         const resUniform = gl.getUniformLocation(program, "u_resolution");
+        const cameraUniform = gl.getUniformLocation(program, "u_camera");
+        const zoomUniform = gl.getUniformLocation(program, "u_zoom");
         const posRadUniform = gl.getUniformLocation(program, "u_ballsPosRad");
         const colorUniform = gl.getUniformLocation(program, "u_ballsColor");
 
@@ -154,25 +160,59 @@
         gl.enableVertexAttribArray(positionAttribute);
         gl.vertexAttribPointer(positionAttribute, 2, gl.FLOAT, false, 0, 0);
 
+        const WORLD_SCALE = 4;
+        const CAMERA_ZOOM = 1.8;
+        const camera = { x: 0, y: 0 };
+
+        function getWorldWidth() {
+            return canvas.width * WORLD_SCALE;
+        }
+
+        function getWorldHeight() {
+            return canvas.height * WORLD_SCALE;
+        }
+
+        function clampCamera() {
+            const halfViewWidth = canvas.width / (2 * CAMERA_ZOOM);
+            const halfViewHeight = canvas.height / (2 * CAMERA_ZOOM);
+
+            camera.x = Math.max(
+                halfViewWidth,
+                Math.min(getWorldWidth() - halfViewWidth, camera.x)
+            );
+            camera.y = Math.max(
+                halfViewHeight,
+                Math.min(getWorldHeight() - halfViewHeight, camera.y)
+            );
+        }
+
+        function clampBall(ball) {
+            ball.x = Math.max(ball.radius, Math.min(getWorldWidth() - ball.radius, ball.x));
+            ball.y = Math.max(ball.radius, Math.min(getWorldHeight() - ball.radius, ball.y));
+        }
+
         class Metaball {
             constructor(r, g, b) {
                 this.color = [r, g, b];
                 this.x = Math.random() * canvas.width;
                 this.y = Math.random() * canvas.height;
                 const angle = Math.random() * Math.PI * 2;
-                
-                this.normalSpeed = 4; 
+
+                this.normalSpeed = 2;
                 this.vx = Math.cos(angle) * this.normalSpeed;
                 this.vy = Math.sin(angle) * this.normalSpeed;
-                
+
                 this.isDragging = false;
                 this.resize();
             }
+
             resize() {
-                this.radius = Math.max(Math.min(canvas.width, canvas.height) * 0.12, 60);
+                this.radius = Math.max(Math.min(canvas.width, canvas.height) * 0.055, 24);
             }
+
             update() {
                 if (this.isDragging) return;
+
                 const currentSpeed = Math.hypot(this.vx, this.vy);
                 if (currentSpeed > 0.001) {
                     const targetSpeed = currentSpeed + (this.normalSpeed - currentSpeed) * 0.02;
@@ -183,12 +223,14 @@
                     this.vx = Math.cos(angle) * this.normalSpeed;
                     this.vy = Math.sin(angle) * this.normalSpeed;
                 }
+
                 this.x += this.vx;
                 this.y += this.vy;
-                if (this.x - this.radius <= 0 || this.x + this.radius >= canvas.width) this.vx *= -1;
-                if (this.y - this.radius <= 0 || this.y + this.radius >= canvas.height) this.vy *= -1;
-                this.x = Math.max(this.radius, Math.min(canvas.width - this.radius, this.x));
-                this.y = Math.max(this.radius, Math.min(canvas.height - this.radius, this.y));
+
+                if (this.x - this.radius <= 0 || this.x + this.radius >= getWorldWidth()) this.vx *= -1;
+                if (this.y - this.radius <= 0 || this.y + this.radius >= getWorldHeight()) this.vy *= -1;
+
+                clampBall(this);
             }
         }
 
@@ -211,52 +253,119 @@
             0, 0, 0
         ]);
 
+        let initialized = false;
+
         function resize() {
             const rect = canvas.getBoundingClientRect();
             canvas.width = Math.max(1, Math.round(rect.width));
             canvas.height = Math.max(1, Math.round(rect.height));
             gl.viewport(0, 0, canvas.width, canvas.height);
+
             balls.forEach(b => b.resize());
+
+            if (!initialized) {
+                camera.x = getWorldWidth() / 2;
+                camera.y = getWorldHeight() / 2;
+
+                const halfViewWidth = canvas.width / (2 * CAMERA_ZOOM);
+                const halfViewHeight = canvas.height / (2 * CAMERA_ZOOM);
+
+                balls.forEach(ball => {
+                    ball.x = camera.x + (Math.random() * 2 - 1) * Math.max(1, halfViewWidth - ball.radius);
+                    ball.y = camera.y + (Math.random() * 2 - 1) * Math.max(1, halfViewHeight - ball.radius);
+                    clampBall(ball);
+                });
+
+                initialized = true;
+            } else {
+                balls.forEach(clampBall);
+                clampCamera();
+            }
         }
         window.addEventListener('resize', resize);
         resize();
 
-        let activeBall = null, lastMouseX = 0, lastMouseY = 0;
+        let activeBall = null;
+        let isPanning = false;
+        let lastMouseX = 0;
+        let lastMouseY = 0;
+        let lastWorldX = 0;
+        let lastWorldY = 0;
 
         function getMousePos(e) {
             const clientX = e.touches ? e.touches[0].clientX : e.clientX;
             const clientY = e.touches ? e.touches[0].clientY : e.clientY;
             const rect = canvas.getBoundingClientRect();
+
             return {
                 x: clientX - rect.left,
                 y: rect.height - (clientY - rect.top)
             };
         }
 
+        function screenToWorld(pos) {
+            return {
+                x: camera.x + (pos.x - canvas.width / 2) / CAMERA_ZOOM,
+                y: camera.y + (pos.y - canvas.height / 2) / CAMERA_ZOOM
+            };
+        }
+
         function onStart(e) {
             if (e.cancelable) e.preventDefault();
+
             const pos = getMousePos(e);
-            activeBall = balls.find(b => Math.hypot(b.x - pos.x, b.y - pos.y) < b.radius) || null;
+            const worldPos = screenToWorld(pos);
+
+            activeBall = balls.find(
+                b => Math.hypot(b.x - worldPos.x, b.y - worldPos.y) < b.radius
+            ) || null;
+
             if (activeBall) {
                 activeBall.isDragging = true;
+                lastWorldX = worldPos.x;
+                lastWorldY = worldPos.y;
+                return;
+            }
+
+            isPanning = true;
+            lastMouseX = pos.x;
+            lastMouseY = pos.y;
+        }
+
+        function onMove(e) {
+            if (e.cancelable) e.preventDefault();
+
+            const pos = getMousePos(e);
+
+            if (activeBall) {
+                const worldPos = screenToWorld(pos);
+
+                activeBall.vx = worldPos.x - lastWorldX;
+                activeBall.vy = worldPos.y - lastWorldY;
+                activeBall.x = worldPos.x;
+                activeBall.y = worldPos.y;
+
+                clampBall(activeBall);
+
+                lastWorldX = activeBall.x;
+                lastWorldY = activeBall.y;
+                return;
+            }
+
+            if (isPanning) {
+                camera.x -= (pos.x - lastMouseX) / CAMERA_ZOOM;
+                camera.y -= (pos.y - lastMouseY) / CAMERA_ZOOM;
+                clampCamera();
+
                 lastMouseX = pos.x;
                 lastMouseY = pos.y;
             }
         }
 
-        function onMove(e) {
-            if (e.cancelable) e.preventDefault(); 
-            if (!activeBall) return;
-            const pos = getMousePos(e);
-            activeBall.vx = pos.x - lastMouseX;
-            activeBall.vy = pos.y - lastMouseY;
-            activeBall.x = lastMouseX = pos.x;
-            activeBall.y = lastMouseY = pos.y;
-        }
-
         function onEnd() {
             if (activeBall) activeBall.isDragging = false;
             activeBall = null;
+            isPanning = false;
         }
 
         window.addEventListener('mousedown', onStart);
@@ -277,6 +386,8 @@
             });
 
             gl.uniform2f(resUniform, canvas.width, canvas.height);
+            gl.uniform2f(cameraUniform, camera.x, camera.y);
+            gl.uniform1f(zoomUniform, CAMERA_ZOOM);
             gl.uniform3fv(posRadUniform, posRadArray);
             gl.uniform3fv(colorUniform, colorArray);
             gl.drawArrays(gl.TRIANGLES, 0, 6);
