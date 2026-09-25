@@ -192,6 +192,8 @@
             uniform float u_zoom;
             uniform vec3 u_ballsPosRad[4];
             uniform vec3 u_ballsColor[4];
+            uniform vec3 u_spikesPosRad[64];
+            uniform int u_spikeCount;
 
             void main() {
                 vec2 screenPos = gl_FragCoord.xy;
@@ -209,6 +211,25 @@
                         colorSum += u_ballsColor[i] * influence;
                     }
                 }
+
+                // Spike balls do not render as metaballs and never participate in
+                // physical collisions with metaballs. Their field only bends the
+                // metaball surface visually, like an invisible metaball attraction field.
+                float spikeInfluence = 0.0;
+                for (int i = 0; i < 64; i++) {
+                    if (i < u_spikeCount) {
+                        vec3 spike = u_spikesPosRad[i];
+                        float distanceSq = dot(worldPos - spike.xy, worldPos - spike.xy);
+                        if (distanceSq > 0.0) {
+                            spikeInfluence += (spike.z * spike.z) / distanceSq;
+                        }
+                    }
+                }
+
+                // Add a small amount of the spike field to the metaball threshold.
+                // This makes nearby metaballs stretch/wrap around spikes without
+                // letting an isolated spike create a visible metaball of its own.
+                totalInfluence += spikeInfluence * 0.42;
 
                 float dotSpacing = 34.0;
                 vec2 dotCenter = floor(worldPos / dotSpacing + 0.5) * dotSpacing;
@@ -248,6 +269,8 @@
         const zoomUniform = gl.getUniformLocation(program, "u_zoom");
         const posRadUniform = gl.getUniformLocation(program, "u_ballsPosRad");
         const colorUniform = gl.getUniformLocation(program, "u_ballsColor");
+        const spikePosRadUniform = gl.getUniformLocation(program, "u_spikesPosRad");
+        const spikeCountUniform = gl.getUniformLocation(program, "u_spikeCount");
 
         const buffer = gl.createBuffer();
         gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
@@ -661,7 +684,8 @@
 
         // Adjusted size to 12 (4 balls * 3 elements each)
         const posRadArray = new Float32Array(12);
-        
+        const spikePosRadArray = new Float32Array(64 * 3);
+
         // Added the color values (0, 0, 0) to the flat color array
         const colorArray = new Float32Array([
             0, 1, 0.78, 
@@ -949,8 +973,21 @@
             gl.uniform2f(resUniform, canvas.width, canvas.height);
             gl.uniform2f(cameraUniform, camera.x, camera.y);
             gl.uniform1f(zoomUniform, cameraZoom);
+            const visibleSpikeCount = Math.min(spikeBalls.length, 64);
+            for (let i = 0; i < visibleSpikeCount; i++) {
+                const spike = spikeBalls[i];
+                const idx = i * 3;
+                spikePosRadArray[idx] = spike.x;
+                spikePosRadArray[idx + 1] = spike.y;
+                // Scale the field radius down slightly so it gently wraps
+                // around the spike instead of behaving like a huge blob.
+                spikePosRadArray[idx + 2] = spike.radius * 0.82;
+            }
+
             gl.uniform3fv(posRadUniform, posRadArray);
             gl.uniform3fv(colorUniform, colorArray);
+            gl.uniform3fv(spikePosRadUniform, spikePosRadArray);
+            gl.uniform1i(spikeCountUniform, visibleSpikeCount);
             gl.drawArrays(gl.TRIANGLES, 0, 6);
             requestAnimationFrame(animate);
         }
