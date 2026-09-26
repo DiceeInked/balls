@@ -196,14 +196,73 @@
         }
 
         @media (max-width: 500px) {
+            body {
+                align-items: flex-start;
+                padding-top: max(58px, env(safe-area-inset-top));
+                padding-bottom: max(92px, env(safe-area-inset-bottom));
+                box-sizing: border-box;
+            }
+
             #metaball-stage {
-                width: min(86vw, 84dvh, 900px);
+                width: min(92vw, calc(100dvh - 170px), 900px);
+                max-width: 520px;
+            }
+
+            #metaball-window {
+                border-radius: 22px;
+            }
+
+            #site-controls {
+                top: -52px;
+            }
+
+            .site-button {
+                width: 50px;
+                height: 50px;
+                font-size: 17px;
             }
 
             #zoom-controls {
                 left: 50%;
-                bottom: -66px;
+                bottom: -76px;
+                gap: 12px;
                 transform: translateX(-50%);
+            }
+
+            .zoom-button {
+                width: 62px;
+                height: 62px;
+                min-width: 62px;
+                min-height: 62px;
+                font-size: 32px;
+            }
+        }
+
+        @media (max-width: 500px) and (orientation: landscape) {
+            body {
+                align-items: center;
+                padding: max(12px, env(safe-area-inset-top))
+                         max(12px, env(safe-area-inset-right))
+                         max(12px, env(safe-area-inset-bottom))
+                         max(12px, env(safe-area-inset-left));
+            }
+
+            #metaball-stage {
+                width: min(78vw, calc(100dvh - 30px), 900px);
+            }
+
+            #site-controls {
+                top: 10px;
+                left: 10px;
+                right: 10px;
+            }
+
+            #zoom-controls {
+                left: auto;
+                right: 12px;
+                bottom: 12px;
+                transform: none;
+                flex-direction: column;
             }
         }
 
@@ -248,7 +307,7 @@
             void main() { gl_Position = vec4(position, 0.0, 1.0); }
         `;
 
-        // Updated array size to [4] and loop condition to i < 4 to handle the fourth ball
+        // The VR version renders three metaballs; spike fields are separate.
         const fsSource = `
             precision mediump float;
             uniform vec2 u_resolution;
@@ -953,78 +1012,81 @@
         function drawGlitchVisual(glitch, ctx) {
             const screen = worldToScreen(glitch.x, glitch.y);
             const intensity = Math.max(1, glitch.xp);
-            const burstCount = 26 + intensity * 8;
-            const baseRadius = Math.max(14, glitch.radius * cameraZoom);
+            const hitRadius = Math.max(8, glitch.radius * cameraZoom);
             const seed = glitch.phase * 1.37;
 
             if (
-                screen.x + baseRadius * 3 < 0 ||
-                screen.x - baseRadius * 3 > canvas.width ||
-                screen.y + baseRadius * 3 < 0 ||
-                screen.y - baseRadius * 3 > canvas.height
+                screen.x + hitRadius * 1.8 < 0 ||
+                screen.x - hitRadius * 1.8 > canvas.width ||
+                screen.y + hitRadius * 1.8 < 0 ||
+                screen.y - hitRadius * 1.8 > canvas.height
             ) {
                 return;
             }
 
+            // The visual is deliberately built around the real collision radius.
+            // It should feel like a broken object, not a glowing circle.
             ctx.save();
             ctx.globalCompositeOperation = 'screen';
 
-            // Offset scanline fragments.
-            for (let i = 0; i < 10 + intensity * 3; i++) {
-                const n = Math.sin(seed * 7.1 + i * 19.37) * 43758.5453;
-                const random = n - Math.floor(n);
-                const angle = seed * 2.3 + i * 2.71 + random;
-                const distance = baseRadius * (0.25 + random * 1.9);
-                const width = baseRadius * (0.08 + random * 0.22);
-                const height = Math.max(2, baseRadius * (0.025 + random * 0.08));
-                const x = screen.x + Math.cos(angle) * distance;
-                const y = screen.y + Math.sin(angle) * distance;
+            const fragmentCount = 18 + intensity * 5;
+
+            for (let i = 0; i < fragmentCount; i++) {
+                const n1 = Math.sin(seed * 8.17 + i * 19.31) * 43758.5453;
+                const n2 = Math.sin(seed * 4.73 + i * 47.11) * 24634.6345;
+                const n3 = Math.sin(seed * 2.91 + i * 83.77) * 15731.743;
+                const r1 = n1 - Math.floor(n1);
+                const r2 = n2 - Math.floor(n2);
+                const r3 = n3 - Math.floor(n3);
+
+                const angle = seed * (1.4 + r1 * 2.2) + i * 2.399;
+                const edge = hitRadius * (0.45 + r2 * 0.62);
+                const length = hitRadius * (0.08 + r3 * 0.34);
+                const width = Math.max(1.5, hitRadius * (0.025 + r1 * 0.07));
+                const x = screen.x + Math.cos(angle) * edge;
+                const y = screen.y + Math.sin(angle) * edge;
 
                 ctx.save();
                 ctx.translate(x, y);
-                ctx.rotate(angle * 0.7);
+                ctx.rotate(angle + r3 * 1.8);
+
                 ctx.fillStyle = i % 2 === 0
-                    ? 'rgba(255, 0, 85, 0.82)'
-                    : 'rgba(30, 90, 255, 0.82)';
-                ctx.fillRect(-width, -height, width * 2, height * 2);
+                    ? 'rgba(255, 0, 85, 0.9)'
+                    : 'rgba(30, 90, 255, 0.9)';
+
+                ctx.beginPath();
+                ctx.moveTo(-length, -width);
+                ctx.lineTo(length * (0.25 + r2), -width * (0.4 + r1));
+                ctx.lineTo(length * (0.75 + r3), width * (0.9 + r2));
+                ctx.lineTo(-length * (0.35 + r1), width * (0.55 + r3));
+                ctx.closePath();
+                ctx.fill();
                 ctx.restore();
             }
 
-            // Jagged red/blue polygon shards.
-            for (let i = 0; i < burstCount; i++) {
-                const n1 = Math.sin(seed * 5.7 + i * 12.9898) * 43758.5453;
-                const n2 = Math.sin(seed * 3.1 + i * 78.233) * 24634.6345;
-                const r1 = n1 - Math.floor(n1);
-                const r2 = n2 - Math.floor(n2);
-                const angle = seed * 1.9 + i * 2.399 + r1 * 1.4;
-                const distance = baseRadius * (0.18 + r2 * 1.75);
-                const size = baseRadius * (0.06 + r1 * 0.2);
-                const x = screen.x + Math.cos(angle) * distance;
-                const y = screen.y + Math.sin(angle) * distance;
+            // Short, offset scanline glitches stay close to the hitbox.
+            for (let i = 0; i < 7 + intensity * 2; i++) {
+                const n = Math.sin(seed * 11.3 + i * 31.7) * 15731.743;
+                const random = n - Math.floor(n);
+                const side = random < 0.5 ? -1 : 1;
+                const x = screen.x + side * hitRadius * (0.55 + random * 0.55);
+                const y = screen.y + (random - 0.5) * hitRadius * 1.7;
+                const width = hitRadius * (0.08 + random * 0.3);
+                const height = Math.max(2, hitRadius * (0.018 + random * 0.045));
 
-                ctx.beginPath();
-                ctx.moveTo(x, y);
-                ctx.lineTo(
-                    x + Math.cos(angle + 0.9) * size * (1.2 + r2 * 2),
-                    y + Math.sin(angle + 0.9) * size * (1.2 + r2 * 2)
-                );
-                ctx.lineTo(
-                    x + Math.cos(angle - 0.65) * size * (0.7 + r1 * 2.4),
-                    y + Math.sin(angle - 0.65) * size * (0.7 + r1 * 2.4)
-                );
-                ctx.closePath();
                 ctx.fillStyle = i % 2 === 0
-                    ? 'rgba(255, 0, 85, 0.68)'
-                    : 'rgba(25, 95, 255, 0.68)';
-                ctx.fill();
+                    ? 'rgba(255, 0, 85, 0.82)'
+                    : 'rgba(30, 90, 255, 0.82)';
+                ctx.fillRect(x - width * 0.5, y - height * 0.5, width, height);
             }
 
-            // Violent cross-cutting fragments keep it from reading as a smooth orb.
-            for (let i = 0; i < 7 + intensity; i++) {
-                const n = Math.sin(seed * 9.3 + i * 31.7) * 15731.743;
+            // A few hard cuts cross the hitbox, but never form a complete ring.
+            for (let i = 0; i < 3 + Math.min(5, intensity); i++) {
+                const n = Math.sin(seed * 5.9 + i * 23.4) * 9123.17;
                 const random = n - Math.floor(n);
-                const angle = seed * -2.1 + i * 1.73;
-                const length = baseRadius * (0.7 + random * 2.4);
+                const angle = seed * 2.7 + i * 2.1 + random;
+                const length = hitRadius * (0.45 + random * 0.65);
+
                 ctx.beginPath();
                 ctx.moveTo(
                     screen.x - Math.cos(angle) * length,
@@ -1035,10 +1097,27 @@
                     screen.y + Math.sin(angle) * length
                 );
                 ctx.strokeStyle = i % 2 === 0
-                    ? 'rgba(255, 0, 85, 0.5)'
-                    : 'rgba(30, 90, 255, 0.5)';
-                ctx.lineWidth = Math.max(1, baseRadius * (0.015 + random * 0.045));
+                    ? 'rgba(255, 0, 85, 0.72)'
+                    : 'rgba(30, 90, 255, 0.72)';
+                ctx.lineWidth = Math.max(1, hitRadius * (0.025 + random * 0.04));
                 ctx.stroke();
+            }
+
+            // Tiny broken pixels make the silhouette irregular without creating
+            // a smooth circular glow around the collision area.
+            for (let i = 0; i < 10 + intensity * 2; i++) {
+                const n1 = Math.sin(seed * 13.1 + i * 17.9) * 43758.5453;
+                const n2 = Math.sin(seed * 6.2 + i * 41.3) * 24634.6345;
+                const r1 = n1 - Math.floor(n1);
+                const r2 = n2 - Math.floor(n2);
+                const x = screen.x + (r1 - 0.5) * hitRadius * 1.5;
+                const y = screen.y + (r2 - 0.5) * hitRadius * 1.5;
+                const size = Math.max(1, hitRadius * (0.015 + r1 * 0.035));
+
+                ctx.fillStyle = i % 2 === 0
+                    ? 'rgba(255, 0, 85, 0.76)'
+                    : 'rgba(30, 90, 255, 0.76)';
+                ctx.fillRect(x, y, size * (1 + r2 * 2.5), size);
             }
 
             ctx.restore();
