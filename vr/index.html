@@ -1,0 +1,1088 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Animated Metaballs &amp; Spike Balls</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #000;
+            overscroll-behavior: none;
+            touch-action: none;
+        }
+
+        body {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #metaball-stage {
+            position: relative;
+            width: min(94vw, 90vh, 1100px);
+            aspect-ratio: 1 / 1;
+        }
+
+        #metaball-window {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            box-sizing: border-box;
+            overflow: hidden;
+            border-radius: 32px;
+            background: transparent;
+            border: 2px solid rgba(170, 170, 170, 0.68);
+            touch-action: none;
+        }
+
+        canvas {
+            position: relative;
+            z-index: 1;
+            display: block;
+            width: 100%;
+            height: 100%;
+            border-radius: inherit;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+
+        #spike-canvas {
+            position: absolute;
+            inset: 0;
+            z-index: 2;
+            display: block;
+            width: 100%;
+            height: 100%;
+            border-radius: inherit;
+            pointer-events: none;
+        }
+
+        #site-controls {
+            position: absolute;
+            top: -56px;
+            left: 0;
+            right: 0;
+            z-index: 10;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            pointer-events: none;
+        }
+
+        .site-button {
+            width: 44px;
+            height: 44px;
+            padding: 0;
+            box-sizing: border-box;
+            border: 2px solid rgba(170, 170, 170, 0.72);
+            border-radius: 50%;
+            background: #000;
+            color: rgba(215, 215, 215, 0.96);
+            font: 700 16px/1 Arial, sans-serif;
+            cursor: pointer;
+            pointer-events: auto;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
+            -webkit-user-select: none;
+            user-select: none;
+            -webkit-appearance: none;
+            appearance: none;
+            display: grid;
+            place-items: center;
+        }
+
+        .site-button:active {
+            transform: scale(0.94);
+            border-color: rgba(220, 220, 220, 0.92);
+        }
+
+        #zoom-controls {
+            position: absolute;
+            left: calc(100% + 14px);
+            bottom: 18px;
+            z-index: 5;
+            display: flex;
+            gap: 10px;
+            pointer-events: auto;
+        }
+
+        .zoom-button {
+            width: 68px;
+            height: 68px;
+            min-width: 68px;
+            min-height: 68px;
+            padding: 0;
+            box-sizing: border-box;
+            border: 2px solid rgba(170, 170, 170, 0.72);
+            border-radius: 50%;
+            background: transparent;
+            color: rgba(205, 205, 205, 0.96);
+            font: 600 34px/1 Arial, sans-serif;
+            cursor: pointer;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
+            -webkit-user-select: none;
+            user-select: none;
+            -webkit-appearance: none;
+            appearance: none;
+            display: grid;
+            place-items: center;
+        }
+
+        .zoom-button:active {
+            border-color: rgba(210, 210, 210, 0.9);
+            transform: scale(0.95);
+        }
+
+        @media (min-width: 1025px) {
+            #zoom-controls {
+                right: 18px;
+                bottom: 18px;
+            }
+
+            .zoom-button {
+                width: 64px;
+                height: 64px;
+                min-width: 64px;
+                min-height: 64px;
+                font-size: 32px;
+            }
+        }
+
+        @media (max-width: 600px) {
+            #site-controls { top: -52px; }
+            .site-button { width: 42px; height: 42px; font-size: 15px; }
+
+            #metaball-window {
+                width: min(94vw, 90vh, 1100px);
+                border-radius: 26px;
+            }
+
+            #zoom-controls {
+                left: calc(100% + 10px);
+                bottom: 12px;
+                gap: 8px;
+            }
+
+            .zoom-button {
+                width: 68px;
+                height: 68px;
+                min-width: 68px;
+                min-height: 68px;
+                font-size: 34px;
+            }
+        }
+
+        @supports (height: 1dvh) {
+            #metaball-stage {
+                width: min(94vw, 90dvh, 1100px);
+            }
+        }
+
+        @media (max-width: 500px) {
+            #metaball-stage {
+                width: min(86vw, 84dvh, 900px);
+            }
+
+            #zoom-controls {
+                left: 50%;
+                bottom: -66px;
+                transform: translateX(-50%);
+            }
+        }
+
+        @media (hover: hover) and (pointer: fine) {
+            .zoom-button:hover {
+                border-color: rgba(210, 210, 210, 0.9);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="metaball-stage">
+        <div id="site-controls" aria-label="Site controls">
+            <button class="site-button" id="debug-button" type="button" aria-label="Open debug view">D</button>
+        </div>
+        <div id="metaball-window">
+            <canvas id="canvas"></canvas>
+            <canvas id="spike-canvas" aria-hidden="true"></canvas>
+        </div>
+        <div id="zoom-controls" aria-label="Zoom controls">
+            <button class="zoom-button" id="zoom-out" type="button" aria-label="Zoom out">−</button>
+            <button class="zoom-button" id="zoom-in" type="button" aria-label="Zoom in">+</button>
+        </div>
+    </div>
+    <script src="../state.js"></script>
+    <script>
+        document.getElementById('debug-button').addEventListener('click', () => {
+            window.open('../debug.html', '_blank', 'noopener');
+        });
+
+        const canvas = document.getElementById('canvas');
+        const spikeCanvas = document.getElementById('spike-canvas');
+        const spikeCtx = spikeCanvas.getContext('2d');
+        const gl = canvas.getContext('webgl', { alpha: true });
+        if (!gl) alert('WebGL not supported');
+
+        const vsSource = `
+            attribute vec2 position;
+            void main() { gl_Position = vec4(position, 0.0, 1.0); }
+        `;
+
+        // Updated array size to [4] and loop condition to i < 4 to handle the fourth ball
+        const fsSource = `
+            precision mediump float;
+            uniform vec2 u_resolution;
+            uniform vec2 u_camera;
+            uniform float u_zoom;
+            uniform vec3 u_ballsPosRad[4];
+            uniform vec3 u_ballsColor[4];
+            uniform vec3 u_spikesPosRad[16];
+            uniform int u_spikeCount;
+
+            void main() {
+                vec2 screenPos = gl_FragCoord.xy;
+                vec2 worldPos = u_camera + (screenPos - 0.5 * u_resolution) / u_zoom;
+
+                float totalInfluence = 0.0;
+                vec3 colorSum = vec3(0.0);
+                float metaballInfluence = 0.0;
+
+                for (int i = 0; i < 4; i++) {
+                    vec3 ball = u_ballsPosRad[i];
+                    float distanceSq = dot(worldPos - ball.xy, worldPos - ball.xy);
+                    if (distanceSq > 0.0) {
+                        float influence = (ball.z * ball.z) / distanceSq;
+                        totalInfluence += influence;
+                        metaballInfluence += influence;
+                        colorSum += u_ballsColor[i] * influence;
+                    }
+                }
+
+                // Spike balls do not render as metaballs and never participate in
+                // physical collisions with metaballs. Their field only bends the
+                // metaball surface visually, like an invisible metaball attraction field.
+                float spikeInfluence = 0.0;
+                for (int i = 0; i < 64; i++) {
+                    if (i < u_spikeCount) {
+                        vec3 spike = u_spikesPosRad[i];
+                        float distanceSq = dot(worldPos - spike.xy, worldPos - spike.xy);
+                        if (distanceSq > 0.0) {
+                            spikeInfluence += (spike.z * spike.z) / distanceSq;
+                        }
+                    }
+                }
+
+                // Add a small amount of the spike field to the metaball threshold.
+                // This makes nearby metaballs stretch/wrap around spikes without
+                // letting an isolated spike create a visible metaball of its own.
+                totalInfluence += spikeInfluence * 0.42;
+
+                float dotSpacing = 34.0;
+                vec2 dotCenter = floor(worldPos / dotSpacing + 0.5) * dotSpacing;
+                float dotDistance = distance(worldPos, dotCenter);
+
+                // The dot stays readable at low zoom but does not scale without limit.
+                float dotRadius = clamp(2.4 / u_zoom, 1.0, 3.2);
+                float dotMask = 1.0 - smoothstep(dotRadius, dotRadius + 0.8, dotDistance);
+                float dotStrength = dotMask * 0.34;
+
+                if (metaballInfluence > 0.2 && totalInfluence > 1.2) {
+                    gl_FragColor = vec4(colorSum / metaballInfluence, 1.0);
+                } else if (dotStrength > 0.001) {
+                    gl_FragColor = vec4(vec3(0.55), dotStrength);
+                } else {
+                    gl_FragColor = vec4(0.0, 0.0, 0.0, 0.0);
+                }
+            }
+        `;
+
+        function createShader(type, source) {
+            const shader = gl.createShader(type);
+            gl.shaderSource(shader, source);
+            gl.compileShader(shader);
+            return shader;
+        }
+
+        const program = gl.createProgram();
+        gl.attachShader(program, createShader(gl.VERTEX_SHADER, vsSource));
+        gl.attachShader(program, createShader(gl.FRAGMENT_SHADER, fsSource));
+        gl.linkProgram(program);
+        gl.useProgram(program);
+
+        const positionAttribute = gl.getAttribLocation(program, "position");
+        const resUniform = gl.getUniformLocation(program, "u_resolution");
+        const cameraUniform = gl.getUniformLocation(program, "u_camera");
+        const zoomUniform = gl.getUniformLocation(program, "u_zoom");
+        const posRadUniform = gl.getUniformLocation(program, "u_ballsPosRad");
+        const colorUniform = gl.getUniformLocation(program, "u_ballsColor");
+        const spikePosRadUniform = gl.getUniformLocation(program, "u_spikesPosRad");
+        const spikeCountUniform = gl.getUniformLocation(program, "u_spikeCount");
+
+        const buffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, -1,1, 1,-1, 1,1]), gl.STATIC_DRAW);
+        gl.enableVertexAttribArray(positionAttribute);
+        gl.vertexAttribPointer(positionAttribute, 2, gl.FLOAT, false, 0, 0);
+
+        const WORLD_SCALE = 4;
+        let cameraZoom = 1.8;
+        const MIN_ZOOM = 0.25;
+        const MAX_ZOOM = 8.0;
+        const camera = { x: 0, y: 0 };
+
+        function getWorldWidth() {
+            return canvas.width * WORLD_SCALE;
+        }
+
+        function getWorldHeight() {
+            return canvas.height * WORLD_SCALE;
+        }
+
+        function clampCamera() {
+            const halfViewWidth = canvas.width / (2 * cameraZoom);
+            const halfViewHeight = canvas.height / (2 * cameraZoom);
+
+            camera.x = Math.max(
+                halfViewWidth,
+                Math.min(getWorldWidth() - halfViewWidth, camera.x)
+            );
+            camera.y = Math.max(
+                halfViewHeight,
+                Math.min(getWorldHeight() - halfViewHeight, camera.y)
+            );
+        }
+
+        function clampBall(ball) {
+            ball.x = Math.max(ball.radius, Math.min(getWorldWidth() - ball.radius, ball.x));
+            ball.y = Math.max(ball.radius, Math.min(getWorldHeight() - ball.radius, ball.y));
+        }
+
+        class Metaball {
+            constructor(r, g, b) {
+                this.color = [r, g, b];
+                this.x = Math.random() * canvas.width;
+                this.y = Math.random() * canvas.height;
+                const angle = Math.random() * Math.PI * 2;
+
+                this.normalSpeed = 2;
+                this.vx = Math.cos(angle) * this.normalSpeed;
+                this.vy = Math.sin(angle) * this.normalSpeed;
+
+                this.isDragging = false;
+                this.resize();
+            }
+
+            resize() {
+                this.radius = Math.max(Math.min(canvas.width, canvas.height) * 0.055, 24);
+            }
+
+            update() {
+                if (this.isDragging) return;
+
+                const currentSpeed = Math.hypot(this.vx, this.vy);
+                if (currentSpeed > 0.001) {
+                    const targetSpeed = currentSpeed + (this.normalSpeed - currentSpeed) * 0.02;
+                    this.vx = (this.vx / currentSpeed) * targetSpeed;
+                    this.vy = (this.vy / currentSpeed) * targetSpeed;
+                } else {
+                    const angle = Math.random() * Math.PI * 2;
+                    this.vx = Math.cos(angle) * this.normalSpeed;
+                    this.vy = Math.sin(angle) * this.normalSpeed;
+                }
+
+                this.x += this.vx;
+                this.y += this.vy;
+
+                if (this.x - this.radius <= 0 || this.x + this.radius >= getWorldWidth()) this.vx *= -1;
+                if (this.y - this.radius <= 0 || this.y + this.radius >= getWorldHeight()) this.vy *= -1;
+
+                clampBall(this);
+            }
+        }
+
+        const MAX_SPIKES = 64;
+        const SPIKE_CHILD_RADIUS_SCALE = 0.55;
+        const SPIKE_COLLISION_COOLDOWN = 8;
+        const SPIKE_COLOR = 'rgba(196, 202, 202, 0.94)';
+        const SPIKE_EDGE_COLOR = 'rgba(145, 152, 152, 0.96)';
+        const spikeBalls = [];
+
+        function getInitialSpikeRadius() {
+            return Math.max(Math.min(canvas.width, canvas.height) * 0.045, 18);
+        }
+
+        class SpikeBall {
+            constructor(sides, x, y, radius, speed = 1.45, direction = Math.random() * Math.PI * 2) {
+                this.sides = sides;
+                this.x = x;
+                this.y = y;
+                this.radius = radius;
+                this.rotation = Math.random() * Math.PI * 2;
+                this.angularVelocity = (Math.random() * 2 - 1) * 0.028;
+                this.vx = Math.cos(direction) * speed;
+                this.vy = Math.sin(direction) * speed;
+                this.isDragging = false;
+                this.collisionCooldown = 0;
+            }
+        }
+
+        function clampSpike(spike) {
+            spike.x = Math.max(spike.radius, Math.min(getWorldWidth() - spike.radius, spike.x));
+            spike.y = Math.max(spike.radius, Math.min(getWorldHeight() - spike.radius, spike.y));
+        }
+
+        function bounceSpikeFromWalls(spike) {
+            if (spike.collisionCooldown > 0 || spike.isDragging) return false;
+
+            let collided = false;
+
+            if (spike.x - spike.radius <= 0) {
+                spike.x = spike.radius;
+                spike.vx = Math.abs(spike.vx || 0.8);
+                collided = true;
+            } else if (spike.x + spike.radius >= getWorldWidth()) {
+                spike.x = getWorldWidth() - spike.radius;
+                spike.vx = -Math.abs(spike.vx || 0.8);
+                collided = true;
+            }
+
+            if (spike.y - spike.radius <= 0) {
+                spike.y = spike.radius;
+                spike.vy = Math.abs(spike.vy || 0.8);
+                collided = true;
+            } else if (spike.y + spike.radius >= getWorldHeight()) {
+                spike.y = getWorldHeight() - spike.radius;
+                spike.vy = -Math.abs(spike.vy || 0.8);
+                collided = true;
+            }
+
+            if (collided) {
+                spike.angularVelocity *= -0.82;
+            }
+
+            return collided;
+        }
+
+        function resolveSpikePairCollision(a, b) {
+            const dx = b.x - a.x;
+            const dy = b.y - a.y;
+            const minimumDistance = a.radius + b.radius;
+            const distance = Math.hypot(dx, dy);
+
+            if (distance >= minimumDistance) return false;
+
+            const nx = distance > 0.0001 ? dx / distance : 1;
+            const ny = distance > 0.0001 ? dy / distance : 0;
+            const overlap = minimumDistance - distance;
+
+            a.x -= nx * (overlap * 0.5 + 0.15);
+            a.y -= ny * (overlap * 0.5 + 0.15);
+            b.x += nx * (overlap * 0.5 + 0.15);
+            b.y += ny * (overlap * 0.5 + 0.15);
+
+            const aNormalVelocity = a.vx * nx + a.vy * ny;
+            if (aNormalVelocity > 0) {
+                a.vx -= 2 * aNormalVelocity * nx;
+                a.vy -= 2 * aNormalVelocity * ny;
+            }
+
+            const bNormalVelocity = b.vx * nx + b.vy * ny;
+            if (bNormalVelocity < 0) {
+                b.vx -= 2 * bNormalVelocity * nx;
+                b.vy -= 2 * bNormalVelocity * ny;
+            }
+
+            const aTangent = -a.vx * ny + a.vy * nx;
+            const bTangent = -b.vx * ny + b.vy * nx;
+            a.angularVelocity += aTangent * 0.0015;
+            b.angularVelocity -= bTangent * 0.0015;
+
+            a.collisionCooldown = SPIKE_COLLISION_COOLDOWN;
+            b.collisionCooldown = SPIKE_COLLISION_COOLDOWN;
+            return true;
+        }
+
+        function makeSpikeChildren(parent) {
+            const nextSides = parent.sides / 2;
+            if (nextSides < 2) return [];
+
+            const childRadius = Math.max(parent.radius * SPIKE_CHILD_RADIUS_SCALE, 2.8);
+            const parentSpeed = Math.max(Math.hypot(parent.vx, parent.vy), 1.0);
+            const baseAngle = Math.atan2(parent.vy, parent.vx);
+            const spreadAngle = 0.24;
+            const separationAngle = baseAngle + Math.PI * 0.5;
+            const separationDistance = childRadius * 1.15;
+            const children = [];
+
+            for (const sign of [-1, 1]) {
+                const offset = sign * separationDistance;
+                const childX = parent.x + Math.cos(separationAngle) * offset;
+                const childY = parent.y + Math.sin(separationAngle) * offset;
+                const direction = baseAngle + sign * spreadAngle;
+                const child = new SpikeBall(
+                    nextSides,
+                    childX,
+                    childY,
+                    childRadius,
+                    parentSpeed * 1.03,
+                    direction
+                );
+
+                child.angularVelocity =
+                    -parent.angularVelocity * 0.72 +
+                    sign * 0.022;
+                child.collisionCooldown = SPIKE_COLLISION_COOLDOWN;
+                clampSpike(child);
+                children.push(child);
+            }
+
+            return children;
+        }
+
+        const particles = [];
+
+        function emitSpikeParticles(x, y) {
+            const count = 12;
+            for (let i = 0; i < count; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const speed = 0.7 + Math.random() * 1.8;
+                particles.push({
+                    x,
+                    y,
+                    vx: Math.cos(angle) * speed,
+                    vy: Math.sin(angle) * speed,
+                    size: 1.4 + Math.random() * 2.0,
+                    life: 0.45 + Math.random() * 0.35,
+                    maxLife: 0.8
+                });
+            }
+        }
+
+        function updateSpikePhysics() {
+            const splitSet = new Set();
+
+            for (const spike of spikeBalls) {
+                if (spike.collisionCooldown > 0) {
+                    spike.collisionCooldown--;
+                }
+
+                if (spike.isDragging) continue;
+
+                spike.x += spike.vx;
+                spike.y += spike.vy;
+                spike.rotation += spike.angularVelocity;
+                spike.angularVelocity *= 0.9995;
+
+                clampSpike(spike);
+
+                if (bounceSpikeFromWalls(spike)) {
+                    splitSet.add(spike);
+                }
+            }
+
+            for (let i = 0; i < spikeBalls.length; i++) {
+                const a = spikeBalls[i];
+                if (a.isDragging || splitSet.has(a) || a.collisionCooldown > 0) continue;
+
+                for (let j = i + 1; j < spikeBalls.length; j++) {
+                    const b = spikeBalls[j];
+                    if (b.isDragging || splitSet.has(b) || b.collisionCooldown > 0) continue;
+
+                    if (resolveSpikePairCollision(a, b)) {
+                        splitSet.add(a);
+                        splitSet.add(b);
+                        break;
+                    }
+                }
+            }
+
+            if (splitSet.size > 0) {
+                const survivors = [];
+                const spawned = [];
+
+                for (const spike of spikeBalls) {
+                    if (!splitSet.has(spike)) {
+                        survivors.push(spike);
+                        continue;
+                    }
+
+                    if (spike.sides <= 2) {
+                        emitSpikeParticles(spike.x, spike.y);
+                        continue;
+                    }
+
+                    const availableSlots = MAX_SPIKES - (survivors.length + spawned.length);
+                    if (availableSlots >= 2) {
+                        spawned.push(...makeSpikeChildren(spike));
+                    } else {
+                        survivors.push(spike);
+                    }
+                }
+
+                spikeBalls.length = 0;
+                spikeBalls.push(...survivors, ...spawned);
+            }
+        }
+
+        function worldToScreen(x, y) {
+            return {
+                x: (x - camera.x) * cameraZoom + canvas.width * 0.5,
+                y: canvas.height * 0.5 - (y - camera.y) * cameraZoom
+            };
+        }
+
+        function drawSpikeShape(spike) {
+            const center = worldToScreen(spike.x, spike.y);
+
+            if (
+                center.x + spike.radius * cameraZoom < 0 ||
+                center.x - spike.radius * cameraZoom > canvas.width ||
+                center.y + spike.radius * cameraZoom < 0 ||
+                center.y - spike.radius * cameraZoom > canvas.height
+            ) {
+                return;
+            }
+
+            spikeCtx.save();
+            spikeCtx.beginPath();
+
+            if (spike.sides === 2) {
+                const dx = Math.cos(spike.rotation) * spike.radius * cameraZoom;
+                const dy = Math.sin(spike.rotation) * spike.radius * cameraZoom;
+
+                spikeCtx.moveTo(center.x - dx, center.y + dy);
+                spikeCtx.lineTo(center.x + dx, center.y - dy);
+                spikeCtx.strokeStyle = SPIKE_COLOR;
+                spikeCtx.lineWidth = Math.max(2, Math.min(5, 2.8 * Math.max(cameraZoom, 0.55)));
+                spikeCtx.lineCap = 'round';
+                spikeCtx.stroke();
+                spikeCtx.restore();
+                return;
+            }
+
+            for (let i = 0; i < spike.sides; i++) {
+                const angle = spike.rotation + (Math.PI * 2 * i) / spike.sides;
+                const x = center.x + Math.cos(angle) * spike.radius * cameraZoom;
+                const y = center.y - Math.sin(angle) * spike.radius * cameraZoom;
+
+                if (i === 0) {
+                    spikeCtx.moveTo(x, y);
+                } else {
+                    spikeCtx.lineTo(x, y);
+                }
+            }
+
+            spikeCtx.closePath();
+            spikeCtx.fillStyle = SPIKE_COLOR;
+            spikeCtx.fill();
+
+            spikeCtx.strokeStyle = SPIKE_EDGE_COLOR;
+            spikeCtx.lineWidth = Math.max(1, Math.min(2.5, 1.2 * Math.max(cameraZoom, 0.75)));
+            spikeCtx.stroke();
+            spikeCtx.restore();
+        }
+
+        function updateAndDrawOverlay() {
+            spikeCtx.clearRect(0, 0, spikeCanvas.width, spikeCanvas.height);
+
+            for (const spike of spikeBalls) {
+                drawSpikeShape(spike);
+            }
+
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const particle = particles[i];
+                particle.x += particle.vx;
+                particle.y += particle.vy;
+                particle.vx *= 0.96;
+                particle.vy *= 0.96;
+                particle.life -= 0.016;
+
+                if (particle.life <= 0) {
+                    particles.splice(i, 1);
+                    continue;
+                }
+
+                const screen = worldToScreen(particle.x, particle.y);
+                const alpha = Math.max(0, particle.life / particle.maxLife);
+
+                spikeCtx.save();
+                spikeCtx.beginPath();
+                spikeCtx.arc(
+                    screen.x,
+                    screen.y,
+                    particle.size * Math.max(cameraZoom, 0.65),
+                    0,
+                    Math.PI * 2
+                );
+                spikeCtx.fillStyle = 'rgba(220, 225, 225, ' + (alpha * 0.8) + ')';
+                spikeCtx.fill();
+                spikeCtx.restore();
+            }
+        }
+
+        // Added a 4th Metaball instance with RGB (0, 0, 0) for black
+        const balls = [
+            new Metaball(0, 1, 0.78), 
+            new Metaball(1, 0.93, 0), 
+            new Metaball(1, 0, 0.33),
+            new Metaball(0, 0, 0)
+        ];
+
+        // Adjusted size to 12 (4 balls * 3 elements each)
+        const posRadArray = new Float32Array(12);
+        const spikePosRadArray = new Float32Array(16 * 3);
+
+        // Added the color values (0, 0, 0) to the flat color array
+        const colorArray = new Float32Array([
+            0, 1, 0.78, 
+            1, 0.93, 0, 
+            1, 0, 0.33,
+            0, 0, 0
+        ]);
+
+        let initialized = false;
+
+        function resize() {
+            const rect = canvas.getBoundingClientRect();
+            canvas.width = Math.max(1, Math.round(rect.width));
+            canvas.height = Math.max(1, Math.round(rect.height));
+            gl.viewport(0, 0, canvas.width, canvas.height);
+
+            balls.forEach(b => b.resize());
+
+            if (!initialized) {
+                camera.x = getWorldWidth() / 2;
+                camera.y = getWorldHeight() / 2;
+
+                const halfViewWidth = canvas.width / (2 * cameraZoom);
+                const halfViewHeight = canvas.height / (2 * cameraZoom);
+
+                balls.forEach(ball => {
+                    ball.x = camera.x + (Math.random() * 2 - 1) * Math.max(1, halfViewWidth - ball.radius);
+                    ball.y = camera.y + (Math.random() * 2 - 1) * Math.max(1, halfViewHeight - ball.radius);
+                    clampBall(ball);
+                });
+
+                const spikeRadius = getInitialSpikeRadius();
+                const spikeXOffset = Math.max(halfViewWidth * 0.44, spikeRadius * 2.5);
+                const spikeYOffset = halfViewHeight * 0.18;
+
+                spikeBalls.push(
+                    new SpikeBall(
+                        16,
+                        camera.x - spikeXOffset,
+                        camera.y + spikeYOffset,
+                        spikeRadius,
+                        1.5,
+                        0.05
+                    ),
+                    new SpikeBall(
+                        16,
+                        camera.x + spikeXOffset,
+                        camera.y - spikeYOffset,
+                        spikeRadius,
+                        1.5,
+                        Math.PI - 0.05
+                    )
+                );
+
+                spikeBalls.forEach(clampSpike);
+                initialized = true;
+            } else {
+                balls.forEach(clampBall);
+                spikeBalls.forEach(clampSpike);
+                clampCamera();
+                spikeBalls.forEach(clampSpike);
+            }
+
+            spikeCanvas.width = canvas.width;
+            spikeCanvas.height = canvas.height;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        let activeBall = null;
+        let activeSpike = null;
+        let isPanning = false;
+        let lastMouseX = 0;
+        let lastMouseY = 0;
+        let lastWorldX = 0;
+        let lastWorldY = 0;
+
+        function getPointerPos(e) {
+            const rect = canvas.getBoundingClientRect();
+
+            return {
+                x: e.clientX - rect.left,
+                y: rect.height - (e.clientY - rect.top)
+            };
+        }
+
+        function screenToWorld(pos) {
+            return {
+                x: camera.x + (pos.x - canvas.width / 2) / cameraZoom,
+                y: camera.y + (pos.y - canvas.height / 2) / cameraZoom
+            };
+        }
+
+        function onStart(e) {
+            if (e.cancelable) e.preventDefault();
+            if (e.pointerType === 'mouse' && e.button !== 0) return;
+
+            canvas.setPointerCapture?.(e.pointerId);
+
+            const pos = getPointerPos(e);
+            const worldPos = screenToWorld(pos);
+
+            activeSpike = spikeBalls.find(
+                spike => Math.hypot(spike.x - worldPos.x, spike.y - worldPos.y) < spike.radius
+            ) || null;
+
+            if (activeSpike) {
+                activeSpike.isDragging = true;
+                activeSpike.collisionCooldown = 0;
+                lastWorldX = worldPos.x;
+                lastWorldY = worldPos.y;
+                return;
+            }
+
+            activeBall = balls.find(
+                b => Math.hypot(b.x - worldPos.x, b.y - worldPos.y) < b.radius
+            ) || null;
+
+            if (activeBall) {
+                activeBall.isDragging = true;
+                lastWorldX = worldPos.x;
+                lastWorldY = worldPos.y;
+                return;
+            }
+
+            isPanning = true;
+            lastMouseX = pos.x;
+            lastMouseY = pos.y;
+        }
+
+        function onMove(e) {
+            if (e.cancelable) e.preventDefault();
+
+            const pos = getPointerPos(e);
+
+            if (activeSpike) {
+                const worldPos = screenToWorld(pos);
+                const dx = worldPos.x - lastWorldX;
+                const dy = worldPos.y - lastWorldY;
+
+                activeSpike.vx = dx;
+                activeSpike.vy = dy;
+                activeSpike.angularVelocity = (dx - dy) * 0.006;
+                activeSpike.x = worldPos.x;
+                activeSpike.y = worldPos.y;
+
+                clampSpike(activeSpike);
+
+                lastWorldX = activeSpike.x;
+                lastWorldY = activeSpike.y;
+                return;
+            }
+
+            if (activeBall) {
+                const worldPos = screenToWorld(pos);
+
+                activeBall.vx = worldPos.x - lastWorldX;
+                activeBall.vy = worldPos.y - lastWorldY;
+                activeBall.x = worldPos.x;
+                activeBall.y = worldPos.y;
+
+                clampBall(activeBall);
+
+                lastWorldX = activeBall.x;
+                lastWorldY = activeBall.y;
+                return;
+            }
+
+            if (isPanning) {
+                camera.x -= (pos.x - lastMouseX) / cameraZoom;
+                camera.y -= (pos.y - lastMouseY) / cameraZoom;
+                clampCamera();
+
+                lastMouseX = pos.x;
+                lastMouseY = pos.y;
+            }
+        }
+
+        function onEnd(e) {
+            if (activeSpike) activeSpike.isDragging = false;
+            activeSpike = null;
+            if (activeBall) activeBall.isDragging = false;
+            activeBall = null;
+            isPanning = false;
+
+            if (e?.pointerId != null && canvas.hasPointerCapture?.(e.pointerId)) {
+                canvas.releasePointerCapture(e.pointerId);
+            }
+        }
+
+        canvas.addEventListener('pointerdown', onStart, { passive: false });
+        canvas.addEventListener('pointermove', onMove, { passive: false });
+        canvas.addEventListener('pointerup', onEnd);
+        canvas.addEventListener('pointercancel', onEnd);
+        canvas.addEventListener('lostpointercapture', onEnd);
+
+        const zoomButtons = [
+            document.getElementById('zoom-out'),
+            document.getElementById('zoom-in')
+        ];
+
+        zoomButtons.forEach(button => {
+            button.addEventListener('pointerdown', e => e.stopPropagation());
+            button.addEventListener('pointerup', e => e.stopPropagation());
+            button.addEventListener('click', e => e.stopPropagation());
+        });
+
+        function setZoom(nextZoom) {
+            cameraZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, nextZoom));
+            clampCamera();
+        }
+
+        let zoomHoldDirection = 0;
+        let zoomHoldFrame = null;
+        let lastZoomTime = 0;
+        const ZOOM_SPEED = 1.15;
+
+        function updateZoomHold(timestamp) {
+            if (!zoomHoldDirection) {
+                zoomHoldFrame = null;
+                return;
+            }
+
+            if (!lastZoomTime) lastZoomTime = timestamp;
+            const deltaSeconds = Math.min((timestamp - lastZoomTime) / 1000, 0.05);
+            lastZoomTime = timestamp;
+
+            setZoom(cameraZoom + zoomHoldDirection * ZOOM_SPEED * deltaSeconds);
+
+            zoomHoldFrame = requestAnimationFrame(updateZoomHold);
+        }
+
+        function startZoomHold(direction, e) {
+            if (e.cancelable) e.preventDefault();
+            e.stopPropagation();
+            zoomOutButton.setPointerCapture?.(e.pointerId);
+            zoomInButton.setPointerCapture?.(e.pointerId);
+
+            zoomHoldDirection = direction;
+            lastZoomTime = 0;
+
+            if (zoomHoldFrame === null) {
+                zoomHoldFrame = requestAnimationFrame(updateZoomHold);
+            }
+        }
+
+        function stopZoomHold(e) {
+            if (e) e.stopPropagation();
+            zoomHoldDirection = 0;
+            lastZoomTime = 0;
+
+            if (zoomHoldFrame !== null) {
+                cancelAnimationFrame(zoomHoldFrame);
+                zoomHoldFrame = null;
+            }
+        }
+
+        const zoomOutButton = document.getElementById('zoom-out');
+        const zoomInButton = document.getElementById('zoom-in');
+
+        zoomOutButton.addEventListener('pointerdown', e => startZoomHold(-1, e));
+        zoomInButton.addEventListener('pointerdown', e => startZoomHold(1, e));
+
+        [zoomOutButton, zoomInButton].forEach(button => {
+            button.addEventListener('pointerup', stopZoomHold);
+            button.addEventListener('pointercancel', stopZoomHold);
+            button.addEventListener('pointerleave', e => {
+                if (e.pointerType === 'mouse') stopZoomHold(e);
+            });
+            button.addEventListener('lostpointercapture', stopZoomHold);
+        });
+
+        function recordWorldState() {
+            const metaballs = balls.map((ball, index) => ({
+                id: index,
+                x: ball.x,
+                y: ball.y,
+                radius: ball.radius,
+                color: [...ball.color],
+                vx: ball.vx,
+                vy: ball.vy
+            }));
+
+            const recordedSpikeBalls = spikeBalls.map((spike, index) => ({
+                id: index,
+                x: spike.x,
+                y: spike.y,
+                radius: spike.radius,
+                sides: spike.sides,
+                rotation: spike.rotation,
+                vx: spike.vx,
+                vy: spike.vy,
+                angularVelocity: spike.angularVelocity
+            }));
+
+            window.WorldStateBridge.publish({
+                time: Date.now(),
+                diamond: { x: camera.x, y: camera.y, heading: 0 },
+                metaballs,
+                spikeBalls: recordedSpikeBalls,
+                camera: {
+                    x: camera.x,
+                    y: camera.y,
+                    zoom: cameraZoom,
+                    worldWidth: getWorldWidth(),
+                    worldHeight: getWorldHeight()
+                }
+            });
+        }
+
+        function animate() {
+            balls.forEach((ball, i) => {
+                ball.update();
+                const idx = i * 3;
+                posRadArray[idx] = ball.x;
+                posRadArray[idx + 1] = ball.y;
+                posRadArray[idx + 2] = ball.radius;
+            });
+
+            updateSpikePhysics();
+            updateAndDrawOverlay();
+            recordWorldState();
+
+            gl.uniform2f(resUniform, canvas.width, canvas.height);
+            gl.uniform2f(cameraUniform, camera.x, camera.y);
+            gl.uniform1f(zoomUniform, cameraZoom);
+            const visibleSpikeCount = Math.min(spikeBalls.length, 16);
+            for (let i = 0; i < visibleSpikeCount; i++) {
+                const spike = spikeBalls[i];
+                const idx = i * 3;
+                spikePosRadArray[idx] = spike.x;
+                spikePosRadArray[idx + 1] = spike.y;
+                // Scale the field radius down slightly so it gently wraps
+                // around the spike instead of behaving like a huge blob.
+                spikePosRadArray[idx + 2] = spike.radius * 0.82;
+            }
+
+            gl.uniform3fv(posRadUniform, posRadArray);
+            gl.uniform3fv(colorUniform, colorArray);
+            gl.uniform3fv(spikePosRadUniform, spikePosRadArray);
+            gl.uniform1i(spikeCountUniform, visibleSpikeCount);
+            gl.drawArrays(gl.TRIANGLES, 0, 6);
+            requestAnimationFrame(animate);
+        }
+        animate();
+    </script>
+</body>
+</html>
