@@ -67,6 +67,16 @@
     </div>
 
     <div class="section">
+        <h2>Glitch Balls</h2>
+        <pre id="glitches">No data</pre>
+    </div>
+
+    <div class="section">
+        <h2>Glitched Substances</h2>
+        <pre id="glitched-substances">No data</pre>
+    </div>
+
+    <div class="section">
         <h2>Raw Record</h2>
         <button id="copy-record" type="button">Copy JSON</button>
         <pre id="raw">No data</pre>
@@ -79,6 +89,8 @@
         const camera = document.getElementById('camera');
         const metaballs = document.getElementById('metaballs');
         const spikes = document.getElementById('spikes');
+        const glitches = document.getElementById('glitches');
+        const glitchedSubstances = document.getElementById('glitched-substances');
         const raw = document.getElementById('raw');
         let latestState = null;
 
@@ -96,6 +108,8 @@
             camera.textContent = JSON.stringify(state.camera, null, 2);
             metaballs.textContent = JSON.stringify(state.metaballs, null, 2);
             spikes.textContent = JSON.stringify(state.spikeBalls, null, 2);
+            glitches.textContent = JSON.stringify(state.glitchBalls ?? [], null, 2);
+            glitchedSubstances.textContent = JSON.stringify(state.glitchedSubstances ?? [], null, 2);
             raw.textContent = JSON.stringify(state, null, 2);
         }
 
