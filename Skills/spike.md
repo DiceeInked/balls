@@ -4,34 +4,36 @@ Spike is the polygonal object used by the VR gameplay rules.
 
 ## Starting XP and shape
 
-A newly spawned Spike starts with a random integer XP from 8 through 32. XP directly determines the number of vertices, so an 8-XP Spike has 8 vertices and a 32-XP Spike has 32 vertices.
+Each newly created Spike starts with 16 XP.
 
-XP is stored as an integer. Transformations can move a Spike outside the normal starting range.
+XP directly determines the number of vertices, so the default Spike has 16 vertices. Spike size is also relative to the 16-XP baseline:
+- 16 XP = 1x the default Spike size
+- lower XP scales it down proportionally
+- higher XP scales it up proportionally
 
 ## Motion
 
-Each newly spawned Spike receives a random speed and direction and is positioned randomly across the full world. The same randomization rules are used for newly created split children.
+Spikes retain randomized position, direction, and speed at creation. Their XP-scaled movement uses 16 XP as the baseline.
+
+Spike-to-Spike physical collisions and the existing split behavior remain separate from the three transformation rules.
 
 ## Meta interaction
 
-When a Spike contacts a Meta:
-- the Spike is removed
-- the Meta becomes rounded as usual
-- the Meta takes the Spike's original color
-- the Meta gains half the Spike's XP, rounded down after the addition
+When a Spike touches a Meta:
+- the Spike becomes a new Meta
+- the original Meta remains
+- the new Meta keeps the Spike's XP
+- the new Meta takes the Spike's color
+- no XP is gained or lost
 
-Formula:
+## Glitch interaction
 
-`floor(existing Meta XP + Spike XP / 2)`
+When a Spike touches a Glitch:
+- the Glitch becomes a new Spike
+- the original Spike remains
+- the new Spike keeps the Glitch's XP
+- no XP is gained or lost
 
-This is a gameplay transformation, not a normal physical Spike-Meta bounce.
+## XP scaling
 
-## Glitched Substance interaction
-
-When a Glitched Substance contacts a Spike, the Glitched Substance transforms that Spike into its resulting Spike state.
-
-The Glitched Substance loses one quarter of its current XP, rounded down. The resulting integer XP becomes the Spike's vertex count, with a minimum of 2 vertices.
-
-## Rendering
-
-Spikes with 3 or more vertices render as filled polygons with an outline. A 2-vertex Spike renders as a rotating line.
+All XP-driven Spike stats are relative to the 16-XP default. Vertex count remains equal to integer XP.
