@@ -323,10 +323,30 @@
             return shader;
         }
 
-        const program = gl.createProgram();
-        gl.attachShader(program, createShader(gl.VERTEX_SHADER, vsSource));
-        gl.attachShader(program, createShader(gl.FRAGMENT_SHADER, fsSource));
-        gl.linkProgram(program);
+        function createProgram(vertexSource, fragmentSource) {
+            const vertexShader = createShader(gl.VERTEX_SHADER, vertexSource);
+            const fragmentShader = createShader(gl.FRAGMENT_SHADER, fragmentSource);
+
+            if (!gl.getShaderParameter(vertexShader, gl.COMPILE_STATUS)) {
+                console.error('VR vertex shader error:', gl.getShaderInfoLog(vertexShader));
+            }
+            if (!gl.getShaderParameter(fragmentShader, gl.COMPILE_STATUS)) {
+                console.error('VR fragment shader error:', gl.getShaderInfoLog(fragmentShader));
+            }
+
+            const nextProgram = gl.createProgram();
+            gl.attachShader(nextProgram, vertexShader);
+            gl.attachShader(nextProgram, fragmentShader);
+            gl.linkProgram(nextProgram);
+
+            if (!gl.getProgramParameter(nextProgram, gl.LINK_STATUS)) {
+                console.error('VR WebGL program link error:', gl.getProgramInfoLog(nextProgram));
+            }
+
+            return nextProgram;
+        }
+
+        const program = createProgram(vsSource, fsSource);
         gl.useProgram(program);
 
         const positionAttribute = gl.getAttribLocation(program, "position");
@@ -744,6 +764,11 @@
             }
         }
 
+        const META_DEFAULT_XP = 10;
+        const SPIKE_DEFAULT_XP = 16;
+        const GLITCH_DEFAULT_XP = 5;
+        const GLITCH_EFFECT_PARTICLES = 14;
+
         // Added a 4th Metaball instance with RGB (0, 0, 0) for black
         const balls = [
             new Metaball(0, 1, 0.78), 
@@ -764,11 +789,6 @@
             1, 0, 0.33,
             0, 0, 0
         ]);
-
-        const META_DEFAULT_XP = 10;
-        const SPIKE_DEFAULT_XP = 16;
-        const GLITCH_DEFAULT_XP = 5;
-        const GLITCH_EFFECT_PARTICLES = 14;
 
         class GlitchBall {
             constructor(x, y, xp = GLITCH_DEFAULT_XP) {
