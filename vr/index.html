@@ -313,11 +313,16 @@
             uniform vec2 u_resolution;
             uniform vec2 u_camera;
             uniform float u_zoom;
-            uniform vec3 u_ballsPosRad[9];
-            uniform vec3 u_ballsColor[9];
-            uniform vec3 u_spikesPosRad[16];
-            uniform int u_spikeCount;
+            // Each Meta is packed as x, y, radius, color index.
+            uniform vec4 u_balls[8];
             uniform int u_ballCount;
+
+            vec3 ballColor(float index) {
+                if (index < 0.5) return vec3(0.0, 1.0, 0.78);
+                if (index < 1.5) return vec3(1.0, 0.93, 0.0);
+                if (index < 2.5) return vec3(1.0, 0.0, 0.33);
+                return vec3(0.77, 0.79, 0.79);
+            }
 
             void main() {
                 vec2 screenPos = gl_FragCoord.xy;
@@ -327,42 +332,21 @@
                 vec3 colorSum = vec3(0.0);
                 float metaballInfluence = 0.0;
 
-                for (int i = 0; i < 9; i++) {
+                for (int i = 0; i < 8; i++) {
                     if (i >= u_ballCount) continue;
-                    vec3 ball = u_ballsPosRad[i];
+                    vec4 ball = u_balls[i];
                     float distanceSq = dot(worldPos - ball.xy, worldPos - ball.xy);
                     if (distanceSq > 0.0) {
                         float influence = (ball.z * ball.z) / distanceSq;
                         totalInfluence += influence;
                         metaballInfluence += influence;
-                        colorSum += u_ballsColor[i] * influence;
+                        colorSum += ballColor(ball.w) * influence;
                     }
                 }
-
-                // Spike balls do not render as metaballs and never participate in
-                // physical collisions with metaballs. Their field only bends the
-                // metaball surface visually, like an invisible metaball attraction field.
-                float spikeInfluence = 0.0;
-                for (int i = 0; i < 64; i++) {
-                    if (i < u_spikeCount) {
-                        vec3 spike = u_spikesPosRad[i];
-                        float distanceSq = dot(worldPos - spike.xy, worldPos - spike.xy);
-                        if (distanceSq > 0.0) {
-                            spikeInfluence += (spike.z * spike.z) / distanceSq;
-                        }
-                    }
-                }
-
-                // Add a small amount of the spike field to the metaball threshold.
-                // This makes nearby metaballs stretch/wrap around spikes without
-                // letting an isolated spike create a visible metaball of its own.
-                totalInfluence += spikeInfluence * 0.42;
 
                 float dotSpacing = 34.0;
                 vec2 dotCenter = floor(worldPos / dotSpacing + 0.5) * dotSpacing;
                 float dotDistance = distance(worldPos, dotCenter);
-
-                // The dot stays readable at low zoom but does not scale without limit.
                 float dotRadius = clamp(2.4 / u_zoom, 1.0, 3.2);
                 float dotMask = 1.0 - smoothstep(dotRadius, dotRadius + 0.8, dotDistance);
                 float dotStrength = dotMask * 0.34;
@@ -414,10 +398,10 @@
         const resUniform = gl.getUniformLocation(program, "u_resolution");
         const cameraUniform = gl.getUniformLocation(program, "u_camera");
         const zoomUniform = gl.getUniformLocation(program, "u_zoom");
-        const posRadUniform = gl.getUniformLocation(program, "u_ballsPosRad");
-        const colorUniform = gl.getUniformLocation(program, "u_ballsColor");
-        const spikePosRadUniform = gl.getUniformLocation(program, "u_spikesPosRad");
-        const spikeCountUniform = gl.getUniformLocation(program, "u_spikeCount");
+        const ballsUniform = gl.getUniformLocation(program, "u_balls");
+        
+        
+        
         const ballCountUniform = gl.getUniformLocation(program, "u_ballCount");
 
         const buffer = gl.createBuffer();
@@ -431,6 +415,13 @@
         const MIN_ZOOM = 0.25;
         const MAX_ZOOM = 8.0;
         const camera = { x: 0, y: 0 };
+
+        function getColorIndex(color) {
+            if (color[0] > 0.9 && color[1] < 0.2 && color[2] > 0.2) return 2.0;
+            if (color[0] > 0.8 && color[1] > 0.8 && color[2] < 0.2) return 1.0;
+            if (color[0] > 0.1 && color[1] > 0.8 && color[2] > 0.5) return 0.0;
+            return 3.0;
+        }
 
         function getWorldWidth() {
             return canvas.width * WORLD_SCALE;
@@ -873,10 +864,10 @@
         balls.forEach(ball => { ball.remove = false; });
 
         // Three metaballs, three values per ball
-        const posRadArray = new Float32Array(27);
-        const spikePosRadArray = new Float32Array(16 * 3);
+        const ballsArray = new Float32Array(32);
+        
 
-        const colorArray = new Float32Array(27);
+        
 
         class GlitchBall {
             constructor(x, y, xp = DEFAULT_XP) {
@@ -1492,18 +1483,15 @@
 
         function animate() {
             balls.forEach(ball => ball.update());
-            posRadArray.fill(0);
-            colorArray.fill(0);
+            ballsArray.fill(0);
 
-            for (let i = 0; i < Math.min(balls.length, 9); i++) {
+            for (let i = 0; i < Math.min(balls.length, 8); i++) {
                 const ball = balls[i];
-                const idx = i * 3;
-                posRadArray[idx] = ball.x;
-                posRadArray[idx + 1] = ball.y;
-                posRadArray[idx + 2] = ball.radius;
-                colorArray[idx] = ball.color[0];
-                colorArray[idx + 1] = ball.color[1];
-                colorArray[idx + 2] = ball.color[2];
+                const idx = i * 4;
+                ballsArray[idx] = ball.x;
+                ballsArray[idx + 1] = ball.y;
+                ballsArray[idx + 2] = ball.radius;
+                ballsArray[idx + 3] = getColorIndex(ball.color);
             }
             updateSpikePhysics();
             updateVRMechanics();
@@ -1514,22 +1502,8 @@
             gl.uniform2f(resUniform, canvas.width, canvas.height);
             gl.uniform2f(cameraUniform, camera.x, camera.y);
             gl.uniform1f(zoomUniform, cameraZoom);
-            const visibleSpikeCount = Math.min(spikeBalls.length, 16);
-            for (let i = 0; i < visibleSpikeCount; i++) {
-                const spike = spikeBalls[i];
-                const idx = i * 3;
-                spikePosRadArray[idx] = spike.x;
-                spikePosRadArray[idx + 1] = spike.y;
-                // Scale the field radius down slightly so it gently wraps
-                // around the spike instead of behaving like a huge blob.
-                spikePosRadArray[idx + 2] = spike.radius * 0.82;
-            }
-
-            gl.uniform3fv(posRadUniform, posRadArray);
-            gl.uniform3fv(colorUniform, colorArray);
-            gl.uniform1i(ballCountUniform, Math.min(balls.length, 9));
-            gl.uniform3fv(spikePosRadUniform, spikePosRadArray);
-            gl.uniform1i(spikeCountUniform, visibleSpikeCount);
+            gl.uniform4fv(ballsUniform, ballsArray);
+            gl.uniform1i(ballCountUniform, Math.min(balls.length, 8));
             gl.drawArrays(gl.TRIANGLES, 0, 6);
             requestAnimationFrame(animate);
         }
