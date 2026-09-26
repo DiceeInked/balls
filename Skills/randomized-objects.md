@@ -1,33 +1,29 @@
-# Randomized Object Spawning
+# Object Spawning and XP Baseline
 
-The current VR simulation randomizes the initial state of every object class.
-
-## Initial objects
-
-The VR page initially creates:
+The current VR simulation initially creates:
 - 3 Metas
 - 3 Spikes
 - 3 Glitch Balls
 
-Their positions are randomized across the entire world rather than only inside the current camera view.
+Their positions are randomized across the entire world. Their directions and movement speeds are randomized as well.
 
 ## XP
 
-Every newly spawned object starts with a random integer XP from 8 through 32, inclusive.
+Every newly created object starts with 16 XP.
 
-XP remains integer-valued. Transformation mechanics can later increase or decrease XP, so an object's later XP is not guaranteed to remain in the starting range.
+The old random 8-32 XP spawning system has been removed.
 
-## Motion
+XP-driven stats are relative to the 16-XP baseline:
 
-Every newly spawned object receives a random speed between 0.75 and 2.8 world units per frame and a random direction.
+scale = XP / 16
 
-New Spike children created by splitting also receive fresh random XP, speed, and direction.
+So 16 XP always represents the object's normal/default size and XP-driven effect strength. If a future mechanic changes an object's XP, its relevant stats scale from that baseline.
 
-## Transformation exception
+## Transformations
 
-A transformed object does not necessarily receive a new random movement state. For example:
-- a Meta becoming Glitched Substance starts from the Meta's position and velocity
-- a Spike becoming Meta changes the existing Meta's XP/color state
-- a Glitched Substance becoming Spike reuses the collision target Spike's object and updates its XP/shape
+Transformations keep the changing object's XP unchanged:
+- Spike -> Meta keeps the Spike's XP.
+- Meta -> Glitch keeps the Meta's XP.
+- Glitch -> Spike keeps the Glitch's XP.
 
-Randomization therefore describes spawn behavior, not every transformation event.
+No transformation grants or removes XP.
