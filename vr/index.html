@@ -773,7 +773,7 @@
             constructor(x, y, xp = GLITCH_DEFAULT_XP) {
                 this.x = x;
                 this.y = y;
-                this.xp = xp;
+                this.xp = Math.max(0, Math.floor(xp));
                 this.radius = Math.max(12, 16 + xp * 1.5);
                 this.vx = (Math.random() - 0.5) * 2.4;
                 this.vy = (Math.random() - 0.5) * 2.4;
@@ -804,8 +804,16 @@
             return Math.hypot(a.x - b.x, a.y - b.y);
         }
 
+        function normalizeXP(value) {
+            return Math.max(0, Math.floor(value));
+        }
+
         function metaXPForSpike(meta, spike) {
-            return meta.xp + spike.xp / 2;
+            return normalizeXP(meta.xp + spike.xp / 2);
+        }
+
+        function glitchXPAfterTransformation(xp) {
+            return normalizeXP(xp * 0.75);
         }
 
         function transformSpikeIntoMeta(spike, meta) {
@@ -816,10 +824,12 @@
         }
 
         function transformMetaIntoGlitch(meta, glitch) {
+            const transformedGlitchXP = glitchXPAfterTransformation(glitch.xp);
+            glitch.xp = transformedGlitchXP;
             glitchedSubstances.push({
                 x: meta.x,
                 y: meta.y,
-                xp: glitch.xp,
+                xp: transformedGlitchXP,
                 radius: Math.max(meta.radius * 0.9, 18 + glitch.xp * 2),
                 vx: meta.vx,
                 vy: meta.vy,
@@ -829,7 +839,9 @@
         }
 
         function transformGlitchIntoSpike(glitched, spike) {
-            spike.sides = Math.max(2, Math.round(glitched.xp));
+            const transformedGlitchXP = glitchXPAfterTransformation(glitched.xp);
+            glitched.xp = transformedGlitchXP;
+            spike.sides = Math.max(2, transformedGlitchXP);
             spike.xp = spike.sides;
             spike.radius = Math.max(spike.radius, 14 + glitched.xp * 0.7);
             spike.remove = false;
@@ -867,7 +879,8 @@
                 }
             }
 
-            // Glitched substance gains XP on edges and on spike contact.
+            // Glitched substance gains 1 XP on each edge/corner collision.
+            // Contact with a Spike immediately transforms it instead.
             for (const glitched of glitchedSubstances) {
                 if (glitched.remove) continue;
 
@@ -886,7 +899,7 @@
                     glitched.y = Math.max(glitched.radius, Math.min(getWorldHeight() - glitched.radius, glitched.y));
                     glitched.vx *= -1;
                     glitched.vy *= -1;
-                    glitched.xp += 1;
+                    glitched.xp = normalizeXP(glitched.xp + 1);
                     glitched.radius = 18 + glitched.xp * 2;
                 }
 
