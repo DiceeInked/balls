@@ -1,6 +1,8 @@
 (function () {
     const CHANNEL_NAME = 'balls-world-state';
     const STORAGE_KEY = 'balls-world-state';
+    const STORAGE_INTERVAL_MS = 250;
+    let lastStorageWrite = 0;
 
     function createBridge() {
         const channel = typeof BroadcastChannel !== 'undefined'
@@ -9,10 +11,14 @@
 
         function publish(state) {
             const snapshot = JSON.parse(JSON.stringify(state));
+            const now = Date.now();
 
-            try {
-                localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
-            } catch (_) {}
+            if (now - lastStorageWrite >= STORAGE_INTERVAL_MS) {
+                try {
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
+                    lastStorageWrite = now;
+                } catch (_) {}
+            }
 
             if (channel) {
                 channel.postMessage(snapshot);
