@@ -62,6 +62,45 @@
             pointer-events: none;
         }
 
+        #site-controls {
+            position: absolute;
+            top: -56px;
+            left: 0;
+            right: 0;
+            z-index: 10;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            pointer-events: none;
+        }
+
+        .site-button {
+            width: 44px;
+            height: 44px;
+            padding: 0;
+            box-sizing: border-box;
+            border: 2px solid rgba(170, 170, 170, 0.72);
+            border-radius: 50%;
+            background: #000;
+            color: rgba(215, 215, 215, 0.96);
+            font: 700 16px/1 Arial, sans-serif;
+            cursor: pointer;
+            pointer-events: auto;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
+            -webkit-user-select: none;
+            user-select: none;
+            -webkit-appearance: none;
+            appearance: none;
+            display: grid;
+            place-items: center;
+        }
+
+        .site-button:active {
+            transform: scale(0.94);
+            border-color: rgba(220, 220, 220, 0.92);
+        }
+
         #zoom-controls {
             position: absolute;
             left: calc(100% + 14px);
@@ -116,6 +155,9 @@
         }
 
         @media (max-width: 600px) {
+            #site-controls { top: -52px; }
+            .site-button { width: 42px; height: 42px; font-size: 15px; }
+
             #metaball-window {
                 width: min(94vw, 90vh, 1100px);
                 border-radius: 26px;
@@ -163,6 +205,10 @@
 </head>
 <body>
     <div id="metaball-stage">
+        <div id="site-controls" aria-label="Site controls">
+            <button class="site-button" id="vr-button" type="button" aria-label="Open VR version">VR</button>
+            <button class="site-button" id="debug-button" type="button" aria-label="Open debug view">D</button>
+        </div>
         <div id="metaball-window">
             <canvas id="canvas"></canvas>
             <canvas id="spike-canvas" aria-hidden="true"></canvas>
@@ -172,7 +218,15 @@
             <button class="zoom-button" id="zoom-in" type="button" aria-label="Zoom in">+</button>
         </div>
     </div>
+    <script src="state.js"></script>
     <script>
+        document.getElementById('vr-button').addEventListener('click', () => {
+            window.location.href = 'vr/index.html';
+        });
+        document.getElementById('debug-button').addEventListener('click', () => {
+            window.open('debug.html', '_blank', 'noopener');
+        });
+
         const canvas = document.getElementById('canvas');
         const spikeCanvas = document.getElementById('spike-canvas');
         const spikeCtx = spikeCanvas.getContext('2d');
@@ -960,6 +1014,44 @@
             button.addEventListener('lostpointercapture', stopZoomHold);
         });
 
+        function recordWorldState() {
+            const metaballs = balls.map((ball, index) => ({
+                id: index,
+                x: ball.x,
+                y: ball.y,
+                radius: ball.radius,
+                color: [...ball.color],
+                vx: ball.vx,
+                vy: ball.vy
+            }));
+
+            const recordedSpikeBalls = spikeBalls.map((spike, index) => ({
+                id: index,
+                x: spike.x,
+                y: spike.y,
+                radius: spike.radius,
+                sides: spike.sides,
+                rotation: spike.rotation,
+                vx: spike.vx,
+                vy: spike.vy,
+                angularVelocity: spike.angularVelocity
+            }));
+
+            window.WorldStateBridge.publish({
+                time: Date.now(),
+                diamond: { x: camera.x, y: camera.y, heading: 0 },
+                metaballs,
+                spikeBalls: recordedSpikeBalls,
+                camera: {
+                    x: camera.x,
+                    y: camera.y,
+                    zoom: cameraZoom,
+                    worldWidth: getWorldWidth(),
+                    worldHeight: getWorldHeight()
+                }
+            });
+        }
+
         function animate() {
             balls.forEach((ball, i) => {
                 ball.update();
@@ -971,6 +1063,7 @@
 
             updateSpikePhysics();
             updateAndDrawOverlay();
+            recordWorldState();
 
             gl.uniform2f(resUniform, canvas.width, canvas.height);
             gl.uniform2f(cameraUniform, camera.x, camera.y);
