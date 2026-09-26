@@ -1,18 +1,25 @@
 # VR Foundation
 
-## Purpose
-This document records the first VR-preparation layer for the Balls project. This phase does not enter WebXR or render a 3D VR scene yet. It prepares a shared world-state model that future VR code can consume.
+The project has a separate VR-oriented simulation page, but it is not yet a WebXR headset application. The current foundation keeps the simulation's world data available to future VR code.
 
 ## Naming
-- `metaballs`: the moving metaball objects.
-- `spikeBalls`: the moving, splitting spike-ball objects.
-- `diamond`: the future VR player representation and player/world position record. Avoid using `player` as the state key so future command systems can reserve that word.
 
-## Current bridge
-The existing 2D camera is temporarily treated as the diamond's position. This gives the future VR system a stable world-space origin before a real headset pose exists.
+- `metaballs`: moving rounded field objects.
+- `spikeBalls`: moving, splitting polygonal objects.
+- `glitchBalls`: moving Glitch objects.
+- `glitchedSubstances`: transformed Glitch states created from Metas.
+- `diamond`: the future VR player/world-origin record.
 
-## State transport
-The main page publishes snapshots through a BroadcastChannel named `balls-world-state`. A same-origin debug page can subscribe without changing the simulation itself. A localStorage snapshot is also written as a fallback/current snapshot.
+## Shared state
 
-## Future work
-The diamond will eventually receive its true XR position, orientation, and hand/controller state from WebXR. The VR renderer should consume the same world state instead of duplicating simulation logic.
+The main page and VR page use `state.js` to publish world snapshots through the `balls-world-state` BroadcastChannel. A localStorage snapshot is maintained as a fallback/current snapshot.
+
+The simulation remains responsible for object behavior. The state bridge only transports data and does not render the world.
+
+## Current diamond behavior
+
+There is no headset pose yet. The current 2D camera center is temporarily published as the diamond's world position, with heading set to zero.
+
+## Future direction
+
+A later WebXR layer can replace the temporary diamond position/orientation with real headset and controller tracking while continuing to consume the shared world-state model.
