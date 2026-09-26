@@ -459,23 +459,25 @@
         class Metaball {
             constructor(r, g, b) {
                 this.color = [r, g, b];
-                this.xp = 10;
+                this.xp = randomXP();
                 this.x = Math.random() * canvas.width;
                 this.y = Math.random() * canvas.height;
                 this.prevX = this.x;
                 this.prevY = this.y;
-                const angle = Math.random() * Math.PI * 2;
-
-                this.normalSpeed = 2;
-                this.vx = Math.cos(angle) * this.normalSpeed;
-                this.vy = Math.sin(angle) * this.normalSpeed;
+                this.normalSpeed = randomSpeed();
+                const velocity = randomVelocity(this.normalSpeed);
+                this.vx = velocity.vx;
+                this.vy = velocity.vy;
 
                 this.isDragging = false;
                 this.resize();
             }
 
             resize() {
-                this.radius = Math.max(Math.min(canvas.width, canvas.height) * 0.055, 24);
+                this.radius = Math.max(
+                    Math.min(canvas.width, canvas.height) * 0.045 + this.xp * 0.45,
+                    20
+                );
             }
 
             update() {
@@ -517,7 +519,7 @@
         }
 
         class SpikeBall {
-            constructor(sides, x, y, radius, speed = 1.45, direction = Math.random() * Math.PI * 2) {
+            constructor(sides, x, y, radius, speed = randomSpeed(), direction = Math.random() * Math.PI * 2) {
                 this.sides = sides;
                 this.x = x;
                 this.y = y;
@@ -529,7 +531,8 @@
                 this.isDragging = false;
                 this.collisionCooldown = 0;
                 this.color = [196 / 255, 202 / 255, 202 / 255];
-                this.xp = sides;
+                this.sides = randomXP();
+                this.xp = this.sides;
                 this.remove = false;
             }
         }
@@ -828,18 +831,35 @@
             }
         }
 
-        const META_DEFAULT_XP = 10;
-        const SPIKE_DEFAULT_XP = 16;
-        const GLITCH_DEFAULT_XP = 5;
+        const MIN_XP = 8;
+        const MAX_XP = 32;
         const GLITCH_EFFECT_PARTICLES = 14;
         const GLITCH_HITBOX_SCALE = 1.12;
+        const MIN_OBJECT_SPEED = 0.75;
+        const MAX_OBJECT_SPEED = 2.8;
+
+        function randomXP() {
+            return MIN_XP + Math.floor(Math.random() * (MAX_XP - MIN_XP + 1));
+        }
+
+        function randomSpeed() {
+            return MIN_OBJECT_SPEED + Math.random() * (MAX_OBJECT_SPEED - MIN_OBJECT_SPEED);
+        }
+
+        function randomVelocity(speed = randomSpeed()) {
+            const direction = Math.random() * Math.PI * 2;
+            return {
+                vx: Math.cos(direction) * speed,
+                vy: Math.sin(direction) * speed
+            };
+        }
 
         const balls = [
             new Metaball(0, 1, 0.78),
             new Metaball(1, 0.93, 0),
             new Metaball(1, 0, 0.33)
         ];
-        balls.forEach(ball => { ball.xp = META_DEFAULT_XP; ball.remove = false; });
+        balls.forEach(ball => { ball.remove = false; });
 
         // Three metaballs, three values per ball
         const posRadArray = new Float32Array(9);
@@ -852,14 +872,15 @@
         ]);
 
         class GlitchBall {
-            constructor(x, y, xp = GLITCH_DEFAULT_XP) {
+            constructor(x, y, xp = randomXP()) {
                 this.x = x;
                 this.y = y;
-                this.xp = Math.max(0, Math.floor(xp));
+                this.xp = Math.max(MIN_XP, Math.min(MAX_XP, Math.floor(xp)));
                 this.radius = Math.max(12, 16 + xp * 1.5);
                 this.hitRadius = this.radius * GLITCH_HITBOX_SCALE;
-                this.vx = (Math.random() - 0.5) * 2.4;
-                this.vy = (Math.random() - 0.5) * 2.4;
+                const velocity = randomVelocity();
+                this.vx = velocity.vx;
+                this.vy = velocity.vy;
                 this.phase = Math.random() * Math.PI * 2;
                 this.prevX = x;
                 this.prevY = y;
@@ -1213,11 +1234,11 @@
                     const position = randomWorldPosition(spikeRadius);
                     spikeBalls.push(
                         new SpikeBall(
-                            16,
+                            randomXP(),
                             position.x,
                             position.y,
                             spikeRadius,
-                            1.5,
+                            randomSpeed(),
                             Math.random() * Math.PI * 2
                         )
                     );
