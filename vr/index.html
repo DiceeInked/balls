@@ -457,15 +457,15 @@
         }
 
         class Metaball {
-            constructor(r, g, b) {
+            constructor(r, g, b, xp = DEFAULT_XP) {
                 this.color = [r, g, b];
-                this.xp = randomXP();
+                this.xp = normalizeXP(xp);
                 this.x = Math.random() * canvas.width;
                 this.y = Math.random() * canvas.height;
                 this.prevX = this.x;
                 this.prevY = this.y;
-                this.normalSpeed = randomSpeed();
-                const velocity = randomVelocity(this.normalSpeed);
+                this.normalSpeed = randomSpeed() * xpScale(this.xp);
+                const velocity = velocityForXP(this.xp, this.normalSpeed);
                 this.vx = velocity.vx;
                 this.vy = velocity.vy;
 
@@ -474,10 +474,11 @@
             }
 
             resize() {
-                this.radius = Math.max(
-                    Math.min(canvas.width, canvas.height) * 0.045 + this.xp * 0.45,
+                const defaultRadius = Math.max(
+                    Math.min(canvas.width, canvas.height) * 0.045 + DEFAULT_XP * 0.45,
                     20
                 );
+                this.radius = defaultRadius * xpScale(this.xp);
             }
 
             update() {
@@ -519,20 +520,20 @@
         }
 
         class SpikeBall {
-            constructor(sides, x, y, radius, speed = randomSpeed(), direction = Math.random() * Math.PI * 2) {
-                this.sides = sides;
+            constructor(sides = DEFAULT_XP, x, y, radius = getInitialSpikeRadius(), speed = randomSpeed(), direction = Math.random() * Math.PI * 2) {
+                this.xp = normalizeXP(sides);
+                this.sides = this.xp;
                 this.x = x;
                 this.y = y;
-                this.radius = radius;
+                this.radius = radius * xpScale(this.xp);
                 this.rotation = Math.random() * Math.PI * 2;
                 this.angularVelocity = (Math.random() * 2 - 1) * 0.028;
-                this.vx = Math.cos(direction) * speed;
-                this.vy = Math.sin(direction) * speed;
+                const velocity = velocityForXP(this.xp, speed);
+                this.vx = velocity.vx;
+                this.vy = velocity.vy;
                 this.isDragging = false;
                 this.collisionCooldown = 0;
                 this.color = [196 / 255, 202 / 255, 202 / 255];
-                this.sides = randomXP();
-                this.xp = this.sides;
                 this.remove = false;
             }
         }
@@ -631,10 +632,10 @@
                 const childY = parent.y + Math.sin(separationAngle) * offset;
                 const direction = baseAngle + sign * spreadAngle;
                 const child = new SpikeBall(
-                    randomXP(),
+                    DEFAULT_XP,
                     childX,
                     childY,
-                    childRadius,
+                    getInitialSpikeRadius(),
                     randomSpeed(),
                     Math.random() * Math.PI * 2
                 );
@@ -872,13 +873,13 @@
         ]);
 
         class GlitchBall {
-            constructor(x, y, xp = randomXP()) {
+            constructor(x, y, xp = DEFAULT_XP) {
                 this.x = x;
                 this.y = y;
-                this.xp = Math.max(MIN_XP, Math.min(MAX_XP, Math.floor(xp)));
-                this.radius = Math.max(12, 16 + xp * 1.5);
+                this.xp = normalizeXP(xp);
+                this.radius = (16 + DEFAULT_XP * 1.5) * xpScale(this.xp);
                 this.hitRadius = this.radius * GLITCH_HITBOX_SCALE;
-                const velocity = randomVelocity();
+                const velocity = velocityForXP(this.xp);
                 this.vx = velocity.vx;
                 this.vy = velocity.vy;
                 this.phase = Math.random() * Math.PI * 2;
@@ -906,7 +907,7 @@
                     this.vy *= -1;
                 }
                 this.phase += 0.21;
-                this.radius = Math.max(12, 16 + this.xp * 1.5);
+                this.radius = (16 + DEFAULT_XP * 1.5) * xpScale(this.xp);
                 this.hitRadius = this.radius * GLITCH_HITBOX_SCALE;
             }
         }
@@ -981,52 +982,54 @@
             return collisionDistance(a, b) <= aRadius + bRadius + extraRadius;
         }
 
-        function normalizeXP(value) {
-            return Math.max(0, Math.floor(value));
+        function refreshMetaStats(meta) {
+            meta.xp = normalizeXP(meta.xp);
+            meta.resize();
+            meta.normalSpeed = randomSpeed() * xpScale(meta.xp);
         }
 
-        function metaXPForSpike(meta, spike) {
-            return normalizeXP(meta.xp + spike.xp / 2);
+        function refreshSpikeStats(spike) {
+            spike.xp = normalizeXP(spike.xp);
+            spike.sides = spike.xp;
+            spike.radius = getInitialSpikeRadius() * xpScale(spike.xp);
         }
 
-        function glitchXPAfterTransformation(xp) {
-            return normalizeXP(xp * 0.75);
+        function refreshGlitchStats(glitch) {
+            glitch.xp = normalizeXP(glitch.xp);
+            glitch.radius = (16 + DEFAULT_XP * 1.5) * xpScale(glitch.xp);
+            glitch.hitRadius = glitch.radius * GLITCH_HITBOX_SCALE;
         }
 
         function transformSpikeIntoMeta(spike, meta) {
-            meta.xp = metaXPForSpike(meta, spike);
-            meta.radius = Math.max(meta.radius, Math.min(canvas.width, canvas.height) * 0.055 + meta.xp * 0.8);
+            meta.xp = spike.xp;
+            refreshMetaStats(meta);
             meta.color = [...spike.color];
             spike.remove = true;
         }
 
         function transformMetaIntoGlitch(meta, glitch) {
-            const transformedGlitchXP = glitchXPAfterTransformation(glitch.xp);
-            glitch.xp = transformedGlitchXP;
-            glitchedSubstances.push({
-                x: meta.x,
-                y: meta.y,
-                prevX: meta.x,
-                prevY: meta.y,
-                xp: transformedGlitchXP,
-                radius: Math.max(meta.radius * 0.9, 18 + glitch.xp * 2),
-                hitRadius: Math.max(meta.radius * 0.9, 18 + glitch.xp * 2) * GLITCH_HITBOX_SCALE,
-                isDragging: false,
-                vx: meta.vx,
-                vy: meta.vy,
-                phase: Math.random() * Math.PI * 2
-            });
+            glitch.xp = meta.xp;
+            refreshGlitchStats(glitch);
+            glitch.x = meta.x;
+            glitch.y = meta.y;
+            glitch.prevX = meta.x;
+            glitch.prevY = meta.y;
+            glitch.vx = meta.vx;
+            glitch.vy = meta.vy;
+            glitch.isGlitched = false;
+            glitch.glitchLife = 1;
             meta.remove = true;
         }
 
-        function transformGlitchIntoSpike(glitched, spike) {
-            const transformedGlitchXP = glitchXPAfterTransformation(glitched.xp);
-            glitched.xp = transformedGlitchXP;
-            spike.sides = Math.max(2, transformedGlitchXP);
-            spike.xp = spike.sides;
-            spike.radius = Math.max(spike.radius, 14 + glitched.xp * 0.7);
+        function transformGlitchIntoSpike(glitch, spike) {
+            spike.xp = glitch.xp;
+            refreshSpikeStats(spike);
+            spike.x = glitch.x;
+            spike.y = glitch.y;
+            spike.vx = glitch.vx;
+            spike.vy = glitch.vy;
             spike.remove = false;
-            glitched.remove = true;
+            glitch.remove = true;
         }
 
         function updateVRMechanics() {
@@ -1234,7 +1237,7 @@
                     const position = randomWorldPosition(spikeRadius);
                     spikeBalls.push(
                         new SpikeBall(
-                            randomXP(),
+                            DEFAULT_XP,
                             position.x,
                             position.y,
                             spikeRadius,
@@ -1244,7 +1247,7 @@
                     );
                 }
 
-                spikeBalls.forEach(spike => { spike.xp = spike.sides; spike.remove = false; });
+                spikeBalls.forEach(spike => { spike.xp = DEFAULT_XP; spike.sides = DEFAULT_XP; spike.remove = false; refreshSpikeStats(spike); });
                 spikeBalls.forEach(clampSpike);
                 spawnInitialGlitch();
                 initialized = true;
