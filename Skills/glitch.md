@@ -1,48 +1,44 @@
 # Glitch
 
-Glitch has two related states in the VR version: a moving Glitch Ball and a Glitched Substance.
+Glitch is the chaotic red-and-blue object used by the VR gameplay rules.
 
 ## Starting state
 
-Each initially spawned Glitch Ball receives:
-- a random integer XP from 8 through 32
-- a random speed
-- a random direction
-- a random position across the full world
+Each newly created Glitch starts with 16 XP.
 
-The current speed randomization range is 0.75 through 2.8 world units per frame.
+Its size and visual effect use 16 XP as the baseline:
+- 16 XP = 1x the default Glitch size/effect scale
+- lower XP scales the relevant effect down proportionally
+- higher XP scales it up proportionally
 
-XP is always stored as an integer. The 8-32 range is the starting range, not a permanent upper/lower bound after transformations.
+Glitch movement keeps randomized position, direction, and speed, with XP-driven movement stats relative to the 16-XP baseline.
 
-## Glitch Ball
+## Shape and movement
 
-The Glitch Ball has a circular hitbox and no rotational physics. Its visible effect is intentionally chaotic: rapidly changing horizontal noise slices, blocks, jagged shards, displacement bars, and red/blue fragments.
+The Glitch has a circular hitbox and no rotational physics. Its visible effect uses rapidly changing horizontal noise slices, blocks, jagged shards, displacement bars, and red/blue fragments.
 
-Its XP controls the size and density of the glitch effect.
-
-Glitch Balls can be grabbed and dragged. While being dragged, their normal movement is paused.
+Glitches can be grabbed and dragged.
 
 ## Meta interaction
 
-When a Glitch Ball contacts a Meta, that Meta is removed and becomes a Glitched Substance at the Meta's position and velocity.
+When a Glitch touches a Meta:
+- the Meta becomes a new Glitch
+- the original Glitch remains
+- the new Glitch keeps the Meta's XP
+- no XP is gained or lost
 
-The Glitch Ball loses one quarter of its current XP for the transformation:
+## Spike interaction
 
-`new XP = floor(old XP * 0.75)`
+When a Glitch touches a Spike:
+- the Glitch becomes a new Spike
+- the original Spike remains
+- the new Spike keeps the Glitch's XP
+- no XP is gained or lost
 
-The Glitch gains no XP from this transformation and remains present in its transformed/glitched state.
+## XP scaling
 
-## Glitched Substance
+All XP-driven Glitch stats use the same baseline rule:
 
-Glitched Substance:
-- moves with velocity
-- can be grabbed and dragged
-- bounces from world edges
-- gains 1 XP for each edge/corner impact
-- grows as its XP increases
-- can transform into a Spike when it contacts one
-- does not collide with Metas
+scale = XP / 16
 
-When it transforms into a Spike, it loses one quarter of its current XP, rounded down. The resulting integer XP becomes the Spike's vertex count, with a minimum of 2 vertices.
-
-Swept collision checks are used so fast-moving objects are much less likely to pass through one another between frames.
+At 16 XP, the scale is exactly 1x.
