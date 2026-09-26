@@ -462,6 +462,8 @@
                 this.xp = 10;
                 this.x = Math.random() * canvas.width;
                 this.y = Math.random() * canvas.height;
+                this.prevX = this.x;
+                this.prevY = this.y;
                 const angle = Math.random() * Math.PI * 2;
 
                 this.normalSpeed = 2;
@@ -477,6 +479,9 @@
             }
 
             update() {
+                this.prevX = this.x;
+                this.prevY = this.y;
+
                 if (this.isDragging) return;
 
                 const currentSpeed = Math.hypot(this.vx, this.vy);
@@ -856,6 +861,8 @@
                 this.vx = (Math.random() - 0.5) * 2.4;
                 this.vy = (Math.random() - 0.5) * 2.4;
                 this.phase = Math.random() * Math.PI * 2;
+                this.prevX = x;
+                this.prevY = y;
                 this.isDragging = false;
                 this.isGlitched = false;
                 this.glitchLife = 0;
@@ -863,6 +870,8 @@
             }
 
             update() {
+                this.prevX = this.x;
+                this.prevY = this.y;
                 if (this.isGlitched || this.isDragging) return;
                 this.x += this.vx;
                 this.y += this.vy;
@@ -903,6 +912,54 @@
             return Math.hypot(a.x - b.x, a.y - b.y);
         }
 
+        function pointToSegmentDistance(px, py, ax, ay, bx, by) {
+            const abx = bx - ax;
+            const aby = by - ay;
+            const lengthSq = abx * abx + aby * aby;
+            if (lengthSq <= 0.000001) return Math.hypot(px - ax, py - ay);
+
+            const t = Math.max(
+                0,
+                Math.min(1, ((px - ax) * abx + (py - ay) * aby) / lengthSq)
+            );
+            const closestX = ax + abx * t;
+            const closestY = ay + aby * t;
+            return Math.hypot(px - closestX, py - closestY);
+        }
+
+        function collisionDistance(a, b) {
+            const current = distance2D(a, b);
+            const aPrevX = a.prevX ?? a.x;
+            const aPrevY = a.prevY ?? a.y;
+            const bPrevX = b.prevX ?? b.x;
+            const bPrevY = b.prevY ?? b.y;
+
+            const aTravel = pointToSegmentDistance(
+                b.x,
+                b.y,
+                aPrevX,
+                aPrevY,
+                a.x,
+                a.y
+            );
+            const bTravel = pointToSegmentDistance(
+                a.x,
+                a.y,
+                bPrevX,
+                bPrevY,
+                b.x,
+                b.y
+            );
+
+            return Math.min(current, aTravel, bTravel);
+        }
+
+        function objectsCollide(a, b, extraRadius = 0) {
+            const aRadius = a.hitRadius ?? a.radius ?? 0;
+            const bRadius = b.hitRadius ?? b.radius ?? 0;
+            return collisionDistance(a, b) <= aRadius + bRadius + extraRadius;
+        }
+
         function normalizeXP(value) {
             return Math.max(0, Math.floor(value));
         }
@@ -928,6 +985,8 @@
             glitchedSubstances.push({
                 x: meta.x,
                 y: meta.y,
+                prevX: meta.x,
+                prevY: meta.y,
                 xp: transformedGlitchXP,
                 radius: Math.max(meta.radius * 0.9, 18 + glitch.xp * 2),
                 hitRadius: Math.max(meta.radius * 0.9, 18 + glitch.xp * 2) * GLITCH_HITBOX_SCALE,
@@ -959,7 +1018,7 @@
                 if (spike.remove) continue;
                 for (const meta of balls) {
                     if (meta.remove) continue;
-                    if (distance2D(spike, meta) <= spike.radius + meta.radius) {
+                    if (objectsCollide(spike, meta)) {
                         transformSpikeIntoMeta(spike, meta);
                         break;
                     }
@@ -971,7 +1030,7 @@
                 if (glitch.isGlitched) continue;
                 for (const meta of balls) {
                     if (meta.remove) continue;
-                    if (distance2D(glitch, meta) <= glitch.hitRadius + meta.radius) {
+                    if (objectsCollide(glitch, meta)) {
                         transformMetaIntoGlitch(meta, glitch);
                         glitch.isGlitched = true;
                         glitch.glitchLife = 1;
@@ -985,19 +1044,21 @@
             for (const glitched of glitchedSubstances) {
                 if (glitched.remove || glitched.isDragging) continue;
 
+                glitched.prevX = glitched.x;
+                glitched.prevY = glitched.y;
                 glitched.x += glitched.vx;
                 glitched.y += glitched.vy;
                 glitched.phase += 0.3;
 
                 const hitEdge =
-                    glitched.x - glitched.radius <= 0 ||
-                    glitched.x + glitched.radius >= getWorldWidth() ||
-                    glitched.y - glitched.radius <= 0 ||
-                    glitched.y + glitched.radius >= getWorldHeight();
+                    glitched.x - glitched.hitRadius <= 0 ||
+                    glitched.x + glitched.hitRadius >= getWorldWidth() ||
+                    glitched.y - glitched.hitRadius <= 0 ||
+                    glitched.y + glitched.hitRadius >= getWorldHeight();
 
                 if (hitEdge) {
-                    glitched.x = Math.max(glitched.radius, Math.min(getWorldWidth() - glitched.radius, glitched.x));
-                    glitched.y = Math.max(glitched.radius, Math.min(getWorldHeight() - glitched.radius, glitched.y));
+                    glitched.x = Math.max(glitched.hitRadius, Math.min(getWorldWidth() - glitched.hitRadius, glitched.x));
+                    glitched.y = Math.max(glitched.hitRadius, Math.min(getWorldHeight() - glitched.hitRadius, glitched.y));
                     glitched.vx *= -1;
                     glitched.vy *= -1;
                     glitched.xp = normalizeXP(glitched.xp + 1);
@@ -1007,7 +1068,7 @@
 
                 for (const spike of spikeBalls) {
                     if (spike.remove) continue;
-                    if (distance2D(glitched, spike) <= glitched.hitRadius + spike.radius) {
+                    if (objectsCollide(glitched, spike)) {
                         transformGlitchIntoSpike(glitched, spike);
                         break;
                     }
