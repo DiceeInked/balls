@@ -827,6 +827,7 @@
         const SPIKE_DEFAULT_XP = 16;
         const GLITCH_DEFAULT_XP = 5;
         const GLITCH_EFFECT_PARTICLES = 14;
+        const GLITCH_HITBOX_SCALE = 1.12;
 
         const balls = [
             new Metaball(0, 1, 0.78),
@@ -851,6 +852,7 @@
                 this.y = y;
                 this.xp = Math.max(0, Math.floor(xp));
                 this.radius = Math.max(12, 16 + xp * 1.5);
+                this.hitRadius = this.radius * GLITCH_HITBOX_SCALE;
                 this.vx = (Math.random() - 0.5) * 2.4;
                 this.vy = (Math.random() - 0.5) * 2.4;
                 this.phase = Math.random() * Math.PI * 2;
@@ -860,11 +862,16 @@
             }
 
             update() {
-                if (this.isGlitched) return;
+                if (this.isGlitched || this.isDragging) return;
                 this.x += this.vx;
+                if (this.x - this.hitRadius <= 0 || this.x + this.hitRadius >= getWorldWidth()) this.vx *= -1;
+                if (this.y - this.hitRadius <= 0 || this.y + this.hitRadius >= getWorldHeight()) this.vy *= -1;
+                this.x = Math.max(this.hitRadius, Math.min(getWorldWidth() - this.hitRadius, this.x));
+                this.y = Math.max(this.hitRadius, Math.min(getWorldHeight() - this.hitRadius, this.y));
                 this.y += this.vy;
                 this.phase += 0.21;
                 this.radius = Math.max(12, 16 + this.xp * 1.5);
+                this.hitRadius = this.radius * GLITCH_HITBOX_SCALE;
             }
         }
 
@@ -917,6 +924,8 @@
                 y: meta.y,
                 xp: transformedGlitchXP,
                 radius: Math.max(meta.radius * 0.9, 18 + glitch.xp * 2),
+                hitRadius: Math.max(meta.radius * 0.9, 18 + glitch.xp * 2) * GLITCH_HITBOX_SCALE,
+                isDragging: false,
                 vx: meta.vx,
                 vy: meta.vy,
                 phase: Math.random() * Math.PI * 2
@@ -968,7 +977,7 @@
             // Glitched substance gains 1 XP on each edge/corner collision.
             // Contact with a Spike immediately transforms it instead.
             for (const glitched of glitchedSubstances) {
-                if (glitched.remove) continue;
+                if (glitched.remove || glitched.isDragging) continue;
 
                 glitched.x += glitched.vx;
                 glitched.y += glitched.vy;
@@ -987,11 +996,12 @@
                     glitched.vy *= -1;
                     glitched.xp = normalizeXP(glitched.xp + 1);
                     glitched.radius = 18 + glitched.xp * 2;
+                    glitched.hitRadius = glitched.radius * GLITCH_HITBOX_SCALE;
                 }
 
                 for (const spike of spikeBalls) {
                     if (spike.remove) continue;
-                    if (distance2D(glitched, spike) <= glitched.radius + spike.radius) {
+                    if (distance2D(glitched, spike) <= glitched.hitRadius + spike.radius) {
                         transformGlitchIntoSpike(glitched, spike);
                         break;
                     }
@@ -1012,112 +1022,88 @@
         function drawGlitchVisual(glitch, ctx) {
             const screen = worldToScreen(glitch.x, glitch.y);
             const intensity = Math.max(1, glitch.xp);
-            const hitRadius = Math.max(8, glitch.radius * cameraZoom);
+            const hitRadius = Math.max(8, (glitch.hitRadius ?? glitch.radius) * cameraZoom);
             const seed = glitch.phase * 1.37;
 
             if (
-                screen.x + hitRadius * 1.8 < 0 ||
-                screen.x - hitRadius * 1.8 > canvas.width ||
-                screen.y + hitRadius * 1.8 < 0 ||
-                screen.y - hitRadius * 1.8 > canvas.height
-            ) {
-                return;
-            }
+                screen.x + hitRadius * 1.2 < 0 ||
+                screen.x - hitRadius * 1.2 > canvas.width ||
+                screen.y + hitRadius * 1.2 < 0 ||
+                screen.y - hitRadius * 1.2 > canvas.height
+            ) return;
 
-            // The visual is deliberately built around the real collision radius.
-            // It should feel like a broken object, not a glowing circle.
             ctx.save();
             ctx.globalCompositeOperation = 'screen';
 
-            const fragmentCount = 18 + intensity * 5;
+            // TV-static style noise: independent horizontal slices and blocks.
+            // There is intentionally no radial glow, ring, or orb silhouette.
+            const rows = 8 + intensity * 2;
 
-            for (let i = 0; i < fragmentCount; i++) {
-                const n1 = Math.sin(seed * 8.17 + i * 19.31) * 43758.5453;
-                const n2 = Math.sin(seed * 4.73 + i * 47.11) * 24634.6345;
-                const n3 = Math.sin(seed * 2.91 + i * 83.77) * 15731.743;
+            for (let row = 0; row < rows; row++) {
+                const n = Math.sin(seed * 12.71 + row * 31.19) * 43758.5453;
+                const r = n - Math.floor(n);
+                const y = screen.y + (r - 0.5) * hitRadius * 1.75;
+                const segments = 2 + Math.floor(r * 4);
+
+                for (let part = 0; part < segments; part++) {
+                    const n1 = Math.sin(seed * 7.13 + row * 17.37 + part * 29.41) * 24634.6345;
+                    const n2 = Math.sin(seed * 3.91 + row * 43.11 + part * 11.73) * 15731.743;
+                    const r1 = n1 - Math.floor(n1);
+                    const r2 = n2 - Math.floor(n2);
+                    const x = screen.x + (r1 - 0.5) * hitRadius * 1.9;
+                    const width = hitRadius * (0.05 + r2 * 0.42);
+                    const height = Math.max(1.5, hitRadius * (0.018 + r1 * 0.055));
+
+                    ctx.fillStyle = part % 2 === 0
+                        ? 'rgba(255, 0, 85, 0.92)'
+                        : 'rgba(30, 90, 255, 0.92)';
+                    ctx.fillRect(x - width * 0.5, y, width, height);
+                }
+            }
+
+            // Jagged shards are scattered independently of the center.
+            const shards = 18 + intensity * 6;
+            for (let i = 0; i < shards; i++) {
+                const n1 = Math.sin(seed * 5.17 + i * 19.31) * 43758.5453;
+                const n2 = Math.sin(seed * 9.43 + i * 47.11) * 24634.6345;
+                const n3 = Math.sin(seed * 2.71 + i * 83.77) * 15731.743;
                 const r1 = n1 - Math.floor(n1);
                 const r2 = n2 - Math.floor(n2);
                 const r3 = n3 - Math.floor(n3);
 
-                const angle = seed * (1.4 + r1 * 2.2) + i * 2.399;
-                const edge = hitRadius * (0.45 + r2 * 0.62);
-                const length = hitRadius * (0.08 + r3 * 0.34);
-                const width = Math.max(1.5, hitRadius * (0.025 + r1 * 0.07));
-                const x = screen.x + Math.cos(angle) * edge;
-                const y = screen.y + Math.sin(angle) * edge;
+                const x = screen.x + (r1 - 0.5) * hitRadius * 1.9;
+                const y = screen.y + (r2 - 0.5) * hitRadius * 1.9;
+                const w = Math.max(2, hitRadius * (0.025 + r3 * 0.16));
+                const h = Math.max(2, hitRadius * (0.02 + r1 * 0.12));
 
                 ctx.save();
                 ctx.translate(x, y);
-                ctx.rotate(angle + r3 * 1.8);
-
+                ctx.rotate((r1 - 0.5) * Math.PI * 2 + seed * 0.4);
                 ctx.fillStyle = i % 2 === 0
-                    ? 'rgba(255, 0, 85, 0.9)'
-                    : 'rgba(30, 90, 255, 0.9)';
-
+                    ? 'rgba(255, 0, 85, 0.82)'
+                    : 'rgba(30, 90, 255, 0.82)';
                 ctx.beginPath();
-                ctx.moveTo(-length, -width);
-                ctx.lineTo(length * (0.25 + r2), -width * (0.4 + r1));
-                ctx.lineTo(length * (0.75 + r3), width * (0.9 + r2));
-                ctx.lineTo(-length * (0.35 + r1), width * (0.55 + r3));
+                ctx.moveTo(-w, -h);
+                ctx.lineTo(w * (0.2 + r2 * 1.8), -h * (0.2 + r3));
+                ctx.lineTo(w * (0.6 + r1), h * (0.7 + r2 * 2));
+                ctx.lineTo(-w * (0.3 + r3), h);
                 ctx.closePath();
                 ctx.fill();
                 ctx.restore();
             }
 
-            // Short, offset scanline glitches stay close to the hitbox.
-            for (let i = 0; i < 7 + intensity * 2; i++) {
-                const n = Math.sin(seed * 11.3 + i * 31.7) * 15731.743;
-                const random = n - Math.floor(n);
-                const side = random < 0.5 ? -1 : 1;
-                const x = screen.x + side * hitRadius * (0.55 + random * 0.55);
-                const y = screen.y + (random - 0.5) * hitRadius * 1.7;
-                const width = hitRadius * (0.08 + random * 0.3);
-                const height = Math.max(2, hitRadius * (0.018 + random * 0.045));
+            // A few violent horizontal displacement bars.
+            for (let i = 0; i < 5 + intensity; i++) {
+                const n = Math.sin(seed * 15.7 + i * 41.3) * 24634.6345;
+                const r = n - Math.floor(n);
+                const y = screen.y + (r - 0.5) * hitRadius * 1.8;
+                const offset = (r - 0.5) * hitRadius * 0.9;
+                const width = hitRadius * (0.2 + r * 0.7);
 
                 ctx.fillStyle = i % 2 === 0
-                    ? 'rgba(255, 0, 85, 0.82)'
-                    : 'rgba(30, 90, 255, 0.82)';
-                ctx.fillRect(x - width * 0.5, y - height * 0.5, width, height);
-            }
-
-            // A few hard cuts cross the hitbox, but never form a complete ring.
-            for (let i = 0; i < 3 + Math.min(5, intensity); i++) {
-                const n = Math.sin(seed * 5.9 + i * 23.4) * 9123.17;
-                const random = n - Math.floor(n);
-                const angle = seed * 2.7 + i * 2.1 + random;
-                const length = hitRadius * (0.45 + random * 0.65);
-
-                ctx.beginPath();
-                ctx.moveTo(
-                    screen.x - Math.cos(angle) * length,
-                    screen.y - Math.sin(angle) * length
-                );
-                ctx.lineTo(
-                    screen.x + Math.cos(angle) * length,
-                    screen.y + Math.sin(angle) * length
-                );
-                ctx.strokeStyle = i % 2 === 0
-                    ? 'rgba(255, 0, 85, 0.72)'
-                    : 'rgba(30, 90, 255, 0.72)';
-                ctx.lineWidth = Math.max(1, hitRadius * (0.025 + random * 0.04));
-                ctx.stroke();
-            }
-
-            // Tiny broken pixels make the silhouette irregular without creating
-            // a smooth circular glow around the collision area.
-            for (let i = 0; i < 10 + intensity * 2; i++) {
-                const n1 = Math.sin(seed * 13.1 + i * 17.9) * 43758.5453;
-                const n2 = Math.sin(seed * 6.2 + i * 41.3) * 24634.6345;
-                const r1 = n1 - Math.floor(n1);
-                const r2 = n2 - Math.floor(n2);
-                const x = screen.x + (r1 - 0.5) * hitRadius * 1.5;
-                const y = screen.y + (r2 - 0.5) * hitRadius * 1.5;
-                const size = Math.max(1, hitRadius * (0.015 + r1 * 0.035));
-
-                ctx.fillStyle = i % 2 === 0
-                    ? 'rgba(255, 0, 85, 0.76)'
-                    : 'rgba(30, 90, 255, 0.76)';
-                ctx.fillRect(x, y, size * (1 + r2 * 2.5), size);
+                    ? 'rgba(255, 0, 85, 0.7)'
+                    : 'rgba(30, 90, 255, 0.7)';
+                ctx.fillRect(screen.x + offset - width * 0.5, y, width, Math.max(2, hitRadius * 0.025));
             }
 
             ctx.restore();
@@ -1189,6 +1175,8 @@
 
         let activeBall = null;
         let activeSpike = null;
+        let activeGlitch = null;
+        let activeGlitched = null;
         let isPanning = false;
         let lastMouseX = 0;
         let lastMouseY = 0;
@@ -1224,6 +1212,28 @@
                 spike => Math.hypot(spike.x - worldPos.x, spike.y - worldPos.y) < spike.radius
             ) || null;
 
+            activeGlitch = glitchBalls.find(
+                glitch => !glitch.isGlitched && Math.hypot(glitch.x - worldPos.x, glitch.y - worldPos.y) < (glitch.hitRadius ?? glitch.radius)
+            ) || null;
+
+            if (activeGlitch) {
+                activeGlitch.isDragging = true;
+                lastWorldX = worldPos.x;
+                lastWorldY = worldPos.y;
+                return;
+            }
+
+            activeGlitched = glitchedSubstances.find(
+                glitched => !glitched.remove && Math.hypot(glitched.x - worldPos.x, glitched.y - worldPos.y) < (glitched.hitRadius ?? glitched.radius)
+            ) || null;
+
+            if (activeGlitched) {
+                activeGlitched.isDragging = true;
+                lastWorldX = worldPos.x;
+                lastWorldY = worldPos.y;
+                return;
+            }
+
             if (activeSpike) {
                 activeSpike.isDragging = true;
                 activeSpike.collisionCooldown = 0;
@@ -1252,6 +1262,32 @@
             if (e.cancelable) e.preventDefault();
 
             const pos = getPointerPos(e);
+
+            if (activeGlitch) {
+                const worldPos = screenToWorld(pos);
+                activeGlitch.vx = worldPos.x - lastWorldX;
+                activeGlitch.vy = worldPos.y - lastWorldY;
+                activeGlitch.x = worldPos.x;
+                activeGlitch.y = worldPos.y;
+                activeGlitch.x = Math.max(activeGlitch.hitRadius, Math.min(getWorldWidth() - activeGlitch.hitRadius, activeGlitch.x));
+                activeGlitch.y = Math.max(activeGlitch.hitRadius, Math.min(getWorldHeight() - activeGlitch.hitRadius, activeGlitch.y));
+                lastWorldX = activeGlitch.x;
+                lastWorldY = activeGlitch.y;
+                return;
+            }
+
+            if (activeGlitched) {
+                const worldPos = screenToWorld(pos);
+                activeGlitched.vx = worldPos.x - lastWorldX;
+                activeGlitched.vy = worldPos.y - lastWorldY;
+                activeGlitched.x = worldPos.x;
+                activeGlitched.y = worldPos.y;
+                activeGlitched.x = Math.max(activeGlitched.hitRadius, Math.min(getWorldWidth() - activeGlitched.hitRadius, activeGlitched.x));
+                activeGlitched.y = Math.max(activeGlitched.hitRadius, Math.min(getWorldHeight() - activeGlitched.hitRadius, activeGlitched.y));
+                lastWorldX = activeGlitched.x;
+                lastWorldY = activeGlitched.y;
+                return;
+            }
 
             if (activeSpike) {
                 const worldPos = screenToWorld(pos);
@@ -1297,6 +1333,10 @@
         }
 
         function onEnd(e) {
+            if (activeGlitch) activeGlitch.isDragging = false;
+            activeGlitch = null;
+            if (activeGlitched) activeGlitched.isDragging = false;
+            activeGlitched = null;
             if (activeSpike) activeSpike.isDragging = false;
             activeSpike = null;
             if (activeBall) activeBall.isDragging = false;
