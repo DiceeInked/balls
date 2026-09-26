@@ -201,6 +201,76 @@
                 border-color: rgba(210, 210, 210, 0.9);
             }
         }
+
+        /* iPhone mode: give the map and touch controls their own compact layout. */
+        body.iphone-mode {
+            box-sizing: border-box;
+            padding:
+                max(12px, env(safe-area-inset-top))
+                max(12px, env(safe-area-inset-right))
+                max(12px, env(safe-area-inset-bottom))
+                max(12px, env(safe-area-inset-left));
+        }
+
+        body.iphone-mode #metaball-stage {
+            width: min(100%, calc(100dvw - 24px), calc(100dvh - 128px));
+            max-width: 520px;
+        }
+
+        body.iphone-mode #metaball-window {
+            border-radius: 24px;
+            border-width: 2px;
+        }
+
+        body.iphone-mode #site-controls {
+            top: -64px;
+        }
+
+        body.iphone-mode .site-button {
+            width: 56px;
+            height: 56px;
+            min-width: 56px;
+            min-height: 56px;
+            font-size: 18px;
+            border-width: 2px;
+        }
+
+        body.iphone-mode #zoom-controls {
+            left: 50%;
+            right: auto;
+            bottom: -92px;
+            transform: translateX(-50%);
+            gap: 16px;
+        }
+
+        body.iphone-mode .zoom-button {
+            width: 76px;
+            height: 76px;
+            min-width: 76px;
+            min-height: 76px;
+            font-size: 38px;
+            border-width: 2px;
+        }
+
+        @media (orientation: landscape) and (max-height: 600px) {
+            body.iphone-mode #metaball-stage {
+                width: min(calc(100dvw - 150px), calc(100dvh - 24px));
+            }
+
+            body.iphone-mode #site-controls {
+                top: 8px;
+                left: 8px;
+                right: 8px;
+            }
+
+            body.iphone-mode #zoom-controls {
+                left: auto;
+                right: 12px;
+                bottom: 12px;
+                transform: none;
+                flex-direction: column;
+            }
+        }
     </style>
 </head>
 <body>
@@ -220,6 +290,11 @@
     </div>
     <script src="state.js"></script>
     <script>
+        // iPhone-specific layout mode. Keep the desktop experience unchanged.
+        const isIPhone = /iPhone|iPod/i.test(navigator.userAgent) ||
+            (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1 && Math.min(screen.width, screen.height) < 500);
+        if (isIPhone) document.body.classList.add('iphone-mode');
+
         document.getElementById('vr-button').addEventListener('click', () => {
             window.location.href = 'vr/index.html';
         });
