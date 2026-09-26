@@ -1,33 +1,41 @@
-# Spike Ball Physics Notes
+# Spike Ball Physics
 
-## Shape progression
-- Spike balls start as regular 16-gons.
-- A collision with a wall or another spike ball causes the colliding spike ball to split into two smaller spike balls.
-- Each split halves the vertex count: 16 -> 8 -> 4 -> 2.
-- A 2-vertex spike ball is rendered as a rotating line.
-- When a 2-vertex spike ball collides again, it disappears and emits a small particle burst.
+This document covers the physical Spike Ball simulation shared by the current pages.
 
-## Collision rules
-- Spike balls collide with world walls.
-- Spike balls collide with other spike balls.
-- Spike balls never physically collide with metaballs.
-- Metaballs keep their original wall-only collision behavior.
-- Spike collisions use the spike's circumscribed radius for fast, stable collision checks. Rotation changes the rendered shape but not the collision radius.
-- A short collision cooldown prevents a newly spawned child from immediately splitting again on the same boundary or overlap.
+## Starting state
 
-## Motion
-- Spike balls have linear velocity and angular velocity.
-- Wall impacts reflect the appropriate velocity component and reverse some angular momentum.
-- Spike-to-spike impacts resolve the separating velocity along the collision normal and add a small rotational impulse.
-- Split children inherit the parent's post-bounce direction with a small angular spread so the pair separates naturally.
-- Dragging a spike ball also gives it a small spin based on pointer movement.
+The initial VR page spawns three Spike Balls across the full world. Each one receives:
+- random integer XP from 8 through 32
+- a vertex count equal to its XP
+- a random speed
+- a random direction
+- a random position
+- random rotation
 
-## Rendering architecture
-- Metaballs remain in the existing WebGL fragment shader.
-- Spike balls and their particles are drawn on a transparent 2D canvas layered above the WebGL canvas.
-- This avoids a large WebGL uniform array and keeps the mobile/iPad renderer lightweight.
-- The spike overlay uses the same camera position and zoom as the metaball world.
+The current speed randomization range is 0.75 through 2.8 world units per frame.
 
-## Limits and safety
-- The simulation caps the spike-ball count at 64.
-- If the cap would be exceeded, a colliding spike stays intact after bouncing instead of spawning more children.
+## Splitting
+
+A wall collision or Spike-to-Spike collision can split a Spike into two smaller Spike Balls.
+
+A split child no longer inherits a fixed vertex count or movement direction. Each child receives fresh randomized XP from 8 through 32, fresh randomized speed and direction, and a smaller radius. XP again determines its vertex count.
+
+A Spike with 2 vertices is drawn as a rotating line. Another qualifying split removes it and emits particles.
+
+The total number of Spike Balls is capped at 64.
+
+## Physical collisions
+
+- Spike Balls collide with world walls.
+- Spike Balls collide physically with other Spike Balls.
+- Spike Balls do not physically collide with Metas.
+- Spike-to-Meta contact is handled by the VR transformation system.
+- Glitched Substance-to-Spike contact is handled by the VR transformation system.
+
+Spike collision uses circular/circumscribed radii rather than exact polygon geometry. A short collision cooldown helps prevent immediate repeat splitting.
+
+## Motion and rendering
+
+Spike Balls have linear velocity, rotation, and angular velocity. Wall impacts reflect velocity components and modify angular velocity. Spike-to-Spike impacts resolve separating motion and add a small rotational impulse.
+
+The Spike overlay is drawn on a transparent 2D canvas above the WebGL metaball canvas and follows the same camera and zoom.
