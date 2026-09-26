@@ -631,12 +631,12 @@
                 const childY = parent.y + Math.sin(separationAngle) * offset;
                 const direction = baseAngle + sign * spreadAngle;
                 const child = new SpikeBall(
-                    nextSides,
+                    randomXP(),
                     childX,
                     childY,
                     childRadius,
-                    parentSpeed * 1.03,
-                    direction
+                    randomSpeed(),
+                    Math.random() * Math.PI * 2
                 );
 
                 child.angularVelocity =
