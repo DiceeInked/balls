@@ -856,6 +856,7 @@
                 this.vx = (Math.random() - 0.5) * 2.4;
                 this.vy = (Math.random() - 0.5) * 2.4;
                 this.phase = Math.random() * Math.PI * 2;
+                this.isDragging = false;
                 this.isGlitched = false;
                 this.glitchLife = 0;
                 this.color = [0.4, 1.0, 0.8];
@@ -864,11 +865,16 @@
             update() {
                 if (this.isGlitched || this.isDragging) return;
                 this.x += this.vx;
-                if (this.x - this.hitRadius <= 0 || this.x + this.hitRadius >= getWorldWidth()) this.vx *= -1;
-                if (this.y - this.hitRadius <= 0 || this.y + this.hitRadius >= getWorldHeight()) this.vy *= -1;
-                this.x = Math.max(this.hitRadius, Math.min(getWorldWidth() - this.hitRadius, this.x));
-                this.y = Math.max(this.hitRadius, Math.min(getWorldHeight() - this.hitRadius, this.y));
                 this.y += this.vy;
+
+                if (this.x - this.hitRadius <= 0 || this.x + this.hitRadius >= getWorldWidth()) {
+                    this.x = Math.max(this.hitRadius, Math.min(getWorldWidth() - this.hitRadius, this.x));
+                    this.vx *= -1;
+                }
+                if (this.y - this.hitRadius <= 0 || this.y + this.hitRadius >= getWorldHeight()) {
+                    this.y = Math.max(this.hitRadius, Math.min(getWorldHeight() - this.hitRadius, this.y));
+                    this.vy *= -1;
+                }
                 this.phase += 0.21;
                 this.radius = Math.max(12, 16 + this.xp * 1.5);
                 this.hitRadius = this.radius * GLITCH_HITBOX_SCALE;
@@ -965,7 +971,7 @@
                 if (glitch.isGlitched) continue;
                 for (const meta of balls) {
                     if (meta.remove) continue;
-                    if (distance2D(glitch, meta) <= glitch.radius + meta.radius) {
+                    if (distance2D(glitch, meta) <= glitch.hitRadius + meta.radius) {
                         transformMetaIntoGlitch(meta, glitch);
                         glitch.isGlitched = true;
                         glitch.glitchLife = 1;
@@ -1023,7 +1029,7 @@
             const screen = worldToScreen(glitch.x, glitch.y);
             const intensity = Math.max(1, glitch.xp);
             const hitRadius = Math.max(8, (glitch.hitRadius ?? glitch.radius) * cameraZoom);
-            const seed = glitch.phase * 1.37;
+            const seed = glitch.phase * 1.37 + performance.now() * 0.0017;
 
             if (
                 screen.x + hitRadius * 1.2 < 0 ||
