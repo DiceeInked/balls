@@ -443,6 +443,9 @@
                 this.vy = Math.sin(direction) * speed;
                 this.isDragging = false;
                 this.collisionCooldown = 0;
+                this.color = [196 / 255, 202 / 255, 202 / 255];
+                this.xp = sides;
+                this.remove = false;
             }
         }
 
@@ -1273,6 +1276,20 @@
                 // Scale the field radius down slightly so it gently wraps
                 // around the spike instead of behaving like a huge blob.
                 spikePosRadArray[idx + 2] = spike.radius * 0.82;
+            }
+
+            for (let i = 0; i < 4; i++) {
+                const ball = balls[i];
+                const colorIndex = i * 3;
+                if (ball) {
+                    colorArray[colorIndex] = ball.color[0];
+                    colorArray[colorIndex + 1] = ball.color[1];
+                    colorArray[colorIndex + 2] = ball.color[2];
+                } else {
+                    colorArray[colorIndex] = 0;
+                    colorArray[colorIndex + 1] = 0;
+                    colorArray[colorIndex + 2] = 0;
+                }
             }
 
             gl.uniform3fv(posRadUniform, posRadArray);
