@@ -1,34 +1,38 @@
 # Collision and Transformation System
 
-The current VR simulation uses both physical collisions and transformation-triggering contacts.
+The current VR simulation uses physical collisions plus three simple transformation contacts.
 
 ## Collision detection
 
-Objects that can move quickly keep previous and current positions. Transformation contacts use a swept collision check that tests movement segments as well as current positions, reducing tunneling between frames.
+Moving objects keep previous and current positions. Transformation contacts use swept collision checks so fast-moving objects are much less likely to pass through one another between frames.
 
-The common collision helper uses `hitRadius` when an object has one and otherwise uses its normal radius.
+The common collision helper uses an object's hitRadius when present and otherwise its normal radius.
 
 ## Physical collisions
 
-- Metas collide only with world walls.
+- Metas collide with world walls.
 - Spikes collide with world walls and other Spikes.
-- Glitch Balls bounce from world edges.
-- Glitched Substances bounce from world edges.
-
-Spike-to-Spike physical collisions can trigger splitting.
+- Glitches bounce from world edges.
+- Spike-to-Spike physical splitting remains separate from the transformation rules.
 
 ## Transformation contacts
 
-- **Spike + Meta:** Spike becomes a Meta contribution. The target Meta gains half the Spike XP and takes the Spike's original color.
-- **Glitch Ball + Meta:** Meta becomes Glitched Substance. The Glitch loses 25% of its XP, rounded down.
-- **Glitched Substance + Spike:** Glitched Substance becomes a Spike. It loses 25% of its XP, rounded down, and that integer XP determines the resulting Spike's vertex count with a minimum of 2.
+The three object types form a cycle:
 
-Glitched Substance does not collide with Metas.
+- Meta + Spike: the Spike becomes a new Meta. The original Meta remains.
+- Spike + Glitch: the Glitch becomes a new Spike. The original Spike remains.
+- Glitch + Meta: the Meta becomes a new Glitch. The original Glitch remains.
+
+The transformed object keeps the XP of the object that changed type. No XP is transferred, added, or removed by these transformations.
+
+## XP baseline
+
+All objects start at 16 XP. XP-driven stats use 16 XP as the default:
+
+scale = XP / 16
+
+At 16 XP, the scale is exactly 1x. Size, shape, and visual-effect properties that depend on XP are adjusted relative to that baseline.
 
 ## Visual-only Spike interaction
 
-The WebGL metaball shader includes a small Spike field influence so nearby Metas can visually bend around Spikes. This is separate from physical collision handling and does not make an isolated Spike into a metaball.
-
-## Object ordering
-
-The simulation updates Meta movement, Spike physics, and VR transformations every animation frame. Removed objects are cleaned from their arrays after transformation processing.
+The WebGL metaball shader still includes a small Spike field influence so nearby Metas can visually bend around Spikes. This is separate from physical collision handling.
