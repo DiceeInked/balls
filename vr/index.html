@@ -313,10 +313,11 @@
             uniform vec2 u_resolution;
             uniform vec2 u_camera;
             uniform float u_zoom;
-            uniform vec3 u_ballsPosRad[3];
-            uniform vec3 u_ballsColor[3];
+            uniform vec3 u_ballsPosRad[9];
+            uniform vec3 u_ballsColor[9];
             uniform vec3 u_spikesPosRad[16];
             uniform int u_spikeCount;
+            uniform int u_ballCount;
 
             void main() {
                 vec2 screenPos = gl_FragCoord.xy;
@@ -326,7 +327,8 @@
                 vec3 colorSum = vec3(0.0);
                 float metaballInfluence = 0.0;
 
-                for (int i = 0; i < 3; i++) {
+                for (int i = 0; i < 9; i++) {
+                    if (i >= u_ballCount) continue;
                     vec3 ball = u_ballsPosRad[i];
                     float distanceSq = dot(worldPos - ball.xy, worldPos - ball.xy);
                     if (distanceSq > 0.0) {
@@ -416,6 +418,7 @@
         const colorUniform = gl.getUniformLocation(program, "u_ballsColor");
         const spikePosRadUniform = gl.getUniformLocation(program, "u_spikesPosRad");
         const spikeCountUniform = gl.getUniformLocation(program, "u_spikeCount");
+        const ballCountUniform = gl.getUniformLocation(program, "u_ballCount");
 
         const buffer = gl.createBuffer();
         gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
@@ -832,16 +835,11 @@
             }
         }
 
-        const MIN_XP = 8;
-        const MAX_XP = 32;
+        const DEFAULT_XP = 16;
         const GLITCH_EFFECT_PARTICLES = 14;
         const GLITCH_HITBOX_SCALE = 1.12;
         const MIN_OBJECT_SPEED = 0.75;
         const MAX_OBJECT_SPEED = 2.8;
-
-        function randomXP() {
-            return MIN_XP + Math.floor(Math.random() * (MAX_XP - MIN_XP + 1));
-        }
 
         function randomSpeed() {
             return MIN_OBJECT_SPEED + Math.random() * (MAX_OBJECT_SPEED - MIN_OBJECT_SPEED);
@@ -863,14 +861,10 @@
         balls.forEach(ball => { ball.remove = false; });
 
         // Three metaballs, three values per ball
-        const posRadArray = new Float32Array(9);
+        const posRadArray = new Float32Array(27);
         const spikePosRadArray = new Float32Array(16 * 3);
 
-        const colorArray = new Float32Array([
-            0, 1, 0.78,
-            1, 0.93, 0,
-            1, 0, 0.33
-        ]);
+        const colorArray = new Float32Array(27);
 
         class GlitchBall {
             constructor(x, y, xp = DEFAULT_XP) {
@@ -913,7 +907,6 @@
         }
 
         const glitchBalls = [];
-        const glitchedSubstances = [];
 
         function randomWorldPosition(radius = 20) {
             return {
@@ -1000,100 +993,93 @@
             glitch.hitRadius = glitch.radius * GLITCH_HITBOX_SCALE;
         }
 
-        function transformSpikeIntoMeta(spike, meta) {
-            meta.xp = spike.xp;
+        function transformSpikeIntoMeta(spike) {
+            const meta = new Metaball(
+                spike.color[0],
+                spike.color[1],
+                spike.color[2],
+                spike.xp
+            );
+            meta.x = spike.x;
+            meta.y = spike.y;
+            meta.prevX = spike.prevX;
+            meta.prevY = spike.prevY;
+            meta.vx = spike.vx;
+            meta.vy = spike.vy;
             refreshMetaStats(meta);
-            meta.color = [...spike.color];
+            meta.vx = spike.vx;
+            meta.vy = spike.vy;
+            balls.push(meta);
             spike.remove = true;
         }
 
-        function transformMetaIntoGlitch(meta, glitch) {
-            glitch.xp = meta.xp;
-            refreshGlitchStats(glitch);
-            glitch.x = meta.x;
-            glitch.y = meta.y;
-            glitch.prevX = meta.x;
-            glitch.prevY = meta.y;
+        function transformMetaIntoGlitch(meta) {
+            const glitch = new GlitchBall(meta.x, meta.y, meta.xp);
+            glitch.prevX = meta.prevX;
+            glitch.prevY = meta.prevY;
             glitch.vx = meta.vx;
             glitch.vy = meta.vy;
-            glitch.isGlitched = false;
-            glitch.glitchLife = 1;
+            refreshGlitchStats(glitch);
+            glitch.vx = meta.vx;
+            glitch.vy = meta.vy;
+            glitchBalls.push(glitch);
             meta.remove = true;
         }
 
-        function transformGlitchIntoSpike(glitch, spike) {
-            spike.xp = glitch.xp;
-            refreshSpikeStats(spike);
-            spike.x = glitch.x;
-            spike.y = glitch.y;
+        function transformGlitchIntoSpike(glitch) {
+            const spike = new SpikeBall(
+                glitch.xp,
+                glitch.x,
+                glitch.y,
+                getInitialSpikeRadius()
+            );
+            spike.prevX = glitch.prevX;
+            spike.prevY = glitch.prevY;
             spike.vx = glitch.vx;
             spike.vy = glitch.vy;
-            spike.remove = false;
+            refreshSpikeStats(spike);
+            spike.vx = glitch.vx;
+            spike.vy = glitch.vy;
+            spike.collisionCooldown = SPIKE_COLLISION_COOLDOWN;
+            spikeBalls.push(spike);
             glitch.remove = true;
         }
 
         function updateVRMechanics() {
             spawnInitialGlitch();
-
             glitchBalls.forEach(glitch => glitch.update());
 
-            // Spike -> Meta: the spike rounds out and transfers half its XP.
-            for (const spike of spikeBalls) {
+            // Meta + Spike: the Spike becomes a Meta. The original Meta remains.
+            for (const spike of [...spikeBalls]) {
                 if (spike.remove) continue;
                 for (const meta of balls) {
                     if (meta.remove) continue;
                     if (objectsCollide(spike, meta)) {
-                        transformSpikeIntoMeta(spike, meta);
+                        transformSpikeIntoMeta(spike);
                         break;
                     }
                 }
             }
 
-            // Glitch ball -> Meta: Meta becomes a glitched substance.
-            for (const glitch of glitchBalls) {
-                if (glitch.isGlitched) continue;
-                for (const meta of balls) {
+            // Glitch + Meta: the Meta becomes a Glitch. The original Glitch remains.
+            for (const glitch of [...glitchBalls]) {
+                if (glitch.remove) continue;
+                for (const meta of [...balls]) {
                     if (meta.remove) continue;
                     if (objectsCollide(glitch, meta)) {
-                        transformMetaIntoGlitch(meta, glitch);
-                        glitch.isGlitched = true;
-                        glitch.glitchLife = 1;
+                        transformMetaIntoGlitch(meta);
                         break;
                     }
                 }
             }
 
-            // Glitched substance gains 1 XP on each edge/corner collision.
-            // Contact with a Spike immediately transforms it instead.
-            for (const glitched of glitchedSubstances) {
-                if (glitched.remove || glitched.isDragging) continue;
-
-                glitched.prevX = glitched.x;
-                glitched.prevY = glitched.y;
-                glitched.x += glitched.vx;
-                glitched.y += glitched.vy;
-                glitched.phase += 0.3;
-
-                const hitEdge =
-                    glitched.x - glitched.hitRadius <= 0 ||
-                    glitched.x + glitched.hitRadius >= getWorldWidth() ||
-                    glitched.y - glitched.hitRadius <= 0 ||
-                    glitched.y + glitched.hitRadius >= getWorldHeight();
-
-                if (hitEdge) {
-                    glitched.x = Math.max(glitched.hitRadius, Math.min(getWorldWidth() - glitched.hitRadius, glitched.x));
-                    glitched.y = Math.max(glitched.hitRadius, Math.min(getWorldHeight() - glitched.hitRadius, glitched.y));
-                    glitched.vx *= -1;
-                    glitched.vy *= -1;
-                    glitched.xp = normalizeXP(glitched.xp + 1);
-                    glitched.radius = 18 + glitched.xp * 2;
-                    glitched.hitRadius = glitched.radius * GLITCH_HITBOX_SCALE;
-                }
-
-                for (const spike of spikeBalls) {
+            // Spike + Glitch: the Glitch becomes a Spike. The original Spike remains.
+            for (const glitch of [...glitchBalls]) {
+                if (glitch.remove) continue;
+                for (const spike of [...spikeBalls]) {
                     if (spike.remove) continue;
-                    if (objectsCollide(glitched, spike)) {
-                        transformGlitchIntoSpike(glitched, spike);
+                    if (objectsCollide(glitch, spike)) {
+                        transformGlitchIntoSpike(glitch);
                         break;
                     }
                 }
@@ -1105,8 +1091,8 @@
             for (let i = spikeBalls.length - 1; i >= 0; i--) {
                 if (spikeBalls[i].remove) spikeBalls.splice(i, 1);
             }
-            for (let i = glitchedSubstances.length - 1; i >= 0; i--) {
-                if (glitchedSubstances[i].remove) glitchedSubstances.splice(i, 1);
+            for (let i = glitchBalls.length - 1; i >= 0; i--) {
+                if (glitchBalls[i].remove) glitchBalls.splice(i, 1);
             }
         }
 
@@ -1206,7 +1192,6 @@
             vrEffectsCtx.clearRect(0, 0, canvas.width, canvas.height);
 
             glitchBalls.forEach(glitch => drawGlitchVisual(glitch, vrEffectsCtx));
-            glitchedSubstances.forEach(glitched => drawGlitchVisual(glitched, vrEffectsCtx));
         }
 
         let initialized = false;
@@ -1267,7 +1252,6 @@
         let activeBall = null;
         let activeSpike = null;
         let activeGlitch = null;
-        let activeGlitched = null;
         let isPanning = false;
         let lastMouseX = 0;
         let lastMouseY = 0;
@@ -1311,72 +1295,6 @@
                 activeGlitch.isDragging = true;
                 lastWorldX = worldPos.x;
                 lastWorldY = worldPos.y;
-                return;
-            }
-
-            activeGlitched = glitchedSubstances.find(
-                glitched => !glitched.remove && Math.hypot(glitched.x - worldPos.x, glitched.y - worldPos.y) < (glitched.hitRadius ?? glitched.radius)
-            ) || null;
-
-            if (activeGlitched) {
-                activeGlitched.isDragging = true;
-                lastWorldX = worldPos.x;
-                lastWorldY = worldPos.y;
-                return;
-            }
-
-            if (activeSpike) {
-                activeSpike.isDragging = true;
-                activeSpike.collisionCooldown = 0;
-                lastWorldX = worldPos.x;
-                lastWorldY = worldPos.y;
-                return;
-            }
-
-            activeBall = balls.find(
-                b => Math.hypot(b.x - worldPos.x, b.y - worldPos.y) < b.radius
-            ) || null;
-
-            if (activeBall) {
-                activeBall.isDragging = true;
-                lastWorldX = worldPos.x;
-                lastWorldY = worldPos.y;
-                return;
-            }
-
-            isPanning = true;
-            lastMouseX = pos.x;
-            lastMouseY = pos.y;
-        }
-
-        function onMove(e) {
-            if (e.cancelable) e.preventDefault();
-
-            const pos = getPointerPos(e);
-
-            if (activeGlitch) {
-                const worldPos = screenToWorld(pos);
-                activeGlitch.vx = worldPos.x - lastWorldX;
-                activeGlitch.vy = worldPos.y - lastWorldY;
-                activeGlitch.x = worldPos.x;
-                activeGlitch.y = worldPos.y;
-                activeGlitch.x = Math.max(activeGlitch.hitRadius, Math.min(getWorldWidth() - activeGlitch.hitRadius, activeGlitch.x));
-                activeGlitch.y = Math.max(activeGlitch.hitRadius, Math.min(getWorldHeight() - activeGlitch.hitRadius, activeGlitch.y));
-                lastWorldX = activeGlitch.x;
-                lastWorldY = activeGlitch.y;
-                return;
-            }
-
-            if (activeGlitched) {
-                const worldPos = screenToWorld(pos);
-                activeGlitched.vx = worldPos.x - lastWorldX;
-                activeGlitched.vy = worldPos.y - lastWorldY;
-                activeGlitched.x = worldPos.x;
-                activeGlitched.y = worldPos.y;
-                activeGlitched.x = Math.max(activeGlitched.hitRadius, Math.min(getWorldWidth() - activeGlitched.hitRadius, activeGlitched.x));
-                activeGlitched.y = Math.max(activeGlitched.hitRadius, Math.min(getWorldHeight() - activeGlitched.hitRadius, activeGlitched.y));
-                lastWorldX = activeGlitched.x;
-                lastWorldY = activeGlitched.y;
                 return;
             }
 
@@ -1426,8 +1344,6 @@
         function onEnd(e) {
             if (activeGlitch) activeGlitch.isDragging = false;
             activeGlitch = null;
-            if (activeGlitched) activeGlitched.isDragging = false;
-            activeGlitched = null;
             if (activeSpike) activeSpike.isDragging = false;
             activeSpike = null;
             if (activeBall) activeBall.isDragging = false;
@@ -1551,8 +1467,7 @@
                 diamond: { x: camera.x, y: camera.y, heading: 0 },
                 metaballs,
                 spikeBalls: recordedSpikeBalls,
-                glitchBalls: glitchBalls.map((glitch, index) => ({ id: index, x: glitch.x, y: glitch.y, radius: glitch.radius, xp: glitch.xp, glitched: glitch.isGlitched })),
-                glitchedSubstances: glitchedSubstances.map((glitched, index) => ({ id: index, x: glitched.x, y: glitched.y, radius: glitched.radius, xp: glitched.xp })),
+                glitchBalls: glitchBalls.map((glitch, index) => ({ id: index, x: glitch.x, y: glitch.y, radius: glitch.radius, xp: glitch.xp, glitched: false })),
                 camera: {
                     x: camera.x,
                     y: camera.y,
@@ -1564,14 +1479,20 @@
         }
 
         function animate() {
-            balls.forEach((ball, i) => {
-                ball.update();
+            balls.forEach(ball => ball.update());
+            posRadArray.fill(0);
+            colorArray.fill(0);
+
+            for (let i = 0; i < Math.min(balls.length, 9); i++) {
+                const ball = balls[i];
                 const idx = i * 3;
                 posRadArray[idx] = ball.x;
                 posRadArray[idx + 1] = ball.y;
                 posRadArray[idx + 2] = ball.radius;
-            });
-
+                colorArray[idx] = ball.color[0];
+                colorArray[idx + 1] = ball.color[1];
+                colorArray[idx + 2] = ball.color[2];
+            }
             updateSpikePhysics();
             updateVRMechanics();
             updateAndDrawOverlay();
@@ -1592,22 +1513,9 @@
                 spikePosRadArray[idx + 2] = spike.radius * 0.82;
             }
 
-            for (let i = 0; i < 3; i++) {
-                const ball = balls[i];
-                const colorIndex = i * 3;
-                if (ball) {
-                    colorArray[colorIndex] = ball.color[0];
-                    colorArray[colorIndex + 1] = ball.color[1];
-                    colorArray[colorIndex + 2] = ball.color[2];
-                } else {
-                    colorArray[colorIndex] = 0;
-                    colorArray[colorIndex + 1] = 0;
-                    colorArray[colorIndex + 2] = 0;
-                }
-            }
-
             gl.uniform3fv(posRadUniform, posRadArray);
             gl.uniform3fv(colorUniform, colorArray);
+            gl.uniform1i(ballCountUniform, Math.min(balls.length, 9));
             gl.uniform3fv(spikePosRadUniform, spikePosRadArray);
             gl.uniform1i(spikeCountUniform, visibleSpikeCount);
             gl.drawArrays(gl.TRIANGLES, 0, 6);
