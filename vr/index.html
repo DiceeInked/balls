@@ -468,7 +468,7 @@
                 this.prevX = this.x;
                 this.prevY = this.y;
                 this.normalSpeed = randomSpeed() * xpScale(this.xp);
-                const velocity = velocityForXP(this.xp, this.normalSpeed);
+                const velocity = randomVelocity(this.normalSpeed);
                 this.vx = velocity.vx;
                 this.vy = velocity.vy;
 
