@@ -51,6 +51,17 @@
             user-select: none;
         }
 
+        #vr-effects-canvas {
+            position: absolute;
+            inset: 0;
+            z-index: 3;
+            display: block;
+            width: 100%;
+            height: 100%;
+            border-radius: inherit;
+            pointer-events: none;
+        }
+
         #spike-canvas {
             position: absolute;
             inset: 0;
@@ -211,6 +222,7 @@
         <div id="metaball-window">
             <canvas id="canvas"></canvas>
             <canvas id="spike-canvas" aria-hidden="true"></canvas>
+            <canvas id="vr-effects-canvas" aria-hidden="true"></canvas>
         </div>
         <div id="zoom-controls" aria-label="Zoom controls">
             <button class="zoom-button" id="zoom-out" type="button" aria-label="Zoom out">−</button>
@@ -226,6 +238,8 @@
         const canvas = document.getElementById('canvas');
         const spikeCanvas = document.getElementById('spike-canvas');
         const spikeCtx = spikeCanvas.getContext('2d');
+        const vrEffectsCanvas = document.getElementById('vr-effects-canvas');
+        const vrEffectsCtx = vrEffectsCanvas.getContext('2d');
         const gl = canvas.getContext('webgl', { alpha: true });
         if (!gl) alert('WebGL not supported');
 
@@ -733,6 +747,7 @@
             new Metaball(1, 0, 0.33),
             new Metaball(0, 0, 0)
         ];
+        balls.forEach(ball => { ball.xp = META_DEFAULT_XP; ball.remove = false; });
 
         // Adjusted size to 12 (4 balls * 3 elements each)
         const posRadArray = new Float32Array(12);
@@ -745,6 +760,184 @@
             1, 0, 0.33,
             0, 0, 0
         ]);
+
+        const META_DEFAULT_XP = 10;
+        const SPIKE_DEFAULT_XP = 16;
+        const GLITCH_DEFAULT_XP = 5;
+        const GLITCH_EFFECT_PARTICLES = 14;
+
+        class GlitchBall {
+            constructor(x, y, xp = GLITCH_DEFAULT_XP) {
+                this.x = x;
+                this.y = y;
+                this.xp = xp;
+                this.radius = Math.max(12, 16 + xp * 1.5);
+                this.vx = (Math.random() - 0.5) * 2.4;
+                this.vy = (Math.random() - 0.5) * 2.4;
+                this.phase = Math.random() * Math.PI * 2;
+                this.isGlitched = false;
+                this.glitchLife = 0;
+                this.color = [0.4, 1.0, 0.8];
+            }
+
+            update() {
+                if (this.isGlitched) return;
+                this.x += this.vx;
+                this.y += this.vy;
+                this.phase += 0.21;
+                this.radius = Math.max(12, 16 + this.xp * 1.5);
+            }
+        }
+
+        const glitchBalls = [];
+        const glitchedSubstances = [];
+
+        function spawnInitialGlitch() {
+            if (glitchBalls.length) return;
+            glitchBalls.push(new GlitchBall(camera.x, camera.y));
+        }
+
+        function distance2D(a, b) {
+            return Math.hypot(a.x - b.x, a.y - b.y);
+        }
+
+        function metaXPForSpike(meta, spike) {
+            return meta.xp + spike.xp / 2;
+        }
+
+        function transformSpikeIntoMeta(spike, meta) {
+            meta.xp = metaXPForSpike(meta, spike);
+            meta.radius = Math.max(meta.radius, Math.min(canvas.width, canvas.height) * 0.055 + meta.xp * 0.8);
+            meta.color = [...spike.color];
+            spike.remove = true;
+        }
+
+        function transformMetaIntoGlitch(meta, glitch) {
+            glitchedSubstances.push({
+                x: meta.x,
+                y: meta.y,
+                xp: glitch.xp,
+                radius: Math.max(meta.radius * 0.9, 18 + glitch.xp * 2),
+                vx: meta.vx,
+                vy: meta.vy,
+                phase: Math.random() * Math.PI * 2
+            });
+            meta.remove = true;
+        }
+
+        function transformGlitchIntoSpike(glitched, spike) {
+            spike.sides = Math.max(2, Math.round(glitched.xp));
+            spike.xp = spike.sides;
+            spike.radius = Math.max(spike.radius, 14 + glitched.xp * 0.7);
+            spike.remove = false;
+            glitched.remove = true;
+        }
+
+        function updateVRMechanics() {
+            spawnInitialGlitch();
+
+            glitchBalls.forEach(glitch => glitch.update());
+
+            // Spike -> Meta: the spike rounds out and transfers half its XP.
+            for (const spike of spikeBalls) {
+                if (spike.remove) continue;
+                for (const meta of balls) {
+                    if (meta.remove) continue;
+                    if (distance2D(spike, meta) <= spike.radius + meta.radius) {
+                        transformSpikeIntoMeta(spike, meta);
+                        break;
+                    }
+                }
+            }
+
+            // Glitch ball -> Meta: Meta becomes a glitched substance.
+            for (const glitch of glitchBalls) {
+                if (glitch.isGlitched) continue;
+                for (const meta of balls) {
+                    if (meta.remove) continue;
+                    if (distance2D(glitch, meta) <= glitch.radius + meta.radius) {
+                        transformMetaIntoGlitch(meta, glitch);
+                        glitch.isGlitched = true;
+                        glitch.glitchLife = 1;
+                        break;
+                    }
+                }
+            }
+
+            // Glitched substance gains XP on edges and on spike contact.
+            for (const glitched of glitchedSubstances) {
+                if (glitched.remove) continue;
+
+                glitched.x += glitched.vx;
+                glitched.y += glitched.vy;
+                glitched.phase += 0.3;
+
+                const hitEdge =
+                    glitched.x - glitched.radius <= 0 ||
+                    glitched.x + glitched.radius >= getWorldWidth() ||
+                    glitched.y - glitched.radius <= 0 ||
+                    glitched.y + glitched.radius >= getWorldHeight();
+
+                if (hitEdge) {
+                    glitched.x = Math.max(glitched.radius, Math.min(getWorldWidth() - glitched.radius, glitched.x));
+                    glitched.y = Math.max(glitched.radius, Math.min(getWorldHeight() - glitched.radius, glitched.y));
+                    glitched.vx *= -1;
+                    glitched.vy *= -1;
+                    glitched.xp += 1;
+                    glitched.radius = 18 + glitched.xp * 2;
+                }
+
+                for (const spike of spikeBalls) {
+                    if (spike.remove) continue;
+                    if (distance2D(glitched, spike) <= glitched.radius + spike.radius) {
+                        transformGlitchIntoSpike(glitched, spike);
+                        break;
+                    }
+                }
+            }
+
+            for (let i = balls.length - 1; i >= 0; i--) {
+                if (balls[i].remove) balls.splice(i, 1);
+            }
+            for (let i = spikeBalls.length - 1; i >= 0; i--) {
+                if (spikeBalls[i].remove) spikeBalls.splice(i, 1);
+            }
+            for (let i = glitchedSubstances.length - 1; i >= 0; i--) {
+                if (glitchedSubstances[i].remove) glitchedSubstances.splice(i, 1);
+            }
+        }
+
+        function drawGlitchVisual(glitch, ctx) {
+            const points = Math.max(8, glitch.xp * GLITCH_EFFECT_PARTICLES);
+            ctx.save();
+            ctx.translate(glitch.x, canvas.height - glitch.y);
+            ctx.globalCompositeOperation = 'screen';
+            for (let i = 0; i < points; i++) {
+                const angle = glitch.phase * 1.7 + i * 2.399;
+                const length = glitch.radius * (0.65 + 0.8 * Math.abs(Math.sin(glitch.phase * 2 + i)));
+                const x1 = Math.cos(angle) * glitch.radius * 0.35;
+                const y1 = Math.sin(angle) * glitch.radius * 0.35;
+                const x2 = Math.cos(angle + 0.42) * length;
+                const y2 = Math.sin(angle + 0.42) * length;
+                ctx.beginPath();
+                ctx.moveTo(x1, y1);
+                ctx.lineTo(x2, y2);
+                ctx.lineTo(Math.cos(angle - 0.25) * length * 0.7, Math.sin(angle - 0.25) * length * 0.7);
+                ctx.closePath();
+                ctx.fillStyle = 'rgba(120, 255, 220, 0.16)';
+                ctx.fill();
+            }
+            ctx.restore();
+        }
+
+        function drawVRMechanics() {
+            vrEffectsCanvas.width = canvas.width;
+            vrEffectsCanvas.height = canvas.height;
+            vrEffectsCtx.clearRect(0, 0, canvas.width, canvas.height);
+
+            glitchBalls.forEach(glitch => drawGlitchVisual(glitch, vrEffectsCtx));
+            glitchedSubstances.forEach(glitched => drawGlitchVisual(glitched, vrEffectsCtx));
+        }
 
         let initialized = false;
 
@@ -792,6 +985,7 @@
                     )
                 );
 
+                spikeBalls.forEach(spike => { spike.xp = spike.sides; spike.remove = false; });
                 spikeBalls.forEach(clampSpike);
                 initialized = true;
             } else {
@@ -1017,6 +1211,7 @@
                 y: ball.y,
                 radius: ball.radius,
                 color: [...ball.color],
+                xp: ball.xp,
                 vx: ball.vx,
                 vy: ball.vy
             }));
@@ -1027,6 +1222,7 @@
                 y: spike.y,
                 radius: spike.radius,
                 sides: spike.sides,
+                xp: spike.xp,
                 rotation: spike.rotation,
                 vx: spike.vx,
                 vy: spike.vy,
@@ -1038,6 +1234,8 @@
                 diamond: { x: camera.x, y: camera.y, heading: 0 },
                 metaballs,
                 spikeBalls: recordedSpikeBalls,
+                glitchBalls: glitchBalls.map((glitch, index) => ({ id: index, x: glitch.x, y: glitch.y, radius: glitch.radius, xp: glitch.xp, glitched: glitch.isGlitched })),
+                glitchedSubstances: glitchedSubstances.map((glitched, index) => ({ id: index, x: glitched.x, y: glitched.y, radius: glitched.radius, xp: glitched.xp })),
                 camera: {
                     x: camera.x,
                     y: camera.y,
@@ -1058,7 +1256,9 @@
             });
 
             updateSpikePhysics();
+            updateVRMechanics();
             updateAndDrawOverlay();
+            drawVRMechanics();
             recordWorldState();
 
             gl.uniform2f(resUniform, canvas.width, canvas.height);
