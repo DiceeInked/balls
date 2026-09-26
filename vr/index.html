@@ -841,6 +841,18 @@
         const MIN_OBJECT_SPEED = 0.75;
         const MAX_OBJECT_SPEED = 2.8;
 
+        function normalizeXP(value) {
+            return Math.max(1, Math.floor(value));
+        }
+
+        function xpScale(xp) {
+            return normalizeXP(xp) / DEFAULT_XP;
+        }
+
+        function velocityForXP(xp, speed = randomSpeed()) {
+            return randomVelocity(speed * xpScale(xp));
+        }
+
         function randomSpeed() {
             return MIN_OBJECT_SPEED + Math.random() * (MAX_OBJECT_SPEED - MIN_OBJECT_SPEED);
         }
