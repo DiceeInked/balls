@@ -1,28 +1,48 @@
 # Glitch
 
-Glitch has two related states: the Glitch ball and Glitched substance.
+Glitch has two related states in the VR version: a moving Glitch Ball and a Glitched Substance.
 
-## XP rules
-Glitch starts with 5 XP. XP is always a non-negative integer and is rounded down after calculations.
+## Starting state
 
-Whenever Glitch performs a transformation, it loses one quarter of its current XP. The remaining XP is 75% of the previous XP, rounded down.
+Each initially spawned Glitch Ball receives:
+- a random integer XP from 8 through 32
+- a random speed
+- a random direction
+- a random position across the full world
 
-For example:
-- 5 XP -> 3 XP after the first transformation.
-- 3 XP -> 2 XP after the second transformation.
+The current speed randomization range is 0.75 through 2.8 world units per frame.
 
-## Glitch ball
-The Glitch ball is a simple circular hitbox. It does not need rotational physics. Its visual appearance is rapid, irregular triangular and polygonal glitch geometry around the hitbox.
+XP is always stored as an integer. The 8-32 range is the starting range, not a permanent upper/lower bound after transformations.
 
-The default Glitch ball value is 5 XP. Glitch XP determines the size of the visible glitchy effect.
+## Glitch Ball
+
+The Glitch Ball has a circular hitbox and no rotational physics. Its visible effect is intentionally chaotic: rapidly changing horizontal noise slices, blocks, jagged shards, displacement bars, and red/blue fragments.
+
+Its XP controls the size and density of the glitch effect.
+
+Glitch Balls can be grabbed and dragged. While being dragged, their normal movement is paused.
 
 ## Meta interaction
-When a Glitch ball contacts a Meta, the Meta transforms into Glitched substance. The Glitch loses one quarter of its XP as part of this transformation. The Glitch does not gain XP from this transformation.
 
-## Glitched substance
-Glitched substance can interact with Spike objects. When Glitched substance contacts a Spike, it transforms into a Spike and loses one quarter of its current XP as part of the transformation.
+When a Glitch Ball contacts a Meta, that Meta is removed and becomes a Glitched Substance at the Meta's position and velocity.
 
-Glitched substance gains 1 XP whenever it collides with an edge or corner. This is cumulative.
+The Glitch Ball loses one quarter of its current XP for the transformation:
 
-## Visual rule
-Glitched substance should look like unstable, rapidly changing triangular and polygonal fragments rather than a clean circle. Its visual size is controlled by its XP.
+`new XP = floor(old XP * 0.75)`
+
+The Glitch gains no XP from this transformation and remains present in its transformed/glitched state.
+
+## Glitched Substance
+
+Glitched Substance:
+- moves with velocity
+- can be grabbed and dragged
+- bounces from world edges
+- gains 1 XP for each edge/corner impact
+- grows as its XP increases
+- can transform into a Spike when it contacts one
+- does not collide with Metas
+
+When it transforms into a Spike, it loses one quarter of its current XP, rounded down. The resulting integer XP becomes the Spike's vertex count, with a minimum of 2 vertices.
+
+Swept collision checks are used so fast-moving objects are much less likely to pass through one another between frames.
