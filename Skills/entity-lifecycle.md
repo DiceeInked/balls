@@ -29,3 +29,7 @@ Collect:
 - The stored XP is transferred before the pickup is removed.
 
 Lifecycle operations should be centralized enough to prevent duplicate entities, double XP transfers, stale collision references, or destroyed objects continuing to move.
+
+
+## Step 1 implementation note
+The Step 1 foundation uses `VRWorld.allocateEntityId()`, `register()`, and `unregister()` for authoritative entity identity and lifecycle bookkeeping. Rendering arrays are aliases of authoritative collections, so removed entities are unregistered when removed.
