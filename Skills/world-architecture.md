@@ -24,6 +24,10 @@ The regular 2D experience and the VR experience may share concepts and data form
 
 Every code change must be checked against every skill in this folder. If a new rule conflicts with an older skill, the newest explicit project rule wins and the affected skills must be updated together.
 
+## Step 1 implementation notes
 
-## Step 1 implementation note
-A world-state container now exists in `vr/simulation.js`; the VR renderer consumes its entity collections rather than owning separate gameplay arrays. The container also holds authoritative player state, world bounds, world time, and entity identity allocation.
+A world-state container exists in `vr/simulation.js`; the VR page uses its entity collections rather than renderer-owned gameplay arrays. The container also holds authoritative player state, world bounds, world time, and entity identity allocation.
+
+The page now routes each animation frame through a `VRSimulation.step()` boundary. That step advances world time and invokes gameplay updates before a separate `renderFrame()` draws the result. This is an architectural seam, not yet a complete migration of every gameplay system out of `vr/index.html`. Movement is still largely frame-based until the simulation-clock step.
+
+The page also has a 2D fallback renderer for browsers where WebGL context creation fails or the shader program cannot be used. Rendering failure must not stop the simulation or leave the page entirely blank when the fallback canvas is available.
