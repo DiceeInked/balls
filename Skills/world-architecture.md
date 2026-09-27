@@ -31,3 +31,7 @@ A world-state container exists in `vr/simulation.js`; the VR page uses its entit
 The page now routes each animation frame through a `VRSimulation.step()` boundary. That step advances world time and invokes gameplay updates before a separate `renderFrame()` draws the result. This is an architectural seam, not yet a complete migration of every gameplay system out of `vr/index.html`. Movement is still largely frame-based until the simulation-clock step.
 
 The page also has a 2D fallback renderer for browsers where WebGL context creation fails or the shader program cannot be used. Rendering failure must not stop the simulation or leave the page entirely blank when the fallback canvas is available.
+
+
+## Minimal visualization status
+The visualization is currently a deliberately simple view of the architecture. It does not implement detailed gameplay rendering or WebXR yet. The three basic object shapes are only visual placeholders.
