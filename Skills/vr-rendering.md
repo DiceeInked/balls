@@ -23,3 +23,7 @@ The renderer must not own authoritative gameplay state.
 WebGL code should avoid fragile assumptions about device uniform limits, shader capacity, or GPU features. Quest-class hardware is a target, so rendering should favor predictable GPU usage.
 
 WebXR and WebGL failures should surface useful diagnostics instead of silently destroying or resetting simulation state.
+
+## Current 2D preview behavior
+
+The current `vr/index.html` page is still a 2D simulation preview, not a completed immersive WebXR scene. Its animation loop now separates simulation updates from drawing. If WebGL context creation fails, it attempts to use a Canvas 2D fallback; if the shader program is unavailable, it draws the fallback on the existing overlay canvas. This is intended to prevent a blank preview, including on mobile browsers, but still requires testing on the actual device.
