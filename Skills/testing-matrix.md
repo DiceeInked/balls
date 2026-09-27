@@ -60,3 +60,7 @@ System tests:
 - Quest-class performance
 
 A mechanic is not considered verified merely because it looks correct visually. The authoritative state must also be correct. Device-specific checks should be performed on the actual target browser before claiming they pass.
+
+
+## Visualization smoke test
+Before detailed VR rendering is added, verify that the VR page loads on desktop and iPhone Safari and visibly shows the square field plus the three placeholder object shapes.
