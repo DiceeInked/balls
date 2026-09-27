@@ -51,9 +51,12 @@ System tests:
 - Long-running simulation
 - Hidden-tab throttling
 - Persistence and resume
-- WebGL failure
+- WebGL context unavailable
+- Shader compilation/link failure
+- 2D fallback remains visible when WebGL is unavailable
+- iPhone Safari portrait and landscape layout
 - WebXR unavailable
 - WebXR session start/end
 - Quest-class performance
 
-A mechanic is not considered verified merely because it looks correct visually. The authoritative state must also be correct.
+A mechanic is not considered verified merely because it looks correct visually. The authoritative state must also be correct. Device-specific checks should be performed on the actual target browser before claiming they pass.
