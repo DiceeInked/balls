@@ -3,7 +3,7 @@
 The VR rebuild follows this implementation order.
 
 1. Clean-slate architecture
-Establish the authoritative simulation state and keep it separate from rendering.
+Establish the authoritative simulation state and keep it separate from rendering. The first layer now exists in `vr/simulation.js`, and the page has distinct simulation-update and render functions. Continue removing gameplay ownership from rendering code.
 
 2. World coordinates
 Implement stable world positions, velocities, directions, IDs, and world boundaries.
@@ -33,7 +33,7 @@ Implement Spike capture, blackened world, crack generation, point dragging, repa
 Add WebXR, headset tracking, hand tracking, stereoscopic rendering, and optimized visual effects.
 
 11. Simulation/render separation
-Make sure the game remains authoritative and recoverable regardless of rendering state.
+Make sure the game remains authoritative and recoverable regardless of rendering state. The current page now routes each animation frame through a simulation step before drawing; finish moving gameplay systems into the simulation module over subsequent architecture work.
 
 12. Debugging
 Build tools that expose world state, contacts, XP, timers, events, WebXR state, WebGL errors, and persistence state.
