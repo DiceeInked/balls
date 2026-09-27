@@ -17,5 +17,10 @@ Important goals:
 - Keep WebGL uniforms and shader complexity within conservative limits
 - Avoid creating large temporary arrays every frame
 - Reuse objects for visual effects where practical
+- Keep a lightweight 2D fallback for devices where WebGL is unavailable
 
 Performance optimization must never silently change gameplay rules.
+
+## Current architecture note
+
+The animation loop now calls a simulation step before rendering. This separates the update boundary from drawing, but some gameplay code remains in `vr/index.html` and movement is not yet fully time-normalized. The fallback is intended for basic visibility and interaction, not as a replacement for the eventual immersive WebXR renderer.
