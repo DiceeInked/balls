@@ -6,9 +6,11 @@ The VR version is a clean-slate simulation with one authoritative world state. S
 
 The world contains Metaballs, Spikes, Glitches, the VR player, world boundaries and other collidable geometry, movement state, XP, contact timers, pickup state, capture state, and world time.
 
-Simulation and rendering stay separate. WebGL, WebXR, tab visibility, or rendering failures must never reset the authoritative world.
-
 World coordinates are persistent and independent of the camera or headset view. Entities have stable IDs and the state needed to simulate them.
+
+The page now has a `VRSimulation.step()` boundary that advances world time and runs simulation updates before a separate render pass. This is the beginning of simulation/render separation, not a completed migration of all gameplay logic out of `vr/index.html`. The current page is still a 2D preview, not a finished WebXR scene.
+
+The renderer has a 2D fallback for cases where WebGL is unavailable or its shader program cannot be used. Rendering failure must not reset the authoritative world.
 
 The simulation uses elapsed world time. Continuous XP drains transfer 1 XP immediately on contact, then 1 XP after each additional full uninterrupted second. Metaball pickup generation and passive player XP loss use 100-second simulation timers. Contact timers are tracked per relevant pair.
 
@@ -47,8 +49,6 @@ A normal Metaball has a bright white glowing center. If it has stored pickup XP,
 ## Spikes
 
 Spikes are red polygonal entities. Their rendered vertex count is derived from their XP.
-
-Spikes gain XP by draining Metaballs. Contact transfers 1 XP immediately, then 1 XP per additional full second of continuous contact.
 
 When a Spike hits a wall, another Spike, or another qualifying collidable object, it splits into two if it has more than 3 vertices. The children receive approximately half the parent's vertices and XP. If it has 3 or fewer vertices, the next qualifying collision makes it disappear.
 
@@ -131,16 +131,9 @@ The headset supplies view position and orientation. The hands/controllers are tr
 
 The left hand provides XP display and menu interaction.
 
-The renderer uses:
-- Yellow Metaballs
-- Red Spikes
-- Red Glitches
-- Blue player
-- Black XP pickup orb
-- Bright white Metaball glow
-- Glowing trap cracks
+The renderer uses yellow Metaballs, red Spikes, red Glitches, a blue player, a black XP pickup orb, a bright white Metaball glow, and glowing trap cracks.
 
-Rendering must never own authoritative gameplay state. WebGL should avoid fragile assumptions about GPU limits, uniforms, shaders, or device-specific features.
+Rendering must never own authoritative gameplay state. WebGL should avoid fragile assumptions about GPU limits, uniforms, shaders, or device-specific features. A 2D fallback should preserve basic visibility when WebGL is unavailable.
 
 Quest-class hardware is a primary target.
 
@@ -154,6 +147,6 @@ Debug output is diagnostic only and never becomes authoritative gameplay state.
 
 ## Testing
 
-Every mechanic needs isolated and combined tests. Important cases include high-speed collision tunneling, simultaneous contacts, destruction during collision processing, long-running timers, hidden-tab behavior, persistence/resume, WebGL failure, WebXR session lifecycle, and Quest-class performance.
+Every mechanic needs isolated and combined tests. Important cases include high-speed collision tunneling, simultaneous contacts, destruction during collision processing, long-running timers, hidden-tab behavior, persistence/resume, WebGL failure, WebXR session lifecycle, mobile fallback visibility, and Quest-class performance.
 
 Visual correctness alone is not sufficient. The authoritative simulation state must also be correct.
