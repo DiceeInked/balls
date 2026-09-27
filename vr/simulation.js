@@ -79,6 +79,29 @@
         }
     }
 
+    class VRSimulation {
+        constructor(world) {
+            this.world = world;
+            this.frame = 0;
+            this.lastDeltaSeconds = 0;
+        }
+
+        step(deltaSeconds, updateFn) {
+            const elapsed = Number.isFinite(deltaSeconds) && deltaSeconds > 0
+                ? deltaSeconds
+                : 0;
+            this.world.advanceTime(elapsed);
+            this.lastDeltaSeconds = elapsed;
+
+            if (typeof updateFn === 'function') {
+                updateFn(elapsed);
+            }
+
+            this.frame += 1;
+        }
+    }
+
     window.VRWorldState = VRWorldState;
     window.VRWorld = new VRWorldState();
+    window.VRSimulation = VRSimulation;
 })();
