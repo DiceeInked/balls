@@ -23,6 +23,7 @@ Useful debug information includes:
 - WebXR support and session state
 - WebGL/shader errors
 - Persistence saves and resumes
+- Whether the WebGL renderer or 2D fallback is active
 
 Debug output should make it possible to distinguish a simulation bug from a rendering bug.
 
@@ -30,6 +31,8 @@ Every gameplay event that creates, destroys, transforms, splits, captures, or tr
 
 The debug system must not become the authoritative source of gameplay state.
 
-
 ## Step 1 implementation note
+
 The Step 1 foundation exposes a dedicated `VRWorld` state container suitable for authoritative debugging, including world time, entity registry, player state, and bounds. Debug views must continue to read this state rather than become owners of it.
+
+The page now has separate simulation and rendering entry points. If WebGL is unavailable or its program cannot be used, a 2D fallback is attempted instead of continuing into invalid WebGL calls. Device-level visual verification is still required to confirm behavior on iPhone Safari.
