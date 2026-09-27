@@ -406,18 +406,18 @@
                 return nextProgram;
         }
 
-                    const program = createProgram(vsSource, fsSource);
+                    program = createProgram(vsSource, fsSource);
         gl.useProgram(program);
 
-                    const positionAttribute = gl.getAttribLocation(program, "position");
-                    const resUniform = gl.getUniformLocation(program, "u_resolution");
-                    const cameraUniform = gl.getUniformLocation(program, "u_camera");
-                    const zoomUniform = gl.getUniformLocation(program, "u_zoom");
-                    const ballsUniform = gl.getUniformLocation(program, "u_balls");
+                    positionAttribute = gl.getAttribLocation(program, "position");
+                    resUniform = gl.getUniformLocation(program, "u_resolution");
+                    cameraUniform = gl.getUniformLocation(program, "u_camera");
+                    zoomUniform = gl.getUniformLocation(program, "u_zoom");
+                    ballsUniform = gl.getUniformLocation(program, "u_balls");
         
         
         
-                    const ballCountUniform = gl.getUniformLocation(program, "u_ballCount");
+                    ballCountUniform = gl.getUniformLocation(program, "u_ballCount");
 
                     const buffer = gl.createBuffer();
         gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
@@ -1527,17 +1527,18 @@
             recordWorldState();
         }
 
-        function drawFallbackFrame() {
-            if (!fallbackCtx) return;
-            fallbackCtx.clearRect(0, 0, canvas.width, canvas.height);
+        function drawFallbackFrame(targetContext = fallbackCtx) {
+            if (!targetContext) return;
+            const ctx = targetContext;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
 
             const spacing = 34;
-            fallbackCtx.fillStyle = 'rgba(150, 150, 150, 0.55)';
+            ctx.fillStyle = 'rgba(150, 150, 150, 0.55)';
             for (let y = 0; y < canvas.height; y += spacing) {
                 for (let x = 0; x < canvas.width; x += spacing) {
-                    fallbackCtx.beginPath();
-                    fallbackCtx.arc(x, y, 1.4, 0, Math.PI * 2);
-                    fallbackCtx.fill();
+                    ctx.beginPath();
+                    ctx.arc(x, y, 1.4, 0, Math.PI * 2);
+                    ctx.fill();
                 }
             }
 
@@ -1548,17 +1549,17 @@
                     p.y + ball.radius * cameraZoom < 0 ||
                     p.y - ball.radius * cameraZoom > canvas.height) continue;
 
-                const gradient = fallbackCtx.createRadialGradient(
+                const gradient = ctx.createRadialGradient(
                     p.x, p.y, Math.max(1, ball.radius * cameraZoom * 0.08),
                     p.x, p.y, Math.max(2, ball.radius * cameraZoom)
                 );
                 gradient.addColorStop(0, 'rgba(255,255,255,1)');
                 gradient.addColorStop(0.24, 'rgba(255,235,0,0.98)');
                 gradient.addColorStop(1, 'rgba(255,180,0,0.04)');
-                fallbackCtx.fillStyle = gradient;
-                fallbackCtx.beginPath();
-                fallbackCtx.arc(p.x, p.y, ball.radius * cameraZoom, 0, Math.PI * 2);
-                fallbackCtx.fill();
+                ctx.fillStyle = gradient;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, ball.radius * cameraZoom, 0, Math.PI * 2);
+                ctx.fill();
             }
         }
 
@@ -1584,7 +1585,7 @@
                 gl.uniform1i(ballCountUniform, Math.min(balls.length, 8));
                 gl.drawArrays(gl.TRIANGLES, 0, 6);
             } else {
-                drawFallbackFrame();
+                drawFallbackFrame(fallbackCtx || spikeCtx);
             }
         }
 
