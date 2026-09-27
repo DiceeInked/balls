@@ -18,3 +18,7 @@ The camera or VR headset view must not redefine world coordinates.
 The VR player's physical position is separate from the headset's viewing orientation. Head and hand tracking affects the player's rendered and controlled body, but does not replace the authoritative world position.
 
 World coordinates must remain stable when the player looks around, changes camera orientation, or moves between rendering frames.
+
+
+## Step 1 implementation note
+The Step 1 foundation stores persistent world bounds and authoritative entity collections in `VRWorld`. Stable entity IDs are allocated independently of array indexes, so rendering order cannot redefine identity.
