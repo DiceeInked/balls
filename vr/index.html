@@ -295,37 +295,51 @@
             window.open('../debug.html', '_blank', 'noopener');
         });
 
+        const simulation = new window.VRSimulation(window.VRWorld);
         const canvas = document.getElementById('canvas');
         const spikeCanvas = document.getElementById('spike-canvas');
         const spikeCtx = spikeCanvas.getContext('2d');
         const vrEffectsCanvas = document.getElementById('vr-effects-canvas');
         const vrEffectsCtx = vrEffectsCanvas.getContext('2d');
         const gl = canvas.getContext('webgl', { alpha: true });
-        if (!gl) alert('WebGL not supported');
+        const fallbackCtx = gl ? null : canvas.getContext('2d');
+        if (!gl) {
+            console.warn('WebGL unavailable. Using the 2D fallback renderer.');
+        }
 
-        const vsSource = `
-            attribute vec2 position;
-            void main() { gl_Position = vec4(position, 0.0, 1.0); }
+        let program = null;
+        let positionAttribute = -1;
+        let resUniform = null;
+        let cameraUniform = null;
+        let zoomUniform = null;
+        let ballsUniform = null;
+        let ballCountUniform = null;
+        let glReady = false;
+
+        if (gl) {
+                    const vsSource = `
+                attribute vec2 position;
+                void main() { gl_Position = vec4(position, 0.0, 1.0); }
         `;
 
         // The VR version renders three metaballs; spike fields are separate.
-        const fsSource = `
-            precision mediump float;
-            uniform vec2 u_resolution;
-            uniform vec2 u_camera;
-            uniform float u_zoom;
+                    const fsSource = `
+                precision mediump float;
+                uniform vec2 u_resolution;
+                uniform vec2 u_camera;
+                uniform float u_zoom;
             // Each Meta is packed as x, y, radius, color index.
-            uniform vec4 u_balls[8];
-            uniform int u_ballCount;
+                uniform vec4 u_balls[8];
+                uniform int u_ballCount;
 
-            vec3 ballColor(float index) {
+                vec3 ballColor(float index) {
                 if (index < 0.5) return vec3(0.0, 1.0, 0.78);
                 if (index < 1.5) return vec3(1.0, 0.93, 0.0);
                 if (index < 2.5) return vec3(1.0, 0.0, 0.33);
                 return vec3(0.77, 0.79, 0.79);
-            }
+                }
 
-            void main() {
+                void main() {
                 vec2 screenPos = gl_FragCoord.xy;
                 vec2 worldPos = u_camera + (screenPos - 0.5 * u_resolution) / u_zoom;
 
@@ -359,58 +373,65 @@
                 } else {
                     gl_FragColor = vec4(0.0, 0.0, 0.0, 0.0);
                 }
-            }
+                }
         `;
 
-        function createShader(type, source) {
-            const shader = gl.createShader(type);
-            gl.shaderSource(shader, source);
-            gl.compileShader(shader);
-            return shader;
+                function createShader(type, source) {
+                    const shader = gl.createShader(type);
+                    gl.shaderSource(shader, source);
+                    gl.compileShader(shader);
+                return shader;
         }
 
-        function createProgram(vertexSource, fragmentSource) {
-            const vertexShader = createShader(gl.VERTEX_SHADER, vertexSource);
-            const fragmentShader = createShader(gl.FRAGMENT_SHADER, fragmentSource);
+                function createProgram(vertexSource, fragmentSource) {
+                    const vertexShader = createShader(gl.VERTEX_SHADER, vertexSource);
+                    const fragmentShader = createShader(gl.FRAGMENT_SHADER, fragmentSource);
 
-            if (!gl.getShaderParameter(vertexShader, gl.COMPILE_STATUS)) {
-                console.error('VR vertex shader error:', gl.getShaderInfoLog(vertexShader));
-            }
-            if (!gl.getShaderParameter(fragmentShader, gl.COMPILE_STATUS)) {
-                console.error('VR fragment shader error:', gl.getShaderInfoLog(fragmentShader));
-            }
+                if (!gl.getShaderParameter(vertexShader, gl.COMPILE_STATUS)) {
+                    console.error('VR vertex shader error:', gl.getShaderInfoLog(vertexShader));
+                }
+                if (!gl.getShaderParameter(fragmentShader, gl.COMPILE_STATUS)) {
+                    console.error('VR fragment shader error:', gl.getShaderInfoLog(fragmentShader));
+                }
 
-            const nextProgram = gl.createProgram();
-            gl.attachShader(nextProgram, vertexShader);
-            gl.attachShader(nextProgram, fragmentShader);
-            gl.linkProgram(nextProgram);
+                    const nextProgram = gl.createProgram();
+                    gl.attachShader(nextProgram, vertexShader);
+                    gl.attachShader(nextProgram, fragmentShader);
+                    gl.linkProgram(nextProgram);
 
-            if (!gl.getProgramParameter(nextProgram, gl.LINK_STATUS)) {
-                console.error('VR WebGL program link error:', gl.getProgramInfoLog(nextProgram));
-            }
+                if (!gl.getProgramParameter(nextProgram, gl.LINK_STATUS)) {
+                    console.error('VR WebGL program link error:', gl.getProgramInfoLog(nextProgram));
+                }
 
-            return nextProgram;
+                return nextProgram;
         }
 
-        const program = createProgram(vsSource, fsSource);
+                    const program = createProgram(vsSource, fsSource);
         gl.useProgram(program);
 
-        const positionAttribute = gl.getAttribLocation(program, "position");
-        const resUniform = gl.getUniformLocation(program, "u_resolution");
-        const cameraUniform = gl.getUniformLocation(program, "u_camera");
-        const zoomUniform = gl.getUniformLocation(program, "u_zoom");
-        const ballsUniform = gl.getUniformLocation(program, "u_balls");
+                    const positionAttribute = gl.getAttribLocation(program, "position");
+                    const resUniform = gl.getUniformLocation(program, "u_resolution");
+                    const cameraUniform = gl.getUniformLocation(program, "u_camera");
+                    const zoomUniform = gl.getUniformLocation(program, "u_zoom");
+                    const ballsUniform = gl.getUniformLocation(program, "u_balls");
         
         
         
-        const ballCountUniform = gl.getUniformLocation(program, "u_ballCount");
+                    const ballCountUniform = gl.getUniformLocation(program, "u_ballCount");
 
-        const buffer = gl.createBuffer();
+                    const buffer = gl.createBuffer();
         gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
         gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, -1,1, 1,-1, 1,1]), gl.STATIC_DRAW);
         gl.enableVertexAttribArray(positionAttribute);
         gl.vertexAttribPointer(positionAttribute, 2, gl.FLOAT, false, 0, 0);
 
+
+            glReady = !!program &&
+                gl.getProgramParameter(program, gl.LINK_STATUS) &&
+                positionAttribute >= 0 &&
+                !!resUniform && !!cameraUniform && !!zoomUniform &&
+                !!ballsUniform && !!ballCountUniform;
+        }
         const WORLD_SCALE = 4;
         let cameraZoom = 1.8;
         const MIN_ZOOM = 0.25;
@@ -1220,7 +1241,7 @@
             const rect = canvas.getBoundingClientRect();
             canvas.width = Math.max(1, Math.round(rect.width));
             canvas.height = Math.max(1, Math.round(rect.height));
-            gl.viewport(0, 0, canvas.width, canvas.height);
+            if (gl) gl.viewport(0, 0, canvas.width, canvas.height);
 
             balls.forEach(b => b.resize());
 
@@ -1498,10 +1519,51 @@
             });
         }
 
-        function animate() {
+        function updateSimulationFrame(deltaSeconds) {
             balls.forEach(ball => ball.update());
-            ballsArray.fill(0);
+            updateSpikePhysics();
+            updateVRMechanics();
+            window.VRWorld.markDirty();
+            recordWorldState();
+        }
 
+        function drawFallbackFrame() {
+            if (!fallbackCtx) return;
+            fallbackCtx.clearRect(0, 0, canvas.width, canvas.height);
+
+            const spacing = 34;
+            fallbackCtx.fillStyle = 'rgba(150, 150, 150, 0.55)';
+            for (let y = 0; y < canvas.height; y += spacing) {
+                for (let x = 0; x < canvas.width; x += spacing) {
+                    fallbackCtx.beginPath();
+                    fallbackCtx.arc(x, y, 1.4, 0, Math.PI * 2);
+                    fallbackCtx.fill();
+                }
+            }
+
+            for (const ball of balls) {
+                const p = worldToScreen(ball.x, ball.y);
+                if (p.x + ball.radius * cameraZoom < 0 ||
+                    p.x - ball.radius * cameraZoom > canvas.width ||
+                    p.y + ball.radius * cameraZoom < 0 ||
+                    p.y - ball.radius * cameraZoom > canvas.height) continue;
+
+                const gradient = fallbackCtx.createRadialGradient(
+                    p.x, p.y, Math.max(1, ball.radius * cameraZoom * 0.08),
+                    p.x, p.y, Math.max(2, ball.radius * cameraZoom)
+                );
+                gradient.addColorStop(0, 'rgba(255,255,255,1)');
+                gradient.addColorStop(0.24, 'rgba(255,235,0,0.98)');
+                gradient.addColorStop(1, 'rgba(255,180,0,0.04)');
+                fallbackCtx.fillStyle = gradient;
+                fallbackCtx.beginPath();
+                fallbackCtx.arc(p.x, p.y, ball.radius * cameraZoom, 0, Math.PI * 2);
+                fallbackCtx.fill();
+            }
+        }
+
+        function renderFrame() {
+            ballsArray.fill(0);
             for (let i = 0; i < Math.min(balls.length, 8); i++) {
                 const ball = balls[i];
                 const idx = i * 4;
@@ -1510,18 +1572,31 @@
                 ballsArray[idx + 2] = ball.radius;
                 ballsArray[idx + 3] = getColorIndex(ball.color);
             }
-            updateSpikePhysics();
-            updateVRMechanics();
+
             updateAndDrawOverlay();
             drawVRMechanics();
-            recordWorldState();
 
-            gl.uniform2f(resUniform, canvas.width, canvas.height);
-            gl.uniform2f(cameraUniform, camera.x, camera.y);
-            gl.uniform1f(zoomUniform, cameraZoom);
-            gl.uniform4fv(ballsUniform, ballsArray);
-            gl.uniform1i(ballCountUniform, Math.min(balls.length, 8));
-            gl.drawArrays(gl.TRIANGLES, 0, 6);
+            if (glReady) {
+                gl.uniform2f(resUniform, canvas.width, canvas.height);
+                gl.uniform2f(cameraUniform, camera.x, camera.y);
+                gl.uniform1f(zoomUniform, cameraZoom);
+                gl.uniform4fv(ballsUniform, ballsArray);
+                gl.uniform1i(ballCountUniform, Math.min(balls.length, 8));
+                gl.drawArrays(gl.TRIANGLES, 0, 6);
+            } else {
+                drawFallbackFrame();
+            }
+        }
+
+        let lastFrameTimestamp = null;
+        function animate(timestamp) {
+            const deltaSeconds = lastFrameTimestamp === null
+                ? 1 / 60
+                : Math.max(0, (timestamp - lastFrameTimestamp) / 1000);
+            lastFrameTimestamp = timestamp;
+
+            simulation.step(deltaSeconds, updateSimulationFrame);
+            renderFrame();
             requestAnimationFrame(animate);
         }
         animate();
