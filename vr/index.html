@@ -289,6 +289,7 @@
         </div>
     </div>
     <script src="../state.js"></script>
+    <script src="simulation.js"></script>
     <script>
         document.getElementById('debug-button').addEventListener('click', () => {
             window.open('../debug.html', '_blank', 'noopener');
@@ -452,6 +453,7 @@
 
         class Metaball {
             constructor(r, g, b, xp = DEFAULT_XP) {
+                this.id = window.VRWorld.allocateEntityId();
                 this.color = [r, g, b];
                 this.xp = normalizeXP(xp);
                 this.x = Math.random() * canvas.width;
@@ -464,6 +466,7 @@
                 this.vy = velocity.vy;
 
                 this.isDragging = false;
+                window.VRWorld.register(this, 'metaball');
                 this.resize();
             }
 
@@ -507,7 +510,7 @@
         const SPIKE_COLLISION_COOLDOWN = 8;
         const SPIKE_COLOR = 'rgba(196, 202, 202, 0.94)';
         const SPIKE_EDGE_COLOR = 'rgba(145, 152, 152, 0.96)';
-        const spikeBalls = [];
+        const spikeBalls = window.VRWorld.spikes;
 
         function getInitialSpikeRadius() {
             return Math.max(Math.min(canvas.width, canvas.height) * 0.045, 18);
@@ -515,6 +518,7 @@
 
         class SpikeBall {
             constructor(sides = DEFAULT_XP, x, y, radius = getInitialSpikeRadius(), speed = randomSpeed(), direction = Math.random() * Math.PI * 2) {
+                this.id = window.VRWorld.allocateEntityId();
                 this.xp = normalizeXP(sides);
                 this.sides = this.xp;
                 this.x = x;
@@ -529,6 +533,7 @@
                 this.collisionCooldown = 0;
                 this.color = [196 / 255, 202 / 255, 202 / 255];
                 this.remove = false;
+                window.VRWorld.register(this, 'spike');
             }
         }
 
@@ -856,21 +861,23 @@
             };
         }
 
-        const balls = [
+        const balls = window.VRWorld.metaballs;
+        balls.push(
             new Metaball(0, 1, 0.78),
             new Metaball(1, 0.93, 0),
             new Metaball(1, 0, 0.33)
-        ];
-        balls.forEach(ball => { ball.remove = false; });
+        );
 
         // Three metaballs, three values per ball
         const ballsArray = new Float32Array(32);
+        window.VRWorld.setBounds(getWorldWidth(), getWorldHeight());
         
 
         
 
         class GlitchBall {
             constructor(x, y, xp = DEFAULT_XP) {
+                this.id = window.VRWorld.allocateEntityId();
                 this.x = x;
                 this.y = y;
                 this.xp = normalizeXP(xp);
@@ -886,6 +893,7 @@
                 this.isGlitched = false;
                 this.glitchLife = 0;
                 this.color = [0.4, 1.0, 0.8];
+                window.VRWorld.register(this, 'glitch');
             }
 
             update() {
@@ -909,7 +917,7 @@
             }
         }
 
-        const glitchBalls = [];
+        const glitchBalls = window.VRWorld.glitches;
 
         function randomWorldPosition(radius = 20) {
             return {
@@ -1089,13 +1097,22 @@
             }
 
             for (let i = balls.length - 1; i >= 0; i--) {
-                if (balls[i].remove) balls.splice(i, 1);
+                if (balls[i].remove) {
+                    window.VRWorld.unregister(balls[i]);
+                    balls.splice(i, 1);
+                }
             }
             for (let i = spikeBalls.length - 1; i >= 0; i--) {
-                if (spikeBalls[i].remove) spikeBalls.splice(i, 1);
+                if (spikeBalls[i].remove) {
+                    window.VRWorld.unregister(spikeBalls[i]);
+                    spikeBalls.splice(i, 1);
+                }
             }
             for (let i = glitchBalls.length - 1; i >= 0; i--) {
-                if (glitchBalls[i].remove) glitchBalls.splice(i, 1);
+                if (glitchBalls[i].remove) {
+                    window.VRWorld.unregister(glitchBalls[i]);
+                    glitchBalls.splice(i, 1);
+                }
             }
         }
 
@@ -1442,7 +1459,7 @@
 
         function recordWorldState() {
             const metaballs = balls.map((ball, index) => ({
-                id: index,
+                id: ball.id,
                 x: ball.x,
                 y: ball.y,
                 radius: ball.radius,
@@ -1453,7 +1470,7 @@
             }));
 
             const recordedSpikeBalls = spikeBalls.map((spike, index) => ({
-                id: index,
+                id: spike.id,
                 x: spike.x,
                 y: spike.y,
                 radius: spike.radius,
@@ -1466,11 +1483,11 @@
             }));
 
             window.WorldStateBridge.publish({
-                time: Date.now(),
-                diamond: { x: camera.x, y: camera.y, heading: 0 },
+                time: window.VRWorld.worldTime,
+                diamond: { x: window.VRWorld.player.x, y: window.VRWorld.player.y, heading: window.VRWorld.player.heading },
                 metaballs,
                 spikeBalls: recordedSpikeBalls,
-                glitchBalls: glitchBalls.map((glitch, index) => ({ id: index, x: glitch.x, y: glitch.y, radius: glitch.radius, xp: glitch.xp, glitched: false })),
+                glitchBalls: glitchBalls.map(glitch => ({ id: glitch.id, x: glitch.x, y: glitch.y, radius: glitch.radius, xp: glitch.xp, glitched: false })),
                 camera: {
                     x: camera.x,
                     y: camera.y,
