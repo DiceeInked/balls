@@ -29,3 +29,7 @@ Debug output should make it possible to distinguish a simulation bug from a rend
 Every gameplay event that creates, destroys, transforms, splits, captures, or transfers XP should be traceable while debugging.
 
 The debug system must not become the authoritative source of gameplay state.
+
+
+## Step 1 implementation note
+The Step 1 foundation exposes a dedicated `VRWorld` state container suitable for authoritative debugging, including world time, entity registry, player state, and bounds. Debug views must continue to read this state rather than become owners of it.
