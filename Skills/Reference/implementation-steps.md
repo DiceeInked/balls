@@ -58,3 +58,7 @@ Before every future project change:
 6. Verify the implementation against the updated specification.
 
 The active skills remain authoritative. These reference steps provide the broader roadmap and should be used alongside the skills, not instead of them.
+
+
+## Visualization reset checkpoint
+Before continuing detailed VR rendering, the page should first remain a simple reliable Canvas 2D preview with the three basic object shapes. Once that smoke test is reliable, detailed WebXR rendering can be rebuilt from the clean foundation.
