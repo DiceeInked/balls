@@ -46,3 +46,7 @@ Tune visuals, audio if later added, VR comfort, hand controls, effects, performa
 
 15. Final architecture review
 Check the implementation against every skill before calling the VR system complete.
+
+
+## Visualization reset status
+The VR visualization has been intentionally reset to a minimal square Canvas 2D preview containing only a yellow circle for Metaball, red triangle for Spike, and red square for Glitch. Detailed VR rendering is deferred until the basic visualization is reliable.
