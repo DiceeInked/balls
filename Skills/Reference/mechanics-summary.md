@@ -150,3 +150,7 @@ Debug output is diagnostic only and never becomes authoritative gameplay state.
 Every mechanic needs isolated and combined tests. Important cases include high-speed collision tunneling, simultaneous contacts, destruction during collision processing, long-running timers, hidden-tab behavior, persistence/resume, WebGL failure, WebXR session lifecycle, mobile fallback visibility, and Quest-class performance.
 
 Visual correctness alone is not sufficient. The authoritative simulation state must also be correct.
+
+
+## Visualization reset
+The VR visualization was reset to a minimal Canvas 2D preview: square field, yellow Metaball circle, red Spike triangle, and red Glitch square. This is intentionally not a detailed VR renderer.
