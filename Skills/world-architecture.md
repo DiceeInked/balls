@@ -23,3 +23,7 @@ Simulation and rendering should remain separate enough that gameplay can be test
 The regular 2D experience and the VR experience may share concepts and data formats, but the VR mechanics described by these skills are authoritative for the VR version.
 
 Every code change must be checked against every skill in this folder. If a new rule conflicts with an older skill, the newest explicit project rule wins and the affected skills must be updated together.
+
+
+## Step 1 implementation note
+A world-state container now exists in `vr/simulation.js`; the VR renderer consumes its entity collections rather than owning separate gameplay arrays. The container also holds authoritative player state, world bounds, world time, and entity identity allocation.
