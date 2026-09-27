@@ -3,7 +3,7 @@
 This is the consolidated implementation order for the VR rebuild.
 
 ## 1. Clean-slate architecture
-Establish the authoritative simulation state and keep it separate from rendering.
+Establish the authoritative simulation state and keep it separate from rendering. The first layer now exists: `vr/simulation.js` owns the world-state container and simulation-step controller, and `vr/index.html` routes each animation frame through a simulation update before a separate render pass. Gameplay systems still need to be migrated out of the page script.
 
 ## 2. World coordinates
 Implement stable world positions, velocities, directions, entity IDs, and world boundaries.
@@ -33,13 +33,13 @@ Implement Spike capture, blackened world, glowing crack generation, crack points
 Add WebXR support, headset tracking, hand tracking, stereoscopic rendering, and optimized VR visuals.
 
 ## 11. Simulation/render separation
-Ensure the simulation remains authoritative and recoverable regardless of renderer state, WebGL state, WebXR state, or tab visibility.
+Ensure the simulation remains authoritative and recoverable regardless of renderer state, WebGL state, WebXR state, or tab visibility. A lightweight 2D fallback now exists for missing WebGL, but the architecture work is not complete.
 
 ## 12. Debugging
 Build diagnostic tools exposing authoritative world state, contacts, XP, timers, events, WebXR state, WebGL errors, and persistence state.
 
 ## 13. Testing
-Test every interaction individually and in combinations, including high-speed collisions, simultaneous contacts, entity destruction order, long-running timers, reproduction, Spike splitting, Glitch spreading, pickup collection, player capture, persistence, and tab throttling.
+Test every interaction individually and in combinations, including high-speed collisions, simultaneous contacts, entity destruction order, long-running timers, reproduction, Spike splitting, Glitch spreading, pickup collection, player capture, persistence, tab throttling, and mobile rendering fallback.
 
 ## 14. Polish
 Tune visuals, audio if later added, VR comfort, hand controls, effects, performance, and UI without changing the underlying gameplay rules.
