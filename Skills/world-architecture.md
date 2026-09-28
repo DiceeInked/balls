@@ -28,7 +28,7 @@ Every code change must be checked against every skill in this folder. If a new r
 
 A world-state container exists in `vr/simulation.js`; the VR page uses its entity collections rather than renderer-owned gameplay arrays. The container also owns prototype entity creation/reset, player state, world bounds, world time, entity identity allocation, velocity, direction, movement, and collision processing.
 
-The page now routes each animation frame through the authoritative `VRWorld.step()` boundary. That step advances world time and performs prototype movement and collision processing before rendering. Prototype entity lifecycle and movement ownership have been removed from `vr/index.html`; detailed gameplay systems and the full simulation clock remain future work.
+The page now routes each animation frame through the authoritative `VRWorld.step()` boundary. That step advances fixed simulation time and performs prototype movement and collision processing before rendering. Prototype entity lifecycle and movement ownership have been removed from `vr/index.html`; the clock layer now also owns the simulation accumulator, bounded catch-up, contact timers, and 100-second timer events.
 
 The page also has a 2D fallback renderer for browsers where WebGL context creation fails or the shader program cannot be used. Rendering failure must not stop the simulation or leave the page entirely blank when the fallback canvas is available.
 
