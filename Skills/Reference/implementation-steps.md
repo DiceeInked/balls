@@ -23,7 +23,7 @@ COMPLETED for the current prototype layer.
 COMPLETED for the current 2D simulation/rendering layer. Spikes have XP-linked polygon vertex counts, continuous Metaball draining, qualifying collision splitting/destruction, and Glitch consumption/spreading. Player capture remains deferred to the Player Trap layer.
 
 ## 7. Glitches
-Implement cyan fixed-size Glitches, XP-based steering, Metaball draining, player draining, and Spike consumption/spreading.
+COMPLETED for the current 2D simulation/rendering layer. Glitches have fixed size, XP-based steering, Metaball draining, player draining, zero-XP removal, and Spike consumption/spreading.
 
 ## 8. Player
 Implement the blue 3D diamond-like head, two diamond-derived thruster/control hands, XP display, left-hand menu, movement, and passive XP loss.
