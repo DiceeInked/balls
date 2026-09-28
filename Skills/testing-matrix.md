@@ -66,6 +66,19 @@ System tests:
 
 A mechanic is not considered verified merely because it looks correct visually. The authoritative state must also be correct. Device-specific checks should be performed on the actual target browser before claiming they pass.
 
+## Step 7 verification
+
+Verify:
+- Glitch physical size remains fixed as XP changes.
+- Steering is effectively absent at 16 XP and progressively stronger at 32, 64, and 128 XP.
+- Metaball contact transfers XP from Glitch to Metaball immediately and after each full second.
+- A Glitch reaching 0 XP is removed.
+- Controlled-entity contact transfers XP to the Glitch immediately and after each full second.
+- Glitch/Spike consumption still gives half Spike XP to the existing Glitch and creates one new Glitch with the other half.
+- New Glitch direction is randomized and remains in bounds.
+- Interaction contacts reset after separation.
+- Generic bounce does not override the special Glitch interactions.
+
 ## Step 6 verification
 
 Verify:
