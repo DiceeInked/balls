@@ -31,10 +31,15 @@
   const PLAYER_ACCELERATION=240;
   const PLAYER_MAX_SPEED=260;
   const PLAYER_DAMPING=3.5;
+  const TRAP_POINT_COUNT=12;
+  const TRAP_POINT_RADIUS=90;
+  const TRAP_REPAIR_DISTANCE=18;
+  const TRAP_HAND_REACH=34;
+  const TRAP_DRAG_SPEED=8;
 
   class VRWorldState{
     constructor(){
-      this.version=7;
+      this.version=8;
       this.worldTime=0;
       this.accumulator=0;
       this.contactTimers=new Map();
@@ -52,7 +57,7 @@
         vx:0, vy:0, vz:0, heading:0, xp:16, radius:0, captured:false, timer100:0,
         movementInput:{x:0,y:0,z:0}, head:{pitch:0,yaw:0,roll:0},
         leftHand:{x:0,y:0,z:0,active:false}, rightHand:{x:0,y:0,z:0,active:false},
-        gazeAtLeftHand:false, menuOpen:false
+        gazeAtLeftHand:false, menuOpen:false, trap:null
       };
       this.bounds={width:0,height:0};
       this.entities.set(this.player.id,this.player);
@@ -154,7 +159,7 @@
       this.timerEvents.length=0;
       this.droppedSimulationTime=0;
       this.nextEntityId=1;
-      this.player={id:this.allocateEntityId(),type:"player",x:0,y:0,z:0,vx:0,vy:0,vz:0,heading:0,xp:16,radius:Math.min(this.bounds.width,this.bounds.height)*PROTOTYPE_RADIUS_RATIO,captured:false,timer100:0,movementInput:{x:0,y:0,z:0},head:{pitch:0,yaw:0,roll:0},leftHand:{x:0,y:0,z:0,active:false},rightHand:{x:0,y:0,z:0,active:false},gazeAtLeftHand:false,menuOpen:false};
+      this.player={id:this.allocateEntityId(),type:"player",x:0,y:0,z:0,vx:0,vy:0,vz:0,heading:0,xp:16,radius:Math.min(this.bounds.width,this.bounds.height)*PROTOTYPE_RADIUS_RATIO,captured:false,timer100:0,movementInput:{x:0,y:0,z:0},head:{pitch:0,yaw:0,roll:0},leftHand:{x:0,y:0,z:0,active:false},rightHand:{x:0,y:0,z:0,active:false},gazeAtLeftHand:false,menuOpen:false,trap:null};
       this.entities.set(this.player.id,this.player);
       this.persistence.majorDirty=false;
       return this.resetPrototypeEntities();
@@ -197,6 +202,37 @@
       if(speed>PLAYER_MAX_SPEED){const scale=PLAYER_MAX_SPEED/speed;player.vx*=scale;player.vy*=scale;player.vz*=scale;}
       player.x+=player.vx*dt; player.y+=player.vy*dt; player.z+=player.vz*dt; this.clampEntityToBounds(player);
     }
+    capturePlayer(spike){
+      const player=this.player;
+      if(!player||player.captured||!spike||spike.type!=="spike"||spike.remove)return false;
+      const points=[];
+      for(let i=0;i<TRAP_POINT_COUNT;i++){
+        const angle=(Math.PI*2*i/TRAP_POINT_COUNT)+(i%2)*0.08;
+        const radius=TRAP_POINT_RADIUS*(0.72+(i%3)*0.14);
+        points.push({x:player.x+Math.cos(angle)*radius,y:player.y+Math.sin(angle)*radius,z:player.z+1,sealed:false});
+      }
+      player.captured=true;player.vx=0;player.vy=0;player.vz=0;player.movementInput={x:0,y:0,z:0};
+      player.trap={active:true,sourceSpikeId:spike.id,center:{x:player.x,y:player.y,z:player.z+1},points:points};
+      this.persistence.majorDirty=true;return true;
+    }
+
+    updatePlayerTrap(dt){
+      const player=this.player,trap=player&&player.trap;
+      if(!player||!player.captured||!trap||!trap.active)return;
+      const hands=[player.leftHand,player.rightHand];
+      const dragFactor=Math.min(1,Math.max(0,dt)*TRAP_DRAG_SPEED);
+      for(const point of trap.points){
+        if(point.sealed)continue;
+        for(const hand of hands){
+          if(!hand||!hand.active)continue;
+          if(Math.hypot(hand.x-point.x,hand.y-point.y,hand.z-point.z)>TRAP_HAND_REACH)continue;
+          point.x+=(trap.center.x-point.x)*dragFactor;point.y+=(trap.center.y-point.y)*dragFactor;point.z+=(trap.center.z-point.z)*dragFactor;break;
+        }
+        if(Math.hypot(point.x-trap.center.x,point.y-trap.center.y,point.z-trap.center.z)<=TRAP_REPAIR_DISTANCE){point.x=trap.center.x;point.y=trap.center.y;point.z=trap.center.z;point.sealed=true;}
+      }
+      if(trap.points.length>0&&trap.points.every(point=>point.sealed)){player.captured=false;player.trap=null;player.vx=0;player.vy=0;player.vz=0;this.persistence.majorDirty=true;}
+    }
+
     spikePointCount(e){return e&&e.type==="spike"?Math.max(3,Math.min(32,3+Math.floor(this.normalizeXp(e.xp)/4))):3;}
 
     getSpikePoints(entity){
@@ -272,6 +308,7 @@
     consumeSpike(spike,glitch){if(!spike||!glitch||spike.remove||glitch.remove)return;const total=this.normalizeXp(spike.xp),existing=Math.floor(total/2),childXp=total-existing;this.transferAndDirty(spike,glitch,existing);const angle=this.randomDirection();const speed=Math.max(1,glitch.speed||Math.hypot(glitch.vx,glitch.vy));const child=this.register({x:glitch.x,y:glitch.y,vx:Math.cos(angle)*speed,vy:Math.sin(angle)*speed,direction:angle,speed,radius:glitch.radius,xp:childXp},"glitch");spike.remove=true;if(child)this.clampEntityToBounds(child);this.persistence.majorDirty=true;}
 
     processInteractionContacts(dt){const entities=this.activeEntities,active=new Set();for(let i=0;i<entities.length;i++){const a=entities[i];if(a.remove)continue;for(let j=i+1;j<entities.length;j++){const b=entities[j];if(b.remove)continue;const distance=Math.hypot(b.x-a.x,b.y-a.y);if(distance>=(a.radius||0)+(b.radius||0))continue;const key=Math.min(a.id,b.id)+":"+Math.max(a.id,b.id);active.add(key);if((a.type==="metaball"&&b.type==="spike")||(a.type==="spike"&&b.type==="metaball")){const meta=a.type==="metaball"?a:b,spike=a.type==="spike"?a:b;this.drainContact(meta,spike,meta,spike,dt);continue;}if((a.type==="glitch"&&b.type==="spike")||(a.type==="spike"&&b.type==="glitch")){const glitch=a.type==="glitch"?a:b,spike=a.type==="spike"?a:b;this.consumeSpike(spike,glitch);continue;}if((a.type==="metaball"&&b.type==="glitch")||(a.type==="glitch"&&b.type==="metaball")){const meta=a.type==="metaball"?a:b,glitch=a.type==="glitch"?a:b;this.drainContact(glitch,meta,glitch,meta,dt);if(glitch.xp<=0)glitch.remove=true;continue;}if(a.type==="spike"&&b.type==="spike"){this.splitEntity(a);this.splitEntity(b);}}}
+      if(!this.player.captured){for(const spike of this.spikes){if(spike.remove)continue;const distance=Math.hypot(this.player.x-spike.x,this.player.y-spike.y);if(distance>=(spike.radius||0)+(this.player.radius||0))continue;const key=Math.min(spike.id,this.player.id)+":"+Math.max(spike.id,this.player.id);active.add(key);this.capturePlayer(spike);break;}}
       if(!this.player.captured){for(const glitch of this.glitches){if(glitch.remove)continue;const distance=Math.hypot(this.player.x-glitch.x,this.player.y-glitch.y);if(distance>=(glitch.radius||0)+(this.player.radius||0))continue;const key=Math.min(glitch.id,this.player.id)+":"+Math.max(glitch.id,this.player.id);active.add(key);this.drainContact(this.player,glitch,glitch,this.player,dt);}}
       for(const [key] of this.contactTimers){if(!active.has(key))this.contactTimers.delete(key);}}
 
@@ -363,6 +400,7 @@
       for(const entity of this.metaballs)this.advance100SecondTimer(entity,dt);
       this.advance100SecondTimer(this.player,dt);
       this.simulatePlayerMovement(dt);
+      this.updatePlayerTrap(dt);
       this.processInteractionContacts(dt);
       this.resolvePairCollisions();
       this.processTimerEvents();
@@ -465,6 +503,8 @@
       }
     }
 
+    restoreTrapState(source){if(!source||source.active!==true||!Array.isArray(source.points)||source.points.length!==TRAP_POINT_COUNT)return null;const center=source.center;if(!center||![center.x,center.y,center.z].every(Number.isFinite))return null;const points=[];for(const point of source.points){if(!point||![point.x,point.y,point.z].every(Number.isFinite))return null;points.push({x:point.x,y:point.y,z:point.z,sealed:!!point.sealed});}return {active:true,sourceSpikeId:Number.isFinite(source.sourceSpikeId)?source.sourceSpikeId:null,center:{x:center.x,y:center.y,z:center.z},points};}
+
     snapshot(){
       return{
         version:this.version,
@@ -489,7 +529,7 @@
           };
         }),
         bounds:{width:this.bounds.width,height:this.bounds.height},
-        player:Object.assign({},this.player,{movementInput:Object.assign({},this.player.movementInput),head:Object.assign({},this.player.head),leftHand:Object.assign({},this.player.leftHand),rightHand:Object.assign({},this.player.rightHand),pickup:this.player.pickup?Object.assign({},this.player.pickup):undefined}),
+        player:Object.assign({},this.player,{movementInput:Object.assign({},this.player.movementInput),head:Object.assign({},this.player.head),leftHand:Object.assign({},this.player.leftHand),rightHand:Object.assign({},this.player.rightHand),trap:this.player.trap?{active:true,sourceSpikeId:this.player.trap.sourceSpikeId,center:Object.assign({},this.player.trap.center),points:this.player.trap.points.map(function(point){return Object.assign({},point);})}:null,pickup:this.player.pickup?Object.assign({},this.player.pickup):undefined}),
         entities:Array.from(this.entities.values()).map(function(entity){
           return Object.assign({},entity,{pickup:entity.pickup?Object.assign({},entity.pickup):undefined});
         }),
@@ -499,13 +539,13 @@
 
     restoreSnapshot(snapshot){
       if(!snapshot||typeof snapshot!=="object"||!Array.isArray(snapshot.entities)||!snapshot.player)return false;
-      const sourcePlayer=snapshot.player;if(!Number.isFinite(sourcePlayer.id)||sourcePlayer.type!=="player")return false;
+      const sourcePlayer=snapshot.player;if(!Number.isFinite(sourcePlayer.id)||sourcePlayer.type!=="player")return false;const ids=new Set([sourcePlayer.id]);for(const source of snapshot.entities){if(!source||!Number.isFinite(source.id)||!ENTITY_TYPES.includes(source.type)||ids.has(source.id))return false;ids.add(source.id);}
       this.entities.clear();for(const type of ENTITY_TYPES)this.collectionFor(type).length=0;this.contactTimers.clear();this.timerEvents.length=0;this.activeEntities.length=0;
       this.worldTime=Number.isFinite(snapshot.worldTime)&&snapshot.worldTime>=0?snapshot.worldTime:0;
       this.accumulator=Number.isFinite(snapshot.accumulator)&&snapshot.accumulator>=0?Math.min(snapshot.accumulator,FIXED_STEP):0;
       this.droppedSimulationTime=Number.isFinite(snapshot.droppedSimulationTime)&&snapshot.droppedSimulationTime>=0?snapshot.droppedSimulationTime:0;
       this.bounds={width:Number.isFinite(snapshot.bounds&&snapshot.bounds.width)?Math.max(0,snapshot.bounds.width):0,height:Number.isFinite(snapshot.bounds&&snapshot.bounds.height)?Math.max(0,snapshot.bounds.height):0};
-      const player=Object.assign({},sourcePlayer);player.type="player";player.radius=Number.isFinite(player.radius)&&player.radius>0?player.radius:Math.min(this.bounds.width,this.bounds.height)*PROTOTYPE_RADIUS_RATIO;player.x=Number.isFinite(player.x)?player.x:0;player.y=Number.isFinite(player.y)?player.y:0;player.z=Number.isFinite(player.z)?player.z:0;player.vx=Number.isFinite(player.vx)?player.vx:0;player.vy=Number.isFinite(player.vy)?player.vy:0;player.vz=Number.isFinite(player.vz)?player.vz:0;player.xp=this.normalizeXp(player.xp);player.captured=!!player.captured;player.timer100=Number.isFinite(player.timer100)&&player.timer100>=0?player.timer100%TIMER_INTERVAL:0;player.movementInput={x:Number.isFinite(player.movementInput&&player.movementInput.x)?player.movementInput.x:0,y:Number.isFinite(player.movementInput&&player.movementInput.y)?player.movementInput.y:0,z:Number.isFinite(player.movementInput&&player.movementInput.z)?player.movementInput.z:0};player.head={pitch:Number.isFinite(player.head&&player.head.pitch)?player.head.pitch:0,yaw:Number.isFinite(player.head&&player.head.yaw)?player.head.yaw:0,roll:Number.isFinite(player.head&&player.head.roll)?player.head.roll:0};player.leftHand={x:Number.isFinite(player.leftHand&&player.leftHand.x)?player.leftHand.x:0,y:Number.isFinite(player.leftHand&&player.leftHand.y)?player.leftHand.y:0,z:Number.isFinite(player.leftHand&&player.leftHand.z)?player.leftHand.z:0,active:!!(player.leftHand&&player.leftHand.active)};player.rightHand={x:Number.isFinite(player.rightHand&&player.rightHand.x)?player.rightHand.x:0,y:Number.isFinite(player.rightHand&&player.rightHand.y)?player.rightHand.y:0,z:Number.isFinite(player.rightHand&&player.rightHand.z)?player.rightHand.z:0,active:!!(player.rightHand&&player.rightHand.active)};player.gazeAtLeftHand=!!player.gazeAtLeftHand;player.menuOpen=player.gazeAtLeftHand;this.player=player;this.entities.set(player.id,player);
+      const player=Object.assign({},sourcePlayer);player.type="player";player.radius=Number.isFinite(player.radius)&&player.radius>0?player.radius:Math.min(this.bounds.width,this.bounds.height)*PROTOTYPE_RADIUS_RATIO;player.x=Number.isFinite(player.x)?player.x:0;player.y=Number.isFinite(player.y)?player.y:0;player.z=Number.isFinite(player.z)?player.z:0;player.vx=Number.isFinite(player.vx)?player.vx:0;player.vy=Number.isFinite(player.vy)?player.vy:0;player.vz=Number.isFinite(player.vz)?player.vz:0;player.xp=this.normalizeXp(player.xp);player.captured=!!player.captured;player.timer100=Number.isFinite(player.timer100)&&player.timer100>=0?player.timer100%TIMER_INTERVAL:0;player.movementInput={x:Number.isFinite(player.movementInput&&player.movementInput.x)?player.movementInput.x:0,y:Number.isFinite(player.movementInput&&player.movementInput.y)?player.movementInput.y:0,z:Number.isFinite(player.movementInput&&player.movementInput.z)?player.movementInput.z:0};const movementMagnitude=Math.hypot(player.movementInput.x,player.movementInput.y,player.movementInput.z);if(movementMagnitude>1){player.movementInput.x/=movementMagnitude;player.movementInput.y/=movementMagnitude;player.movementInput.z/=movementMagnitude;}player.head={pitch:Number.isFinite(player.head&&player.head.pitch)?player.head.pitch:0,yaw:Number.isFinite(player.head&&player.head.yaw)?player.head.yaw:0,roll:Number.isFinite(player.head&&player.head.roll)?player.head.roll:0};player.leftHand={x:Number.isFinite(player.leftHand&&player.leftHand.x)?player.leftHand.x:0,y:Number.isFinite(player.leftHand&&player.leftHand.y)?player.leftHand.y:0,z:Number.isFinite(player.leftHand&&player.leftHand.z)?player.leftHand.z:0,active:!!(player.leftHand&&player.leftHand.active)};player.rightHand={x:Number.isFinite(player.rightHand&&player.rightHand.x)?player.rightHand.x:0,y:Number.isFinite(player.rightHand&&player.rightHand.y)?player.rightHand.y:0,z:Number.isFinite(player.rightHand&&player.rightHand.z)?player.rightHand.z:0,active:!!(player.rightHand&&player.rightHand.active)};player.gazeAtLeftHand=!!player.gazeAtLeftHand;player.menuOpen=player.gazeAtLeftHand;player.trap=this.restoreTrapState(sourcePlayer.trap);if(player.captured&&!player.trap)player.captured=false;this.player=player;this.entities.set(player.id,player);
       let maxId=player.id;
       for(const source of snapshot.entities){
         if(!source||source.id===player.id||!ENTITY_TYPES.includes(source.type)||!Number.isFinite(source.id))continue;
