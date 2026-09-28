@@ -66,4 +66,4 @@ Before continuing detailed VR rendering, the page should first remain a simple r
 
 
 ## Current movement prototype checkpoint
-The minimal VR page now uses circular hitbox visuals for Metaball, Spike, and Glitch. Their authoritative positions and velocities are updated in `vr/simulation.js`, with square-boundary bouncing and basic circular pair collision response. The next work should build on this verified movement foundation rather than restoring the removed detailed renderer.
+The minimal VR page now uses circular hitbox visuals for Metaball, Spike, and Glitch. Their authoritative positions and velocities are updated in `vr/simulation.js`, with square-boundary bouncing and basic circular collision response. The next work should build on this verified movement foundation rather than restoring the removed detailed renderer. The Canvas preview converts configured 8-digit RGBA hex colors to Canvas-compatible `rgba(...)` strings at draw time.
