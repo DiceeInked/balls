@@ -316,7 +316,7 @@
         vx1=Math.cos(angleA)*v;vy1=Math.sin(angleA)*v;
         vx2=Math.cos(angleB)*v;vy2=Math.sin(angleB)*v;
         const offset=Math.max(2,(s.radius||0)*0.35);
-        x-=nx*offset;y-=ny*offset;
+        x+=nx*offset;y+=ny*offset;
       }else{
         vx1=-Math.sin(d)*v;vy1=Math.cos(d)*v;
         vx2=Math.sin(d)*v;vy2=-Math.cos(d)*v;
