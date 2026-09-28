@@ -12,10 +12,10 @@ COMPLETED for the current prototype. The prototype stores persistent x/y positio
 COMPLETED for the clock layer. The authoritative simulation uses fixed 1/60-second steps, bounded catch-up, per-pair one-second contact timers, and 100-second timer events. Future gameplay systems will consume those timer events to apply their specific XP/pickup consequences.
 
 4. Persistence
-Save and restore authoritative world state and world time.
+COMPLETED. Save and restore authoritative world state and world time, including entities, player state, XP, relevant timers, pickup state, and capture state.
 
 5. Metaballs
-Implement yellow fixed-size Metaballs, movement, wall/collidable bouncing, XP, reproduction, and XP pickup generation.
+COMPLETED for the current prototype layer. Yellow fixed-size Metaballs now gain configurable prototype XP on wall bounce, reproduce above 32 XP, and generate stored XP pickups from the existing 100-second timer events.
 
 6. Spikes
 Implement red polygonal Spikes, XP-linked vertices, draining, physical splitting, and destruction at the minimum vertex state.
