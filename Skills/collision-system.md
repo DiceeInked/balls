@@ -33,3 +33,6 @@ The current clean-slate preview uses circular physical hitboxes for Metaballs, S
 
 ## Step 9 update
 Spike-player contact is now an authoritative capture interaction. It captures the Player, clears Player movement for the duration of the trap, and creates the persisted crack state. The generic physical collision response is not applied to the Player during capture.
+
+## Spike split separation fix
+When a Spike splits, transformed children must not inherit the exact same physical position. Wall splits use the inward wall normal to orient the two child velocities, and both children are offset along those velocities before collision processing resumes. This prevents immediate re-collision with the wall or with the sibling children.
