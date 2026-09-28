@@ -116,3 +116,6 @@ Verify:
 - Capture state and crack progress survive persistence round trips.
 - Invalid or duplicate entity IDs are rejected without replacing the current world.
 - A captured Player does not stop Glitch movement or steering.
+
+## Spike split regression test
+Verify wall splits create exactly two live child Spikes, both spawn inside the wall boundary, both have velocity directed away from the wall, the children do not overlap, and repeated fixed steps do not cause recursive splitting.
