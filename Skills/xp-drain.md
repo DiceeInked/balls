@@ -13,6 +13,8 @@ Current qualifying drains:
 - Glitch -> Metaball
 - Glitch -> Player
 
+Step 6 implements Metaball -> Spike using the authoritative pair timer.
+
 The direction of transfer matters:
 - Spike drains Metaball.
 - Metaball drains Glitch.
