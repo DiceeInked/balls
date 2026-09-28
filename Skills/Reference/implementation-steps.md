@@ -4,10 +4,10 @@ The current movement prototype checkpoint includes rendering the complete author
 This is the consolidated implementation order for the VR rebuild.
 
 ## 1. Clean-slate architecture
-Establish the authoritative simulation state and keep it separate from rendering. The first layer now exists: `vr/simulation.js` owns the world-state container and simulation-step controller, and `vr/index.html` routes each animation frame through a simulation update before a separate render pass. Gameplay systems still need to be migrated out of the page script.
+Establish the authoritative simulation state and keep it separate from rendering. `vr/simulation.js` now owns the world-state container, prototype entity lifecycle, identity, bounds, movement, velocity, direction, and collision processing. `vr/index.html` measures the stage and renders the authoritative state. The detailed gameplay systems are still deferred.
 
 ## 2. World coordinates
-Implement stable world positions, velocities, directions, entity IDs, and world boundaries.
+Implement stable world positions, velocities, directions, entity IDs, and world boundaries. The prototype now stores x/y positions, x/y velocities, a direction angle, speed, stable IDs, radii, and persistent bounds in the simulation.
 
 ## 3. Simulation clock
 Implement controlled simulation time, continuous-contact timing, 100-second timers, and bounded catch-up after browser throttling.
@@ -66,4 +66,4 @@ Before continuing detailed VR rendering, the page should first remain a simple r
 
 
 ## Current movement prototype checkpoint
-The minimal VR page now uses circular hitbox visuals for Metaball, Spike, and Glitch. Their authoritative positions and velocities are updated in `vr/simulation.js`, with square-boundary bouncing and basic circular collision response. The next work should build on this verified movement foundation rather than restoring the removed detailed renderer. The Canvas preview converts configured 8-digit RGBA hex colors to Canvas-compatible `rgba(...)` strings at draw time.
+The minimal VR page now uses circular hitbox visuals for Metaball, Spike, and Glitch. Their authoritative positions and velocities are updated in `vr/simulation.js`, with square-boundary bouncing and basic circular collision response. The next work should build on this verified movement foundation rather than restoring the removed detailed renderer. Steps 1 and 2 are complete at the prototype level; the next planned layer is the simulation clock. The Canvas preview converts configured 8-digit RGBA hex colors to Canvas-compatible `rgba(...)` strings at draw time.
