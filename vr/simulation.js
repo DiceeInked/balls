@@ -23,6 +23,7 @@
   const REPRODUCTION_THRESHOLD=32;
   const PICKUP_MIN_XP=1;
   const PERSISTENCE_SCHEMA=1;
+  const SPIKE_MIN_VERTICES=3;
 
   class VRWorldState{
     constructor(){
