@@ -15,4 +15,4 @@ The player's baseline lifespan is based on the rule:
 
 XP transfers are explicit transactions. A transfer must subtract from the source and add to the destination without accidentally creating or destroying XP except where a rule explicitly calls for it.
 
-The project should keep XP-related constants centralized so balancing changes do not require hunting through unrelated rendering code.
+The project keeps XP-related constants centralized in the simulation layer. The current prototype uses 1 XP for a Metaball wall bounce, a reproduction threshold of greater than 32 XP, a reproduction transfer of 16 XP to a new 16-XP Metaball, and the 100-second pickup formula with a minimum of 1 XP.
