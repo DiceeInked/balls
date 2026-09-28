@@ -15,7 +15,7 @@ The renderer has a 2D fallback for cases where WebGL is unavailable or its shade
 
 The simulation uses authoritative fixed-step world time. Continuous XP drains will use per-pair contact timers that count additional full uninterrupted seconds after the immediate contact transfer. Metaball pickup generation and passive player XP loss will consume 100-second timer events. Step 3 now provides those timing primitives without prematurely applying the future gameplay consequences.
 
-The world should remain logically loaded when the tab is hidden or rendering is throttled. Persistent state includes world time, entities, player state, XP, positions, velocities, IDs, relevant timers, pickup state, and capture state. Resuming uses bounded simulation catch-up.
+The world should remain logically loaded when the tab is hidden or rendering is throttled. Persistent state includes world time, entities, player state, XP, positions, velocities, IDs, relevant timers, pickup state, and capture state. The current prototype stores validated snapshots in browser-local storage and resumes through the bounded simulation clock.
 
 ## XP
 
@@ -35,7 +35,7 @@ XP transfers are explicit transactions. They subtract from the source and add to
 
 Metaballs are yellow and have a fixed physical size. XP does not enlarge them.
 
-A Metaball gains XP when bouncing from a wall or qualifying collidable object. The exact XP gain per bounce is still configurable.
+A Metaball gains XP when bouncing from a wall or qualifying collidable object. The current prototype uses a centralized configurable 1-XP wall-bounce award.
 
 When a Metaball touches a Spike, the Spike drains 1 XP immediately, then 1 XP per additional full second of uninterrupted contact.
 
@@ -43,9 +43,9 @@ When a Metaball touches a Glitch, the Metaball drains 1 XP from the Glitch immed
 
 When a Metaball has more than 32 XP, it may reproduce. The new Metaball appears at the same position with 16 XP and travels in exactly the opposite direction. The original loses 16 XP.
 
-Every 100 seconds, a Metaball generates a physical XP pickup equal to floor(10% of its current XP), with a minimum of 1 XP.
+Every 100 seconds, a Metaball generates a physical XP pickup equal to floor(10% of its current XP), with a minimum of 1 XP. Generated amounts accumulate in authoritative stored pickup state.
 
-A normal Metaball has a bright white glowing center. If it has stored pickup XP, a black orb appears in its center. The player can enter the Metaball, grab the orb, and bring it to the player's chest or head to claim all stored XP.
+A normal Metaball has a bright white glowing center. If it has stored pickup XP, a black orb appears in its center. The player can enter the Metaball, grab the orb, and bring it to the player's chest or head to claim all stored XP. Collection remains a later Player interaction; Step 5 only generates and persists the pickup.
 
 ## Spikes
 
