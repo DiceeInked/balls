@@ -23,3 +23,10 @@ Glitches drain player XP:
 The player can be captured by Spikes.
 
 The player should be represented as a real VR entity in the simulation, while headset orientation and hand tracking provide the input and presentation layer.
+
+## Step 8 implementation
+The authoritative Player state stores 3D position (`x`, `y`, `z`), 3D velocity, normalized movement/thrust input, head orientation state, both hand states, and left-hand gaze/menu state. The simulation consumes a normalized thrust vector through `setPlayerInput()` and applies frame-rate-independent fixed-step acceleration, damping, and a conservative maximum speed. Player movement is suspended while captured.
+
+The Player starts at 16 XP. Every 100 seconds of simulation time, one XP is removed, clamped at zero. The existing shared contact-timer system continues to handle continuous XP loss from other entities.
+
+The left-hand menu state is authoritative: the input layer reports whether the player is looking toward the left hand, and the simulation mirrors that condition into `menuOpen`. Final tracked-pose interpretation and 3D presentation are deferred to the WebXR layer.
