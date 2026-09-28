@@ -23,6 +23,9 @@ Spike tests:
 - Glitch consumption
 - Half-XP transfer
 - New Glitch creation
+- New Glitch random direction
+- New child bounds validation
+- Contact timer reset after separation
 
 Glitch tests:
 - Steering at 16, 32, 64, and 128 XP
@@ -63,13 +66,15 @@ System tests:
 
 A mechanic is not considered verified merely because it looks correct visually. The authoritative state must also be correct. Device-specific checks should be performed on the actual target browser before claiming they pass.
 
+## Step 6 verification
 
-## Visualization smoke test
-Before detailed VR rendering is added, verify that the VR page loads on desktop and iPhone Safari and visibly shows the square field plus the three placeholder object shapes. On mobile, also verify that the stage has nonzero measured dimensions before entity initialization and that a resize/layout event does not make the entities disappear.
-The visualization smoke test should verify that the authoritative Glitch collection contains the expected prototype Glitch and that it is visibly rendered in the exact configured blue/cyan color. It should also verify that the configured 8-digit RGBA color values are normalized successfully for Canvas rendering.
-
-## Movement prototype verification
-The minimal VR page should show three circular entities using authoritative positions and velocities. Each entity must move from elapsed simulation time, maintain a stable direction derived from authoritative velocity, remain inside the square after wall collisions, and separate correctly when circular hitboxes overlap. Resizing the stage must change presentation bounds without resetting the entities. Rendering must not maintain a second copy of their positions.
-
-## Simulation clock verification
-Verify that repeated frames advance world time through fixed 1/60-second simulation steps. Verify that a large elapsed frame is bounded rather than replaying an unbounded number of physics steps. Verify that a contact timer counts only uninterrupted full-second intervals and resets when the contact ends. Verify that 100-second timer events fire at the exact interval boundary despite floating-point drift, and that timer events identify the correct authoritative entity.
+Verify:
+- A Spike's point count is an integer between 3 and 32 and changes only through its authoritative XP.
+- Metaball/Spike contact transfers 1 XP immediately and one more per additional full uninterrupted second.
+- Ending contact resets the continuous drain.
+- Wall contact splits a Spike above the minimum point count.
+- Spike/Spike contact performs the defined split behavior.
+- A 3-point Spike is destroyed by the next qualifying collision.
+- Glitch/Spike contact does not apply a generic bounce.
+- Glitch/Spike contact removes the Spike, gives half its XP to the existing Glitch, creates one new Glitch with the other half, randomizes its direction, and keeps it in bounds.
+- No removed entity participates in later collision checks.
