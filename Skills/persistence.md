@@ -17,7 +17,7 @@ Persist enough state to resume the simulation safely:
 - Other authoritative timers
 - Metaball pickup stored XP and reproduction state
 
-Save periodically and after major state-changing events. The preview saves on a short world-time interval and on major Metaball events, and also attempts a save when the page is hidden or unloaded.
+Save periodically and after major state-changing events. The VR preview's R reset button intentionally clears the saved VR snapshot and creates a fresh prototype world. The preview saves on a short world-time interval and on major Metaball events, and also attempts a save when the page is hidden or unloaded.
 
 When resuming, elapsed time should be handled through the simulation clock rather than blindly replaying an unbounded number of frames.
 
