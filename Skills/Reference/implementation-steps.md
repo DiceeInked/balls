@@ -10,7 +10,7 @@ Establish the authoritative simulation state and keep it separate from rendering
 Implement stable world positions, velocities, directions, entity IDs, and world boundaries. The prototype now stores x/y positions, x/y velocities, a direction angle, speed, stable IDs, radii, and persistent bounds in the simulation.
 
 ## 3. Simulation clock
-Implement controlled simulation time, continuous-contact timing, 100-second timers, and bounded catch-up after browser throttling.
+COMPLETED for the clock layer. The simulation uses fixed 1/60-second steps, bounded catch-up, per-pair continuous-contact timers, and 100-second timer events. Timer events are intentionally separate from future gameplay consequences.
 
 ## 4. Persistence
 Save and restore authoritative world state and world time, including entities, player state, XP, relevant timers, pickup state, and capture state.
