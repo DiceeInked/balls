@@ -21,7 +21,7 @@ Implement yellow fixed-size Metaballs, movement, wall/collidable bouncing, XP, r
 Implement red polygonal Spikes, XP-linked vertices, draining, physical splitting, and destruction at the minimum vertex state.
 
 7. Glitches
-Implement red fixed-size Glitches, XP-based steering, Metaball draining, and Spike consumption/spreading.
+Implement blue fixed-size Glitches, XP-based steering, Metaball draining, and Spike consumption/spreading.
 
 8. Player
 Implement the blue 3D diamond-like head and two diamond-derived thruster/control hands, XP display, menu interaction, and passive XP loss.
@@ -48,5 +48,5 @@ Tune visuals, audio if later added, VR comfort, hand controls, effects, performa
 Check the implementation against every skill before calling the VR system complete.
 
 
-## Visualization reset status
-The VR visualization has been intentionally reset to a minimal square Canvas 2D preview containing only a yellow circle for Metaball, red triangle for Spike, and red square for Glitch. Detailed VR rendering is deferred until the basic visualization is reliable.
+## Visualization and movement prototype status
+The VR visualization is intentionally a minimal square Canvas 2D preview. Metaball, Spike, and Glitch are all rendered as circular hitboxes using the existing project yellow/red/cyan colors. The three authoritative entities now move, bounce off the square boundaries, and resolve basic circular pair collisions. Detailed gameplay consequences and WebXR rendering remain deferred.
