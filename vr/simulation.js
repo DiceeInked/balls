@@ -196,6 +196,8 @@
       return events;
     }
 
+    makeSpikeChildren(s){if(!s||s.remove)return;if(this.spikePointCount(s)<=3){s.remove=true;return;}const n=this.normalizeXp(s.xp),a=Math.floor(n/2),b=n-a,d=s.direction||0,v=Math.max(1,s.speed||1);this.register({x:s.x,y:s.y,vx:-Math.sin(d)*v,vy:Math.cos(d)*v,direction:d+Math.PI/2,speed:v,radius:s.radius,xp:a},"spike");this.register({x:s.x,y:s.y,vx:Math.sin(d)*v,vy:-Math.cos(d)*v,direction:d-Math.PI/2,speed:v,radius:s.radius,xp:b},"spike");s.remove=true;this.persistence.majorDirty=true;}
+
     setVelocity(entity,vx,vy){
       if(!entity)return;
       entity.vx=Number.isFinite(vx)?vx:0;
