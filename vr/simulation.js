@@ -25,6 +25,7 @@
   const PERSISTENCE_SCHEMA=1;
   const SPIKE_MIN_VERTICES=3;
   const SPIKE_POINT_CAP=32;
+  const SPIKE_POINTS_PER_XP=4;
 
   class VRWorldState{
     constructor(){
