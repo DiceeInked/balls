@@ -27,7 +27,7 @@ COMPLETED for the current 2D simulation/rendering layer. Glitches now have fixed
 COMPLETED for the authoritative simulation layer. The Player now owns XP, 3D position/velocity state, normalized movement/thrust input, head state, both hand state, left-hand gaze/menu state, and passive 100-second XP loss. Detailed WebXR pose wiring and final 3D rendering remain part of later steps.
 
 9. Player trap
-Implement Spike capture, blackened world, glowing crack generation, crack points and center, point dragging, repair detection, and player release.
+COMPLETED for the authoritative simulation and current 2D preview. Spike capture, blackened world, glowing crack generation, crack points and center, point dragging, repair detection, and player release are implemented. Detailed WebXR presentation remains part of Step 10.
 
 10. VR rendering
 Add WebXR support, headset tracking, hand tracking, stereoscopic rendering, and optimized VR visuals.
