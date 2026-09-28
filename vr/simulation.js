@@ -26,10 +26,12 @@
   const SPIKE_MIN_VERTICES=3;
   const SPIKE_POINT_CAP=32;
   const SPIKE_POINTS_PER_XP=4;
+  const GLITCH_STEERING_CAP=128;
+  const GLITCH_STEERING_RATE=20;
 
   class VRWorldState{
     constructor(){
-      this.version=6;
+      this.version=7;
       this.worldTime=0;
       this.accumulator=0;
       this.contactTimers=new Map();
@@ -50,6 +52,7 @@
         z:0,
         heading:0,
         xp:16,
+        radius:0,
         captured:false,
         timer100:0
       };
@@ -97,6 +100,9 @@
     updateEntityBounds(){
       const {width,height}=this.bounds;
       if(width<=0||height<=0)return;
+
+      if(!Number.isFinite(this.player.radius)||this.player.radius<=0)this.player.radius=Math.min(width,height)*PROTOTYPE_RADIUS_RATIO;
+      this.clampEntityToBounds(this.player);
 
       for(const type of ENTITY_TYPES){
         for(const entity of this.collectionFor(type)){
@@ -169,6 +175,29 @@
     }
     transferAndDirty(a,b,n){const m=this.transferXp(a,b,n);if(m)this.persistence.majorDirty=true;return m;}
 
+    randomDirection(){return Math.random()*Math.PI*2;}
+
+    glitchSteeringStrength(entity){
+      const xp=this.normalizeXp(entity&&entity.xp);
+      if(xp<=16)return 0;
+      return Math.min(1,(xp-16)/(GLITCH_STEERING_CAP-16));
+    }
+
+    steerGlitch(entity,dt){
+      if(!entity||entity.type!=="glitch"||entity.remove||this.player.captured)return;
+      const dx=this.player.x-entity.x,dy=this.player.y-entity.y;
+      if(Math.hypot(dx,dy)<=0.000001)return;
+      const target=Math.atan2(dy,dx),current=Number.isFinite(entity.direction)?entity.direction:Math.atan2(entity.vy,entity.vx),delta=Math.atan2(Math.sin(target-current),Math.cos(target-current));
+      const strength=this.glitchSteeringStrength(entity);
+      if(strength<=0)return;
+      const turnFraction=1-Math.exp(-GLITCH_STEERING_RATE*strength*dt);
+      const next=current+delta*turnFraction;
+      const speed=Math.max(0,Number.isFinite(entity.speed)?entity.speed:Math.hypot(entity.vx,entity.vy));
+      entity.direction=next;
+      entity.vx=Math.cos(next)*speed;
+      entity.vy=Math.sin(next)*speed;
+    }
+
     gainMetaballBounceXp(entity){
       if(!entity||entity.type!=="metaball")return 0;
       entity.xp=this.normalizeXp(entity.xp)+BOUNCE_XP; this.tryReproduceMetaball(entity); return BOUNCE_XP;
@@ -199,9 +228,11 @@
 
     drainContact(source,destination,a,b,dt){if(!source||!destination||source.remove||destination.remove)return 0;const timer=this.beginContact(a,b);timer.elapsed+=dt;let moved=0;if(timer.transfers===0){moved=this.transferAndDirty(source,destination,1);timer.transfers=moved>0?1:0;}const intervals=Math.floor((timer.elapsed+TIMER_EPSILON)/CONTACT_INTERVAL);const extra=Math.max(0,intervals-Math.max(0,timer.transfers-1));if(extra>0){const n=this.transferAndDirty(source,destination,extra);timer.transfers+=n;moved+=n;}return moved;}
 
-    consumeSpike(spike,glitch){if(!spike||!glitch||spike.remove||glitch.remove)return;const total=this.normalizeXp(spike.xp),existing=Math.floor(total/2),childXp=total-existing;this.transferAndDirty(spike,glitch,existing);const angle=Math.random()*Math.PI*2;const speed=Math.max(1,glitch.speed||Math.hypot(glitch.vx,glitch.vy));const child=this.register({x:glitch.x,y:glitch.y,vx:Math.cos(angle)*speed,vy:Math.sin(angle)*speed,direction:angle,speed,radius:glitch.radius,xp:childXp},"glitch");spike.remove=true;if(child)this.clampEntityToBounds(child);this.persistence.majorDirty=true;}
+    consumeSpike(spike,glitch){if(!spike||!glitch||spike.remove||glitch.remove)return;const total=this.normalizeXp(spike.xp),existing=Math.floor(total/2),childXp=total-existing;this.transferAndDirty(spike,glitch,existing);const angle=this.randomDirection();const speed=Math.max(1,glitch.speed||Math.hypot(glitch.vx,glitch.vy));const child=this.register({x:glitch.x,y:glitch.y,vx:Math.cos(angle)*speed,vy:Math.sin(angle)*speed,direction:angle,speed,radius:glitch.radius,xp:childXp},"glitch");spike.remove=true;if(child)this.clampEntityToBounds(child);this.persistence.majorDirty=true;}
 
-    processSpikeContacts(dt){const entities=this.activeEntities,active=new Set();for(let i=0;i<entities.length;i++){const a=entities[i];if(a.remove)continue;for(let j=i+1;j<entities.length;j++){const b=entities[j];if(b.remove)continue;const distance=Math.hypot(b.x-a.x,b.y-a.y);if(distance>=(a.radius||0)+(b.radius||0))continue;const key=Math.min(a.id,b.id)+":"+Math.max(a.id,b.id);active.add(key);if((a.type==="metaball"&&b.type==="spike")||(a.type==="spike"&&b.type==="metaball")){const meta=a.type==="metaball"?a:b,spike=a.type==="spike"?a:b;this.drainContact(meta,spike,meta,spike,dt);continue;}if((a.type==="glitch"&&b.type==="spike")||(a.type==="spike"&&b.type==="glitch")){const glitch=a.type==="glitch"?a:b,spike=a.type==="spike"?a:b;this.consumeSpike(spike,glitch);continue;}if(a.type==="spike"&&b.type==="spike"){this.splitEntity(a);this.splitEntity(b);}}}for(const [key] of this.contactTimers){if(!active.has(key))this.contactTimers.delete(key);}}
+    processInteractionContacts(dt){const entities=this.activeEntities,active=new Set();for(let i=0;i<entities.length;i++){const a=entities[i];if(a.remove)continue;for(let j=i+1;j<entities.length;j++){const b=entities[j];if(b.remove)continue;const distance=Math.hypot(b.x-a.x,b.y-a.y);if(distance>=(a.radius||0)+(b.radius||0))continue;const key=Math.min(a.id,b.id)+":"+Math.max(a.id,b.id);active.add(key);if((a.type==="metaball"&&b.type==="spike")||(a.type==="spike"&&b.type==="metaball")){const meta=a.type==="metaball"?a:b,spike=a.type==="spike"?a:b;this.drainContact(meta,spike,meta,spike,dt);continue;}if((a.type==="glitch"&&b.type==="spike")||(a.type==="spike"&&b.type==="glitch")){const glitch=a.type==="glitch"?a:b,spike=a.type==="spike"?a:b;this.consumeSpike(spike,glitch);continue;}if((a.type==="metaball"&&b.type==="glitch")||(a.type==="glitch"&&b.type==="metaball")){const meta=a.type==="metaball"?a:b,glitch=a.type==="glitch"?a:b;this.drainContact(glitch,meta,glitch,meta,dt);if(glitch.xp<=0)glitch.remove=true;continue;}if(a.type==="spike"&&b.type==="spike"){this.splitEntity(a);this.splitEntity(b);}}}
+      if(!this.player.captured){for(const glitch of this.glitches){if(glitch.remove)continue;const distance=Math.hypot(this.player.x-glitch.x,this.player.y-glitch.y);if(distance>=(glitch.radius||0)+(this.player.radius||0))continue;const key=Math.min(glitch.id,this.player.id)+":"+Math.max(glitch.id,this.player.id);active.add(key);this.drainContact(glitch,this.player,glitch,this.player,dt);if(glitch.xp<=0)glitch.remove=true;}}
+      for(const [key] of this.contactTimers){if(!active.has(key))this.contactTimers.delete(key);}}
 
     finalizeRemovedEntities(){for(const type of ENTITY_TYPES){for(const entity of [...this.collectionFor(type)]){if(entity.remove)this.unregister(entity);}}}
 
@@ -281,6 +312,7 @@
       }
 
       for(const entity of this.activeEntities){
+        this.steerGlitch(entity,dt);
         entity.x+=entity.vx*dt;
         entity.y+=entity.vy*dt;
         this.bounceFromWalls(entity);
@@ -289,7 +321,7 @@
 
       for(const entity of this.metaballs)this.advance100SecondTimer(entity,dt);
       this.advance100SecondTimer(this.player,dt);
-      this.processSpikeContacts(dt);
+      this.processInteractionContacts(dt);
       this.resolvePairCollisions();
       this.processTimerEvents();
       this.finalizeRemovedEntities();
@@ -362,7 +394,7 @@
           const minDistance=(a.radius||0)+(b.radius||0);
           const distance=Math.hypot(dx,dy);
           if(distance>=minDistance)continue;
-          const special=(a.type==="spike"||b.type==="spike")&&(a.type==="metaball"||a.type==="glitch"||b.type==="metaball"||b.type==="glitch");
+          const special=(a.type==="spike"||b.type==="spike")&&(a.type==="metaball"||a.type==="glitch"||b.type==="metaball"||b.type==="glitch")||((a.type==="metaball"&&b.type==="glitch")||(a.type==="glitch"&&b.type==="metaball"));
           if(special||a.type==="spike"&&b.type==="spike")continue;
 
           const nx=distance>0.000001?dx/distance:1;
@@ -431,7 +463,7 @@
       this.accumulator=Number.isFinite(snapshot.accumulator)&&snapshot.accumulator>=0?Math.min(snapshot.accumulator,FIXED_STEP):0;
       this.droppedSimulationTime=Number.isFinite(snapshot.droppedSimulationTime)&&snapshot.droppedSimulationTime>=0?snapshot.droppedSimulationTime:0;
       this.bounds={width:Number.isFinite(snapshot.bounds&&snapshot.bounds.width)?Math.max(0,snapshot.bounds.width):0,height:Number.isFinite(snapshot.bounds&&snapshot.bounds.height)?Math.max(0,snapshot.bounds.height):0};
-      const player=Object.assign({},sourcePlayer);player.type="player";player.xp=this.normalizeXp(player.xp);player.captured=!!player.captured;player.timer100=Number.isFinite(player.timer100)&&player.timer100>=0?player.timer100%TIMER_INTERVAL:0;this.player=player;this.entities.set(player.id,player);
+      const player=Object.assign({},sourcePlayer);player.type="player";player.radius=Number.isFinite(player.radius)&&player.radius>0?player.radius:Math.min(this.bounds.width,this.bounds.height)*PROTOTYPE_RADIUS_RATIO;player.xp=this.normalizeXp(player.xp);player.captured=!!player.captured;player.timer100=Number.isFinite(player.timer100)&&player.timer100>=0?player.timer100%TIMER_INTERVAL:0;this.player=player;this.entities.set(player.id,player);
       let maxId=player.id;
       for(const source of snapshot.entities){
         if(!source||source.id===player.id||!ENTITY_TYPES.includes(source.type)||!Number.isFinite(source.id))continue;
