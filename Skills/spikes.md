@@ -35,3 +35,6 @@ Spike-player contact can capture the player and trigger the player trap describe
 ## Current prototype visualization
 
 The Canvas preview renders Spikes as XP-linked polygons rather than circular placeholder graphics. The physical hitbox remains circular until the later 3D collision/rendering work.
+
+## Split separation fix
+Spike split children are spawned as distinct, non-overlapping entities. On wall splits, the collision normal is converted into an inward-facing direction and the two children fan around it, so both move away from the wall while separating laterally. Child spawn positions are offset along their own velocities far enough to clear their physical radii and prevent an immediate recursive Spike-vs-Spike split.
