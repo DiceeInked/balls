@@ -24,3 +24,7 @@ Collision responses must be resolved according to the entity interaction rules r
 A collision should be processed in a stable order. If a collision transforms, destroys, splits, or consumes an entity, later collision checks in the same simulation step must not use the invalid old object as though it still existed.
 
 Collision state should use stable entity IDs where possible.
+
+
+## Movement prototype
+The current clean-slate preview uses circular hitboxes for Metaballs, Spikes, and Glitches. During this prototype phase, all three test entities use basic equal-mass circle collision resolution so movement and hitbox behavior can be validated. Later entity-specific interaction rules override this generic preview response.
