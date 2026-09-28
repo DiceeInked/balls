@@ -25,3 +25,7 @@ Spike and Glitch interaction is not a bounce:
 - The new Glitch travels in a random direction.
 
 Spike-player contact can capture the player and trigger the player trap described in the player-trap skill.
+
+
+## Prototype visualization
+During the movement prototype, the Spike is rendered as a red circle representing its circular physical hitbox. The final XP-linked polygonal presentation is deferred.
