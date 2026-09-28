@@ -32,4 +32,4 @@ Lifecycle operations should be centralized enough to prevent duplicate entities,
 
 
 ## Step 1 implementation note
-The Step 1 foundation uses `VRWorld.allocateEntityId()`, `register()`, `unregister()`, `collectionFor()`, and `resetPrototypeEntities()` for authoritative entity identity and lifecycle bookkeeping. The page no longer creates or resets gameplay entities directly. Rendering reads the authoritative collections, so a resize cannot silently recreate the world.
+The Step 1/2 foundation uses `VRWorld.allocateEntityId()`, `register()`, `unregister()`, `collectionFor()`, and `resetPrototypeEntities()` for authoritative entity identity and lifecycle bookkeeping. Step 3 adds authoritative contact-timer and 100-second timer state to the world. The page no longer creates or resets gameplay entities directly. Rendering reads the authoritative collections, so a resize cannot silently recreate the world.
