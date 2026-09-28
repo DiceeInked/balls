@@ -27,4 +27,4 @@ Collision state should use stable entity IDs where possible.
 
 
 ## Movement prototype
-The current clean-slate preview uses circular hitboxes for Metaballs, Spikes, and Glitches. During this prototype phase, all three test entities use basic equal-mass circle collision resolution so movement and hitbox behavior can be validated. Later entity-specific interaction rules override this generic preview response.
+The current clean-slate preview uses circular hitboxes for Metaballs, Spikes, and Glitches. The authoritative simulation now owns movement, wall handling, and basic equal-mass circle collision resolution, while the page only renders the resulting state. Later entity-specific interaction rules override this generic preview response.
