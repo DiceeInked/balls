@@ -13,10 +13,10 @@ Implement stable world positions, velocities, directions, entity IDs, and world 
 COMPLETED for the clock layer. The simulation uses fixed 1/60-second steps, bounded catch-up, per-pair continuous-contact timers, and 100-second timer events. Timer events are intentionally separate from future gameplay consequences.
 
 ## 4. Persistence
-Save and restore authoritative world state and world time, including entities, player state, XP, relevant timers, pickup state, and capture state.
+COMPLETED for the current prototype layer. Authoritative state and world time are saved/restored through a validated browser-local JSON snapshot, including entities, player state, XP, timers, pickup state, and capture state.
 
 ## 5. Metaballs
-Implement yellow fixed-size Metaballs, movement, wall/collidable bouncing, configurable XP gain, reproduction, and physical XP pickup generation.
+COMPLETED for the current prototype layer. Metaballs use fixed size, gain 1 configurable prototype XP per qualifying wall bounce, reproduce above 32 XP, and generate stored physical pickup XP every 100 seconds. The 2D preview shows stored pickup XP as a black center orb.
 
 ## 6. Spikes
 Implement red polygonal Spikes, XP-linked vertex counts, Metaball draining, physical splitting, low-vertex destruction, and player capture.
