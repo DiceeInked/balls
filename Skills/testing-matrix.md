@@ -51,6 +51,8 @@ System tests:
 - Long-running simulation
 - Hidden-tab throttling
 - Persistence and resume
+- Persistence rejection does not replace valid in-memory state
+- Metaball pickup persistence
 - WebGL context unavailable
 - Shader compilation/link failure
 - 2D fallback remains visible when WebGL is unavailable
