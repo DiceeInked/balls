@@ -198,6 +198,12 @@
 
     splitEntity(s){if(!s||s.remove)return;if(this.spikePointCount(s)<=3){s.remove=true;return;}const n=this.normalizeXp(s.xp),a=Math.floor(n/2),b=n-a,d=s.direction||0,v=Math.max(1,s.speed||1);this.register({x:s.x,y:s.y,vx:-Math.sin(d)*v,vy:Math.cos(d)*v,direction:d+Math.PI/2,speed:v,radius:s.radius,xp:a},"spike");this.register({x:s.x,y:s.y,vx:Math.sin(d)*v,vy:-Math.cos(d)*v,direction:d-Math.PI/2,speed:v,radius:s.radius,xp:b},"spike");s.remove=true;this.persistence.majorDirty=true;}
 
+    drainContact(source,destination,a,b,dt){if(!source||!destination||source.remove||destination.remove)return 0;const timer=this.beginContact(a,b);timer.elapsed+=dt;let moved=0;if(timer.transfers===0){moved=this.transferAndDirty(source,destination,1);timer.transfers=moved>0?1:0;}const intervals=Math.floor((timer.elapsed+TIMER_EPSILON)/CONTACT_INTERVAL);const extra=Math.max(0,intervals-Math.max(0,timer.transfers-1));if(extra>0){const n=this.transferAndDirty(source,destination,extra);timer.transfers+=n;moved+=n;}return moved;}
+
+    consumeSpike(spike,glitch){if(!spike||!glitch||spike.remove||glitch.remove)return;const total=this.normalizeXp(spike.xp),existing=Math.floor(total/2),childXp=total-existing;this.transferAndDirty(spike,glitch,existing);const angle=Math.random()*Math.PI*2;const speed=Math.max(1,glitch.speed||Math.hypot(glitch.vx,glitch.vy));const child=this.register({x:glitch.x,y:glitch.y,vx:Math.cos(angle)*speed,vy:Math.sin(angle)*speed,direction:angle,speed,radius:glitch.radius,xp:childXp},"glitch");spike.remove=true;if(child)this.clampEntityToBounds(child);this.persistence.majorDirty=true;}
+
+    processSpikeContacts(dt){const entities=this.activeEntities;for(let i=0;i<entities.length;i++){const a=entities[i];if(a.remove)continue;for(let j=i+1;j<entities.length;j++){const b=entities[j];if(b.remove)continue;const distance=Math.hypot(b.x-a.x,b.y-a.y);if(distance>=(a.radius||0)+(b.radius||0))continue;if((a.type==="metaball"&&b.type==="spike")||(a.type==="spike"&&b.type==="metaball")){const meta=a.type==="metaball"?a:b,spike=a.type==="spike"?a:b;this.drainContact(meta,spike,meta,spike,dt);continue;}if((a.type==="glitch"&&b.type==="spike")||(a.type==="spike"&&b.type==="glitch")){const glitch=a.type==="glitch"?a:b,spike=a.type==="spike"?a:b;this.consumeSpike(spike,glitch);continue;}if(a.type==="spike"&&b.type==="spike"){this.splitEntity(a);this.splitEntity(b);}}}}
+
     setVelocity(entity,vx,vy){
       if(!entity)return;
       entity.vx=Number.isFinite(vx)?vx:0;
@@ -282,6 +288,7 @@
 
       for(const entity of this.metaballs)this.advance100SecondTimer(entity,dt);
       this.advance100SecondTimer(this.player,dt);
+      this.processSpikeContacts(dt);
       this.resolvePairCollisions();
       this.processTimerEvents();
     }
