@@ -23,8 +23,8 @@ Performance optimization must never silently change gameplay rules.
 
 ## Current architecture note
 
-The animation loop now calls the authoritative simulation step before rendering. Prototype entity creation, movement, bounds handling, and collision response are no longer duplicated in `vr/index.html`. The preview reuses an active-entity scratch array, caches normalized draw colors, avoids repeated layout reads during normal frames, and uses bounded fixed-step catch-up so a throttled browser cannot demand unbounded physics work. The fallback remains a basic visibility layer, not the eventual immersive WebXR renderer.
+The animation loop now calls the authoritative simulation step before rendering. Prototype entity creation, movement, bounds handling, and collision response are no longer duplicated in `vr/index.html`. The preview reuses an active-entity scratch array, caches normalized draw colors, avoids repeated layout reads during normal frames, and uses bounded fixed-step catch-up so a throttled browser cannot demand unbounded physics work. The fallback remains a basic visibility layer, not the eventual immersive WebXR renderer. Persistence uses one compact JSON snapshot per save rather than per-frame writes, and the preview saves periodically, on major Metaball changes, and on page visibility/unload events.
 
 
 ## Movement prototype
-The current preview performs a small all-pairs circular collision pass over only the active prototype entities. The simulation reuses its active-entity array, while broad-phase filtering remains appropriate once the authoritative entity count grows.
+The current preview performs a small all-pairs circular collision pass over only the active prototype entities. Metaball reproduction can add entities, so the active-entity scratch array remains reusable and broad-phase filtering remains the next optimization once entity counts grow. The simulation reuses its active-entity array, while broad-phase filtering remains appropriate once the authoritative entity count grows.
