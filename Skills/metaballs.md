@@ -34,3 +34,7 @@ Every 100 seconds, a Metaball generates a physical XP pickup:
 A Metaball has a bright white glowing or bloomed center. When it has stored XP waiting for pickup, a black orb appears in its center.
 
 The player can enter the Metaball, grab the black orb, and bring it to the player's chest or head to claim all stored XP.
+
+
+## Prototype visualization
+During the movement prototype, the Metaball is rendered as a yellow circle with a fixed circular hitbox. Its XP does not affect this physical size.
