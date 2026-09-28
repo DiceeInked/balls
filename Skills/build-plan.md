@@ -9,7 +9,7 @@ COMPLETED for the current prototype. The VR page delegates prototype entity crea
 COMPLETED for the current prototype. The prototype stores persistent x/y positions, velocities, a direction angle derived from authoritative velocity, stable IDs, and persistent world bounds.
 
 3. Simulation clock
-Implement controlled simulation time, one-second contact timing, 100-second timers, and bounded catch-up.
+COMPLETED for the clock layer. The authoritative simulation uses fixed 1/60-second steps, bounded catch-up, per-pair one-second contact timers, and 100-second timer events. Future gameplay systems will consume those timer events to apply their specific XP/pickup consequences.
 
 4. Persistence
 Save and restore authoritative world state and world time.
