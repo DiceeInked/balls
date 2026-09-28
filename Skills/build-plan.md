@@ -3,50 +3,56 @@
 The VR rebuild follows this implementation order.
 
 1. Clean-slate architecture
-COMPLETED for the current prototype. The VR page delegates prototype entity creation, identity, bounds, movement, velocity, direction, and collision processing to `vr/simulation.js`; `vr/index.html` is responsible for layout measurement and rendering only. The simulation/render seam is established for the current prototype.
+COMPLETED for the current prototype.
 
 2. World coordinates
-COMPLETED for the current prototype. The prototype stores persistent x/y positions, velocities, a direction angle derived from authoritative velocity, stable IDs, and persistent world bounds.
+COMPLETED for the current prototype.
 
 3. Simulation clock
-COMPLETED for the clock layer. The authoritative simulation uses fixed 1/60-second steps, bounded catch-up, per-pair one-second contact timers, and 100-second timer events. Future gameplay systems will consume those timer events to apply their specific XP/pickup consequences.
+COMPLETED for the clock layer.
 
 4. Persistence
-COMPLETED. Save and restore authoritative world state and world time, including entities, player state, XP, relevant timers, pickup state, and capture state.
+COMPLETED.
 
 5. Metaballs
-COMPLETED for the current prototype layer. Yellow fixed-size Metaballs now gain configurable prototype XP on wall bounce, reproduce above 32 XP, and generate stored XP pickups from the existing 100-second timer events.
+COMPLETED for the current prototype layer.
 
 6. Spikes
-Implement red polygonal Spikes, XP-linked vertices, draining, physical splitting, and destruction at the minimum vertex state.
+COMPLETED for the current 2D simulation/rendering layer. Spikes now use XP-linked polygon vertices, drain Metaballs through continuous contact timers, split on qualifying physical impacts, disappear at the minimum vertex state, and are consumed by Glitches according to the documented split rule. Player capture remains part of the later Player Trap layer.
 
 7. Glitches
-Implement blue fixed-size Glitches, XP-based steering, Metaball draining, and Spike consumption/spreading.
+Implement blue/cyan fixed-size Glitches, XP-based steering, Metaball draining, player draining, and Spike consumption/spreading.
 
 8. Player
-Implement the blue 3D diamond-like head and two diamond-derived thruster/control hands, XP display, menu interaction, and passive XP loss.
+Implement the blue 3D diamond-like head, two diamond-derived thruster/control hands, XP display, left-hand menu, movement, and passive XP loss.
 
 9. Player trap
-Implement Spike capture, blackened world, crack generation, point dragging, repair detection, and release.
+Implement Spike capture, blackened world, glowing crack generation, crack points and center, point dragging, repair detection, and player release.
 
 10. VR rendering
-Add WebXR, headset tracking, hand tracking, stereoscopic rendering, and optimized visual effects.
+Add WebXR support, headset tracking, hand tracking, stereoscopic rendering, and optimized VR visuals.
 
 11. Simulation/render separation
-Make sure the game remains authoritative and recoverable regardless of rendering state. The current page now routes each animation frame through a simulation step before drawing; finish moving gameplay systems into the simulation module over subsequent architecture work.
+Ensure the simulation remains authoritative and recoverable regardless of renderer state, WebGL state, WebXR state, or tab visibility.
 
 12. Debugging
-Build tools that expose world state, contacts, XP, timers, events, WebXR state, WebGL errors, and persistence state.
+Build diagnostic tools exposing authoritative world state, contacts, XP, timers, events, WebXR state, WebGL errors, and persistence state.
 
 13. Testing
-Test every interaction individually, then test combinations, high-speed collisions, long-running timers, reproduction, splitting, spreading, pickup collection, capture, persistence, and tab throttling.
+Test every interaction individually and in combinations, including high-speed collisions, simultaneous contacts, entity destruction order, long-running timers, reproduction, Spike splitting, Glitch spreading, pickup collection, player capture, persistence, tab throttling, and mobile rendering fallback.
 
 14. Polish
 Tune visuals, audio if later added, VR comfort, hand controls, effects, performance, and UI without changing the underlying rules.
 
 15. Final architecture review
-Check the implementation against every skill before calling the VR system complete.
+Check the implementation against every active skill before calling the VR system complete.
 
+## Ongoing change workflow
 
-## Visualization and movement prototype status
-The VR visualization is intentionally a minimal square Canvas 2D preview. Metaball, Spike, and Glitch are all rendered as circular hitboxes using the existing project yellow/red/cyan colors. The three authoritative entities now move, bounce off the square boundaries, and resolve basic circular pair collisions. Detailed gameplay consequences and WebXR rendering remain deferred.
+Before every future project change:
+1. Read every active skill in `Skills/`.
+2. Compare the proposed change against the complete skill set.
+3. Implement the change.
+4. Update every affected skill.
+5. Recheck the full skill set for contradictions.
+6. Verify the implementation against the updated specification.
