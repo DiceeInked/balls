@@ -21,16 +21,33 @@ canvas{width:100%;height:100%;display:block}
   const ctx=canvas.getContext("2d");
   const world=window.VRWorld;
   const colors=window.VRWorldColors;
+  const drawColors={
+    meta:normalizeColor(colors.meta),
+    spike:normalizeColor(colors.spike),
+    glitch:normalizeColor(colors.glitch)
+  };
+
   let lastTime=performance.now();
   let initialized=false;
+  let viewWidth=0;
+  let viewHeight=0;
+  let resizeQueued=false;
 
-  function getStageSize(){
-    const rect=stage.getBoundingClientRect();
-    return {width:rect.width,height:rect.height};
+  function normalizeColor(color){
+    const match=/^#([0-9a-f]{8})$/i.exec(color||"");
+    if(!match)return color;
+    const hex=match[1];
+    const r=parseInt(hex.slice(0,2),16);
+    const g=parseInt(hex.slice(2,4),16);
+    const b=parseInt(hex.slice(4,6),16);
+    const a=parseInt(hex.slice(6,8),16)/255;
+    return "rgba("+r+", "+g+", "+b+", "+a+")";
   }
 
   function resize(){
-    const {width,height}=getStageSize();
+    const rect=stage.getBoundingClientRect();
+    const width=rect.width;
+    const height=rect.height;
     if(width<1||height<1)return false;
 
     const d=Math.min(window.devicePixelRatio||1,2);
@@ -42,6 +59,8 @@ canvas{width:100%;height:100%;display:block}
       canvas.height=pixelHeight;
     }
 
+    viewWidth=width;
+    viewHeight=height;
     canvas.style.width=width+"px";
     canvas.style.height=height+"px";
     ctx.setTransform(d,0,0,d,0,0);
@@ -49,36 +68,33 @@ canvas{width:100%;height:100%;display:block}
     return true;
   }
 
-  function canvasColor(color){
-    const match=/^#([0-9a-f]{8})$/i.exec(color||"");
-    if(!match)return color;
-    const hex=match[1];
-    const r=parseInt(hex.slice(0,2),16);
-    const g=parseInt(hex.slice(2,4),16);
-    const b=parseInt(hex.slice(4,6),16);
-    const a=parseInt(hex.slice(6,8),16)/255;
-    return "rgba("+r+", "+g+", "+b+", "+a+")";
+  function requestResize(){
+    if(resizeQueued)return;
+    resizeQueued=true;
+    requestAnimationFrame(()=>{
+      resizeQueued=false;
+      resize();
+    });
   }
 
   function drawCircle(entity,color){
     if(!entity)return;
     ctx.beginPath();
     ctx.arc(entity.x,entity.y,entity.radius,0,Math.PI*2);
-    ctx.fillStyle=canvasColor(color);
+    ctx.fillStyle=color;
     ctx.fill();
   }
 
   function draw(){
-    const {width,height}=getStageSize();
-    if(width<1||height<1)return;
+    if(viewWidth<1||viewHeight<1)return;
 
-    ctx.clearRect(0,0,width,height);
+    ctx.clearRect(0,0,viewWidth,viewHeight);
     ctx.fillStyle="#111";
-    ctx.fillRect(0,0,width,height);
+    ctx.fillRect(0,0,viewWidth,viewHeight);
 
-    for(const entity of world.metaballs)drawCircle(entity,colors.meta);
-    for(const entity of world.spikes)drawCircle(entity,colors.spike);
-    for(const entity of world.glitches)drawCircle(entity,colors.glitch);
+    for(const entity of world.metaballs)drawCircle(entity,drawColors.meta);
+    for(const entity of world.spikes)drawCircle(entity,drawColors.spike);
+    for(const entity of world.glitches)drawCircle(entity,drawColors.glitch);
   }
 
   function initialize(){
@@ -90,7 +106,6 @@ canvas{width:100%;height:100%;display:block}
 
   function loop(now){
     initialize();
-    resize();
 
     const dt=Math.min(Math.max((now-lastTime)/1000,0),0.05);
     lastTime=now;
@@ -100,7 +115,12 @@ canvas{width:100%;height:100%;display:block}
     requestAnimationFrame(loop);
   }
 
-  addEventListener("resize",resize);
+  addEventListener("resize",requestResize);
+
+  if("ResizeObserver" in window){
+    new ResizeObserver(requestResize).observe(stage);
+  }
+
   initialize();
   requestAnimationFrame(loop);
 })();
