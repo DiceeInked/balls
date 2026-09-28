@@ -91,3 +91,12 @@ Verify:
 - Glitch/Spike contact does not apply a generic bounce.
 - Glitch/Spike contact removes the Spike, gives half its XP to the existing Glitch, creates one new Glitch with the other half, randomizes its direction, and keeps it in bounds.
 - No removed entity participates in later collision checks.
+
+## Reset control verification
+
+Verify:
+- R button is visible and labeled R.
+- R clears the saved VR snapshot.
+- R resets world time, simulation accumulator, contact timers, timer events, entity IDs, player XP, and player capture state.
+- R recreates exactly the prototype Metaball, Spike, and Glitch entities.
+- Refresh after pressing R resumes the newly reset world rather than the pre-reset world.
