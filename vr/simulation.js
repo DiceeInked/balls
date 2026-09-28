@@ -362,6 +362,8 @@
           const minDistance=(a.radius||0)+(b.radius||0);
           const distance=Math.hypot(dx,dy);
           if(distance>=minDistance)continue;
+          const special=(a.type==="spike"||b.type==="spike")&&(a.type==="metaball"||a.type==="glitch"||b.type==="metaball"||b.type==="glitch");
+          if(special||a.type==="spike"&&b.type==="spike")continue;
 
           const nx=distance>0.000001?dx/distance:1;
           const ny=distance>0.000001?dy/distance:0;
