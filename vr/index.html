@@ -32,6 +32,7 @@ canvas{width:100%;height:100%;display:block}
   let viewWidth=0;
   let viewHeight=0;
   let resizeQueued=false;
+  let nextPeriodicSave=5;
 
   function normalizeColor(color){
     const match=/^#([0-9a-f]{8})$/i.exec(color||"");
@@ -92,15 +93,36 @@ canvas{width:100%;height:100%;display:block}
     ctx.fillStyle="#111";
     ctx.fillRect(0,0,viewWidth,viewHeight);
 
-    for(const entity of world.metaballs)drawCircle(entity,drawColors.meta);
+    for(const entity of world.metaballs)drawMetaball(entity);
     for(const entity of world.spikes)drawCircle(entity,drawColors.spike);
     for(const entity of world.glitches)drawCircle(entity,drawColors.glitch);
+  }
+
+  function drawMetaball(entity){
+    drawCircle(entity,drawColors.meta);
+    if(entity.pickup&&entity.pickup.storedXp>0){
+      ctx.beginPath();
+      ctx.arc(entity.x,entity.y,Math.max(3,entity.radius*.32),0,Math.PI*2);
+      ctx.fillStyle="#000";
+      ctx.fill();
+    }
+  }
+
+  function getStorage(){
+    try{return window.localStorage||null;}catch(error){return null;}
+  }
+
+  function saveWorld(){
+    const storage=getStorage();
+    if(storage)world.savePersistence(storage);
   }
 
   function initialize(){
     if(initialized)return true;
     if(!resize())return false;
-    initialized=world.resetPrototypeEntities();
+    const storage=getStorage();
+    if(storage&&world.loadPersistence(storage))initialized=true;
+    else initialized=world.resetPrototypeEntities();
     return initialized;
   }
 
@@ -110,12 +132,23 @@ canvas{width:100%;height:100%;display:block}
     const dt=Math.max((now-lastTime)/1000,0);
     lastTime=now;
 
-    if(initialized)world.step(dt);
+    if(initialized){
+      world.step(dt);
+      if(world.persistence.majorDirty||world.worldTime>=nextPeriodicSave){
+        saveWorld();
+        nextPeriodicSave=Math.floor(world.worldTime/5+1)*5;
+      }
+    }
     draw();
     requestAnimationFrame(loop);
   }
 
   addEventListener("resize",requestResize);
+  addEventListener("pagehide",saveWorld);
+  addEventListener("beforeunload",saveWorld);
+  document.addEventListener("visibilitychange",()=>{
+    if(document.visibilityState==="hidden")saveWorld();
+  });
 
   if("ResizeObserver" in window){
     new ResizeObserver(requestResize).observe(stage);
