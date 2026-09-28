@@ -11,15 +11,17 @@ For a qualifying pair:
 Current qualifying drains:
 - Metaball -> Spike
 - Glitch -> Metaball
-- Glitch -> Player
+- Player -> Glitch
 
-Step 6 implements Metaball -> Spike using the authoritative pair timer.
+The arrow denotes the XP source followed by the XP destination.
 
 The direction of transfer matters:
-- Spike drains Metaball.
-- Metaball drains Glitch.
-- Glitch drains Player.
+- Spike drains Metaball: Metaball -> Spike.
+- Metaball drains Glitch: Glitch -> Metaball.
+- Glitch drains Player: Player -> Glitch.
 
-Drain timers should be stored per relevant contact pair rather than as one global timer.
+Drain timers are stored per relevant contact pair rather than as one global timer.
 
-Collision detection should prevent a rapidly moving object from repeatedly triggering the immediate-contact transfer every frame.
+Collision detection must prevent a rapidly moving object from repeatedly triggering the immediate-contact transfer every frame.
+
+Step 7 implements Glitch -> Metaball and Player -> Glitch with the authoritative per-pair timer. A Glitch reaching 0 XP from a Metaball drain is removed.
