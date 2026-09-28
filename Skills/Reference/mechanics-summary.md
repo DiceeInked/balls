@@ -98,3 +98,6 @@ The current preview renders yellow Metaballs, XP-linked red Spike polygons, and 
 ## Testing
 
 Visual correctness alone is not sufficient. Authoritative simulation state must also be correct.
+
+## Spike split separation
+Wall-triggered Spike splits use inward collision normals and separated child spawn positions so the two children leave the wall without overlapping each other.
