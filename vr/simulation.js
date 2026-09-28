@@ -203,6 +203,8 @@
 
     processSpikeContacts(dt){const entities=this.activeEntities;for(let i=0;i<entities.length;i++){const a=entities[i];if(a.remove)continue;for(let j=i+1;j<entities.length;j++){const b=entities[j];if(b.remove)continue;const distance=Math.hypot(b.x-a.x,b.y-a.y);if(distance>=(a.radius||0)+(b.radius||0))continue;if((a.type==="metaball"&&b.type==="spike")||(a.type==="spike"&&b.type==="metaball")){const meta=a.type==="metaball"?a:b,spike=a.type==="spike"?a:b;this.drainContact(meta,spike,meta,spike,dt);continue;}if((a.type==="glitch"&&b.type==="spike")||(a.type==="spike"&&b.type==="glitch")){const glitch=a.type==="glitch"?a:b,spike=a.type==="spike"?a:b;this.consumeSpike(spike,glitch);continue;}if(a.type==="spike"&&b.type==="spike"){this.splitEntity(a);this.splitEntity(b);}}}}
 
+    finalizeRemovedEntities(){for(const type of ENTITY_TYPES){for(const entity of [...this.collectionFor(type)]){if(entity.remove)this.unregister(entity);}}}
+
     setVelocity(entity,vx,vy){
       if(!entity)return;
       entity.vx=Number.isFinite(vx)?vx:0;
@@ -290,6 +292,7 @@
       this.processSpikeContacts(dt);
       this.resolvePairCollisions();
       this.processTimerEvents();
+      this.finalizeRemovedEntities();
     }
 
     step(dt){
