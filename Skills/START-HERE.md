@@ -18,7 +18,8 @@ Current preview: vr/index.html
 6. Spikes: COMPLETED for current 2D prototype
 7. Glitches: COMPLETED for current 2D prototype
 8. Player: COMPLETED for the authoritative simulation layer
-9. Player trap: NEXT
+9. Player trap: COMPLETED
+10. VR rendering: NEXT
 10. VR rendering
 11. Simulation/render separation
 12. Debugging
