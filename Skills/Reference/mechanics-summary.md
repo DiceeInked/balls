@@ -1,3 +1,4 @@
+The current movement prototype uses three circular entities. The Glitch is rendered in the configured RGBA color `#00FFC8FF`, and the renderer draws from the complete authoritative Glitch collection.
 # VR Mechanics Summary
 
 ## Core architecture
