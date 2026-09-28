@@ -20,7 +20,6 @@ Current preview: vr/index.html
 8. Player: COMPLETED for the authoritative simulation layer
 9. Player trap: COMPLETED
 10. VR rendering: NEXT
-10. VR rendering
 11. Simulation/render separation
 12. Debugging
 13. Testing
@@ -71,6 +70,8 @@ Glitch zero-XP removal has been tested.
 Player/Glitch transfer direction has been tested.
 Spike consumption and random child spawning have been tested.
 Spike removal/finalization and persistence round trips have been tested.
+Player Trap capture, 12-point crack creation, trap persistence, repair/release, captured movement lock, and malformed snapshot rejection have been smoke-tested.
+The current VR simulation, preview scripts, and legacy state bridge all parse successfully.
 
 ## Change workflow
 Before every project change:
