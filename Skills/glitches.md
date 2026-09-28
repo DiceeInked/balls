@@ -30,3 +30,4 @@ Glitch and Spike interaction:
 Glitches also drain player XP according to the shared XP-drain rules.
 
 Glitches should have a visually chaotic, glitch-like presentation rather than a smooth orb-like appearance. During the movement prototype they are intentionally rendered as blue/cyan circles so their physical hitbox is easy to inspect. The final visual effect must not be mistaken for their physical hitbox.
+The movement prototype renders Glitches as blue/cyan circles so the physical hitbox is easy to inspect. The authoritative prototype color is exactly RGBA `#00FFC8FF`.
