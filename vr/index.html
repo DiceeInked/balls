@@ -1,2 +1,87 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no"><title>VR World Preview</title><style>html,body{margin:0;width:100%;height:100%;background:#080808;overflow:hidden}body{display:grid;place-items:center}#stage{width:min(82vmin,720px);height:min(82vmin,720px);background:#111;border:2px solid #666;border-radius:12px;overflow:hidden}canvas{width:100%;height:100%;display:block}</style></head><body><div id="stage"><canvas id="preview"></canvas></div><script src="../state.js"></script><script src="simulation.js"></script><script>(function(){const c=document.getElementById("preview"),x=c.getContext("2d"),w=window.VRWorld;const items=[["meta",.27,.35],["spike",.52,.62],["glitch",.74,.38]];function size(){const d=Math.min(devicePixelRatio||1,2),r=c.getBoundingClientRect();c.width=r.width*d;c.height=r.height*d;x.setTransform(d,0,0,d,0,0)}function draw(){const W=c.clientWidth,H=c.clientHeight,s=Math.min(W,H)*.07;x.clearRect(0,0,W,H);x.fillStyle="#111";x.fillRect(0,0,W,H);for(let i=0;i<items.length;i++){const o=items[i],px=o[1]*W,py=o[2]*H;x.fillStyle=o[0]==="meta"?"#ffe500":"#ff3030";x.beginPath();if(o[0]==="meta")x.arc(px,py,s,0,Math.PI*2);else if(o[0]==="spike"){x.moveTo(px,py-s);x.lineTo(px+s,py+s);x.lineTo(px-s,py+s);x.closePath()}else x.rect(px-s,py-s,s*2,s*2);x.fill()}}function loop(t){w.advanceTime(1/60);draw();requestAnimationFrame(loop)}addEventListener("resize",size);size();requestAnimationFrame(loop)})()</script></body></html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>VR World Preview</title>
+<style>
+html,body{margin:0;width:100%;height:100%;background:#080808;overflow:hidden}
+body{display:grid;place-items:center}
+#stage{width:min(82vmin,720px);height:min(82vmin,720px);background:#111;border:2px solid #666;border-radius:12px;overflow:hidden}
+canvas{width:100%;height:100%;display:block}
+</style>
+</head>
+<body>
+<div id="stage"><canvas id="preview"></canvas></div>
+<script src="simulation.js"></script>
+<script>
+(function(){
+  const canvas=document.getElementById("preview");
+  const ctx=canvas.getContext("2d");
+  const world=window.VRWorld;
+  const colors=window.VRWorldColors;
+  const radiusRatio=0.055;
+  let lastTime=performance.now();
+
+  function resize(){
+    const d=Math.min(window.devicePixelRatio||1,2);
+    const rect=canvas.getBoundingClientRect();
+    canvas.width=Math.max(1,Math.round(rect.width*d));
+    canvas.height=Math.max(1,Math.round(rect.height*d));
+    ctx.setTransform(d,0,0,d,0,0);
+    world.setBounds(rect.width,rect.height);
+    for(const e of world.metaballs.concat(world.spikes,world.glitches)){
+      e.radius=Math.min(rect.width,rect.height)*radiusRatio;
+      e.x=Math.max(e.radius,Math.min(rect.width-e.radius,e.x));
+      e.y=Math.max(e.radius,Math.min(rect.height-e.radius,e.y));
+    }
+  }
+
+  function makeEntity(type,x,y,vx,vy){
+    const r=Math.min(canvas.clientWidth,canvas.clientHeight)*radiusRatio;
+    return world.register({x,y,vx,vy,radius:r,xp:16},type);
+  }
+
+  function resetEntities(){
+    for(const e of [...world.metaballs,...world.spikes,...world.glitches])world.unregister(e);
+    const w=canvas.clientWidth,h=canvas.clientHeight;
+    const r=Math.min(w,h)*radiusRatio;
+    makeEntity("metaball",w*.27,h*.35,82,57);
+    makeEntity("spike",w*.52,h*.62,-71,64);
+    makeEntity("glitch",w*.74,h*.38,-62,-79);
+    world.setBounds(w,h);
+  }
+
+  function drawCircle(entity,color){
+    ctx.beginPath();
+    ctx.arc(entity.x,entity.y,entity.radius,0,Math.PI*2);
+    ctx.fillStyle=color;
+    ctx.fill();
+  }
+
+  function draw(){
+    const w=canvas.clientWidth,h=canvas.clientHeight;
+    ctx.clearRect(0,0,w,h);
+    ctx.fillStyle="#111";
+    ctx.fillRect(0,0,w,h);
+    drawCircle(world.metaballs[0],colors.meta);
+    drawCircle(world.spikes[0],colors.spike);
+    drawCircle(world.glitches[0],colors.glitch);
+  }
+
+  function loop(now){
+    const dt=Math.min((now-lastTime)/1000,0.05);
+    lastTime=now;
+    world.step(dt);
+    draw();
+    requestAnimationFrame(loop);
+  }
+
+  addEventListener("resize",()=>{resize();resetEntities();});
+  resize();
+  resetEntities();
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
