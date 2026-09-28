@@ -22,3 +22,6 @@ Save periodically and after major state-changing events. The VR preview's R rese
 When resuming, elapsed time should be handled through the simulation clock rather than blindly replaying an unbounded number of frames.
 
 Persistence must never overwrite valid world state with a blank renderer state. Loaded snapshots are validated before they replace the current world, including entity IDs, entity types, timers, bounds, and pickup state.
+
+## Step 9 update
+Player persistence now includes the active trap state, crack center, crack points, sealed-point progress, and capture source ID. A restored capture is accepted only when the crack state has the expected finite center and point structure; malformed trap state causes the Player to resume uncaptured rather than leaving a permanently stuck capture.
