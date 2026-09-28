@@ -23,7 +23,7 @@ Performance optimization must never silently change gameplay rules.
 
 ## Current architecture note
 
-The animation loop now calls the authoritative simulation step before rendering. Prototype entity creation, movement, bounds handling, and collision response are no longer duplicated in `vr/index.html`. The preview reuses an active-entity scratch array during simulation steps instead of allocating a new all-entity array every frame. The fallback remains a basic visibility layer, not the eventual immersive WebXR renderer.
+The animation loop now calls the authoritative simulation step before rendering. Prototype entity creation, movement, bounds handling, and collision response are no longer duplicated in `vr/index.html`. The preview reuses an active-entity scratch array during simulation steps, caches normalized draw colors, and avoids repeated layout reads during normal frames. The fallback remains a basic visibility layer, not the eventual immersive WebXR renderer.
 
 
 ## Movement prototype
