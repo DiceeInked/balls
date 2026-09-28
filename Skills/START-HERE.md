@@ -17,14 +17,17 @@ Current preview: vr/index.html
 5. Metaballs: COMPLETED for current prototype
 6. Spikes: COMPLETED for current 2D prototype
 7. Glitches: COMPLETED for current 2D prototype
-8. Player: NEXT
-9. Player trap
+8. Player: COMPLETED for the authoritative simulation layer
+9. Player trap: NEXT
 10. VR rendering
 11. Simulation/render separation
 12. Debugging
 13. Testing
 14. Polish
 15. Final architecture review
+
+## Step 8 checkpoint
+The authoritative Player now starts with 16 XP and owns persistent 3D position/velocity state, normalized movement/thrust input, head state, both hand states, left-hand gaze/menu state, and a 100-second passive XP timer. Fixed-step movement applies acceleration, damping, and a conservative speed cap, and movement pauses while captured. Every 100 seconds, the Player loses 1 XP, clamped at zero.
 
 ## Step 7 checkpoint
 Glitches use #00FFC8FF, fixed size, and XP-based steering toward the player. 16 XP gives no useful steering, 32 slight, 64 useful, and 128 extremely strong steering with 128 as the practical cap.
@@ -59,6 +62,8 @@ Skills/Reference/: reference copies of the mechanics summary and implementation 
 
 ## Verification checkpoint
 Simulation syntax has been tested.
+
+Step 8 implementation has been committed and the affected Skills documentation and verification matrix have been updated.
 Glitch steering has been tested at 16, 32, 64, and 128 XP.
 Metaball/Glitch immediate and one-second drains have been tested.
 Glitch zero-XP removal has been tested.
