@@ -104,3 +104,15 @@ Verify:
 - R resets world time, simulation accumulator, contact timers, timer events, entity IDs, player XP, and player capture state.
 - R recreates exactly the prototype Metaball, Spike, and Glitch entities.
 - Refresh after pressing R resumes the newly reset world rather than the pre-reset world.
+
+## Step 9 verification
+Verify:
+- Spike contact captures the Player exactly once.
+- Capture clears Player movement and velocity.
+- Capture creates exactly 12 crack points and one center.
+- Active hand input can move a nearby point toward the center.
+- A point seals at the repair threshold.
+- All sealed points release the Player and clear trap state.
+- Capture state and crack progress survive persistence round trips.
+- Invalid or duplicate entity IDs are rejected without replacing the current world.
+- A captured Player does not stop Glitch movement or steering.
