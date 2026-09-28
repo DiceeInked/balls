@@ -30,3 +30,6 @@ Collision state should use stable entity IDs where possible.
 ## Movement prototype
 
 The current clean-slate preview uses circular physical hitboxes for Metaballs, Spikes, and Glitches. The authoritative simulation owns movement, wall handling, entity-specific Spike interactions, and basic equal-mass circle collision resolution. Later entity-specific interaction rules override the generic preview response.
+
+## Step 9 update
+Spike-player contact is now an authoritative capture interaction. It captures the Player, clears Player movement for the duration of the trap, and creates the persisted crack state. The generic physical collision response is not applied to the Player during capture.
