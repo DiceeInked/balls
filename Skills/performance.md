@@ -24,3 +24,7 @@ Performance optimization must never silently change gameplay rules.
 ## Current architecture note
 
 The animation loop now calls a simulation step before rendering. This separates the update boundary from drawing, but some gameplay code remains in `vr/index.html` and movement is not yet fully time-normalized. The fallback is intended for basic visibility and interaction, not as a replacement for the eventual immersive WebXR renderer.
+
+
+## Movement prototype
+The current preview performs a small all-pairs circular collision pass over only three entities. This is deliberately simple; broad-phase filtering can be introduced when the authoritative entity count grows.
