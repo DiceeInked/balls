@@ -118,4 +118,12 @@ Verify:
 - A captured Player does not stop Glitch movement or steering.
 
 ## Spike split regression test
-Verify wall splits create exactly two live child Spikes, both spawn inside the wall boundary, both have velocity directed away from the wall, the children do not overlap, and repeated fixed steps do not cause recursive splitting.
+Verify:
+- A wall-hit Spike reflects away from the wall before splitting.
+- The split produces two smaller children at 55% of the parent's radius.
+- The children are separated along the perpendicular axis.
+- Both child velocities are angled only slightly from the parent's reflected direction.
+- Both children start inside the wall boundary.
+- Both children receive an 8-frame collision cooldown.
+- The children remain separate through the cooldown instead of recursively splitting.
+- A Spike at the minimum point count disappears instead of splitting.
