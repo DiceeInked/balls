@@ -17,6 +17,7 @@
   const MAX_CATCH_UP_STEPS=8;
   const CONTACT_INTERVAL=1;
   const TIMER_INTERVAL=100;
+  const TIMER_EPSILON=1e-9;
   const PROTOTYPE_RADIUS_RATIO=0.055;
 
   class VRWorldState{
@@ -184,7 +185,7 @@
       const timer=this.beginContact(a,b);
       if(!timer||!Number.isFinite(dt)||dt<=0)return 0;
       timer.elapsed+=dt;
-      const totalIntervals=Math.floor(timer.elapsed/CONTACT_INTERVAL);
+      const totalIntervals=Math.floor((timer.elapsed+TIMER_EPSILON)/CONTACT_INTERVAL);
       const newIntervals=Math.max(0,totalIntervals-timer.transfers);
       timer.transfers=totalIntervals;
       return newIntervals;
@@ -193,7 +194,7 @@
     advance100SecondTimer(entity,dt){
       if(!entity||!Number.isFinite(dt)||dt<=0)return 0;
       entity.timer100=(Number.isFinite(entity.timer100)?entity.timer100:0)+dt;
-      const intervals=Math.floor(entity.timer100/TIMER_INTERVAL);
+      const intervals=Math.floor((entity.timer100+TIMER_EPSILON)/TIMER_INTERVAL);
       if(intervals<=0)return 0;
       entity.timer100-=intervals*TIMER_INTERVAL;
       for(let i=0;i<intervals;i++){
