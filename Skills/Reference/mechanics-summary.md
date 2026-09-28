@@ -9,7 +9,7 @@ The world contains Metaballs, Spikes, Glitches, the VR player, world boundaries 
 
 World coordinates are persistent and independent of the camera or headset view. Entities have stable IDs and the state needed to simulate them.
 
-The page now has a `VRSimulation.step()` boundary that advances world time and runs simulation updates before a separate render pass. This is the beginning of simulation/render separation, not a completed migration of all gameplay logic out of `vr/index.html`. The current page is still a 2D preview, not a finished WebXR scene.
+The page now uses the authoritative `VRWorld.step()` boundary before rendering. Prototype entity lifecycle, movement, bounds, velocity, direction, and collision ownership live in `vr/simulation.js`; the page remains a 2D preview, not a finished WebXR scene.
 
 The renderer has a 2D fallback for cases where WebGL is unavailable or its shader program cannot be used. Rendering failure must not reset the authoritative world.
 
@@ -158,4 +158,4 @@ The VR visualization was reset to a minimal Canvas 2D preview: square field, yel
 
 
 ## Current movement prototype
-The VR preview currently uses three circular entities: yellow Metaball, red Spike, and cyan/blue Glitch. Each has authoritative position, velocity, and radius state. They move using elapsed simulation time, bounce from the square boundaries, and use basic circular collision separation/response. These are prototype physics only and do not replace the final entity-specific interaction rules.
+The VR preview currently uses three circular entities: yellow Metaball, red Spike, and cyan/blue Glitch. Each has authoritative position, velocity, direction, speed, radius, and stable ID state. They move using elapsed simulation time, bounce from the square boundaries, and use basic circular collision separation/response. Resizing the preview changes the world bounds without recreating the entities. These are prototype physics only and do not replace the final entity-specific interaction rules.
