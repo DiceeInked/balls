@@ -1,6 +1,6 @@
 /* Minimal authoritative VR world state and movement prototype. */
 (function(){
-  const COLORS={meta:"#ffed00",spike:"#ff0054",glitch:"#00ffc7"};
+  const COLORS={meta:"#ffED00FF",spike:"#FF0054FF",glitch:"#00FFC8FF"};
 
   class VRWorldState{
     constructor(){
