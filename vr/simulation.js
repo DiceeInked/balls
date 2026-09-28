@@ -26,6 +26,8 @@
   const SPIKE_MIN_VERTICES=3;
   const SPIKE_POINT_CAP=32;
   const SPIKE_POINTS_PER_XP=4;
+  const SPIKE_CHILD_RADIUS_SCALE=0.55;
+  const SPIKE_COLLISION_COOLDOWN=8;
   const GLITCH_STEERING_CAP=128;
   const GLITCH_STEERING_RATE=20;
   const PLAYER_ACCELERATION=240;
@@ -77,6 +79,7 @@
       entity.type=type;
       entity.remove=false;
       entity.timer100=0;
+      if(type==="spike")entity.collisionCooldown=Number.isFinite(entity.collisionCooldown)?Math.max(0,Math.floor(entity.collisionCooldown)):0;
       this.entities.set(entity.id,entity);
       const collection=this.collectionFor(type);
       if(!collection.includes(entity))collection.push(entity);
@@ -301,32 +304,35 @@
       return events;
     }
 
-    splitEntity(s,wallNormalX=0,wallNormalY=0){
+    splitEntity(s){
       if(!s||s.remove)return;
-      if(this.spikePointCount(s)<=3){s.remove=true;return;}
-      const n=this.normalizeXp(s.xp),a=Math.floor(n/2),b=n-a,d=s.direction||0,v=Math.max(1,s.speed||1);
-      const hasWallNormal=Math.hypot(wallNormalX,wallNormalY)>0.000001;
-      let x=s.x,y=s.y,vx1,vy1,vx2,vy2;
-      if(hasWallNormal){
-        const normalLength=Math.hypot(wallNormalX,wallNormalY);
-        const nx=wallNormalX/normalLength,ny=wallNormalY/normalLength;
-        const splitAngle=Math.PI/4;
-        const baseAngle=Math.atan2(ny,nx);
-        const angleA=baseAngle-splitAngle,angleB=baseAngle+splitAngle;
-        vx1=Math.cos(angleA)*v;vy1=Math.sin(angleA)*v;
-        vx2=Math.cos(angleB)*v;vy2=Math.sin(angleB)*v;
-        const offset=Math.max(2,(s.radius||0)*0.35);
-        x+=nx*offset;y+=ny*offset;
-      }else{
-        vx1=-Math.sin(d)*v;vy1=Math.cos(d)*v;
-        vx2=Math.sin(d)*v;vy2=-Math.cos(d)*v;
+      if(this.getSpikePoints(s)<=3){s.remove=true;this.persistence.majorDirty=true;return;}
+      const n=this.normalizeXp(s.xp),a=Math.floor(n/2),b=n-a;
+      const parentSpeed=Math.max(Math.hypot(s.vx,s.vy),1);
+      const baseAngle=Number.isFinite(s.direction)?s.direction:Math.atan2(s.vy,s.vx);
+      const spreadAngle=0.24;
+      const separationAngle=baseAngle+Math.PI*0.5;
+      const childRadius=Math.max((s.radius||0)*SPIKE_CHILD_RADIUS_SCALE,2.8);
+      const separationDistance=Math.max(childRadius*1.15,2);
+      for(const sign of [-1,1]){
+        const offset=sign*separationDistance;
+        const x=s.x+Math.cos(separationAngle)*offset;
+        const y=s.y+Math.sin(separationAngle)*offset;
+        const direction=baseAngle+sign*spreadAngle;
+        const child=this.register({
+          x,y,
+          vx:Math.cos(direction)*parentSpeed,
+          vy:Math.sin(direction)*parentSpeed,
+          direction,
+          speed:parentSpeed,
+          radius:childRadius,
+          xp:sign<0?a:b,
+          collisionCooldown:SPIKE_COLLISION_COOLDOWN
+        },"spike");
+        if(child)this.clampEntityToBounds(child);
       }
-      const childOffset=Math.max(2,(s.radius||0)*1.5);
-      const childA=this.register({x:x+(vx1/v)*childOffset,y:y+(vy1/v)*childOffset,vx:vx1,vy:vy1,direction:Math.atan2(vy1,vx1),speed:v,radius:s.radius,xp:a},"spike");
-      const childB=this.register({x:x+(vx2/v)*childOffset,y:y+(vy2/v)*childOffset,vx:vx2,vy:vy2,direction:Math.atan2(vy2,vx2),speed:v,radius:s.radius,xp:b},"spike");
-      if(childA)this.clampEntityToBounds(childA);
-      if(childB)this.clampEntityToBounds(childB);
-      s.remove=true;this.persistence.majorDirty=true;
+      s.remove=true;
+      this.persistence.majorDirty=true;
     }
 
     drainContact(source,destination,a,b,dt){if(!source||!destination||source.remove||destination.remove)return 0;const timer=this.beginContact(a,b);timer.elapsed+=dt;let moved=0;if(timer.transfers===0){moved=this.transferAndDirty(source,destination,1);timer.transfers=moved>0?1:0;}const intervals=Math.floor((timer.elapsed+TIMER_EPSILON)/CONTACT_INTERVAL);const extra=Math.max(0,intervals-Math.max(0,timer.transfers-1));if(extra>0){const n=this.transferAndDirty(source,destination,extra);timer.transfers+=n;moved+=n;}return moved;}
@@ -416,6 +422,7 @@
       }
 
       for(const entity of this.activeEntities){
+        if(entity.type==="spike"&&entity.collisionCooldown>0)entity.collisionCooldown--;
         this.steerGlitch(entity,dt);
         entity.x+=entity.vx*dt;
         entity.y+=entity.vy*dt;
@@ -466,24 +473,26 @@
       const maxY=Math.max(minY,height-radius);
 
       let bounced=false;
-      let wallNormalX=0,wallNormalY=0;
       if(entity.x<minX){
         entity.x=minX;
-        entity.vx=Math.abs(entity.vx); wallNormalX=1; bounced=true;
+        entity.vx=Math.abs(entity.vx); bounced=true;
       }else if(entity.x>maxX){
         entity.x=maxX;
-        entity.vx=-Math.abs(entity.vx); wallNormalX=-1; bounced=true;
+        entity.vx=-Math.abs(entity.vx); bounced=true;
       }
 
       if(entity.y<minY){
         entity.y=minY;
-        entity.vy=Math.abs(entity.vy); wallNormalY=1; bounced=true;
+        entity.vy=Math.abs(entity.vy); bounced=true;
       }else if(entity.y>maxY){
         entity.y=maxY;
-        entity.vy=-Math.abs(entity.vy); wallNormalY=-1; bounced=true;
+        entity.vy=-Math.abs(entity.vy); bounced=true;
       }
 
-      this.syncDirection(entity); if(bounced&&entity.type==="metaball")this.gainMetaballBounceXp(entity); if(bounced&&entity.type==="spike")this.splitEntity(entity,wallNormalX,wallNormalY); return bounced;
+      this.syncDirection(entity);
+      if(bounced&&entity.type==="metaball")this.gainMetaballBounceXp(entity);
+      if(bounced&&entity.type==="spike"&&entity.collisionCooldown<=0)this.splitEntity(entity);
+      return bounced;
     }
 
     resolvePairCollisions(){
@@ -576,7 +585,9 @@
       let maxId=player.id;
       for(const source of snapshot.entities){
         if(!source||source.id===player.id||!ENTITY_TYPES.includes(source.type)||!Number.isFinite(source.id))continue;
-        const entity=Object.assign({},source);entity.x=Number.isFinite(entity.x)?entity.x:0;entity.y=Number.isFinite(entity.y)?entity.y:0;entity.vx=Number.isFinite(entity.vx)?entity.vx:0;entity.vy=Number.isFinite(entity.vy)?entity.vy:0;entity.radius=Number.isFinite(entity.radius)&&entity.radius>0?entity.radius:Math.min(this.bounds.width,this.bounds.height)*PROTOTYPE_RADIUS_RATIO;entity.xp=this.normalizeXp(entity.xp);entity.speed=Math.hypot(entity.vx,entity.vy);entity.direction=entity.speed>0?Math.atan2(entity.vy,entity.vx):Number.isFinite(entity.direction)?entity.direction:0;entity.timer100=Number.isFinite(entity.timer100)&&entity.timer100>=0?entity.timer100%TIMER_INTERVAL:0;entity.remove=false;if(entity.type==="metaball")entity.pickup={storedXp:this.normalizeXp(entity.pickup&&entity.pickup.storedXp)};this.entities.set(entity.id,entity);this.collectionFor(entity.type).push(entity);maxId=Math.max(maxId,entity.id);
+        const entity=Object.assign({},source);entity.x=Number.isFinite(entity.x)?entity.x:0;entity.y=Number.isFinite(entity.y)?entity.y:0;entity.vx=Number.isFinite(entity.vx)?entity.vx:0;entity.vy=Number.isFinite(entity.vy)?entity.vy:0;entity.radius=Number.isFinite(entity.radius)&&entity.radius>0?entity.radius:Math.min(this.bounds.width,this.bounds.height)*PROTOTYPE_RADIUS_RATIO;entity.xp=this.normalizeXp(entity.xp);entity.speed=Math.hypot(entity.vx,entity.vy);entity.direction=entity.speed>0?Math.atan2(entity.vy,entity.vx):Number.isFinite(entity.direction)?entity.direction:0;entity.timer100=Number.isFinite(entity.timer100)&&entity.timer100>=0?entity.timer100%TIMER_INTERVAL:0;entity.remove=false;
+        if(entity.type==="spike")entity.collisionCooldown=Number.isFinite(entity.collisionCooldown)&&entity.collisionCooldown>0?Math.floor(entity.collisionCooldown):0;
+        if(entity.type==="metaball")entity.pickup={storedXp:this.normalizeXp(entity.pickup&&entity.pickup.storedXp)};this.entities.set(entity.id,entity);this.collectionFor(entity.type).push(entity);maxId=Math.max(maxId,entity.id);
       }
       const requestedNext=Number.isFinite(snapshot.nextEntityId)?Math.floor(snapshot.nextEntityId):1;this.nextEntityId=Math.max(1,requestedNext,maxId+1);
       if(Array.isArray(snapshot.contactTimers))for(const timer of snapshot.contactTimers){if(!timer||timer.aId===timer.bId||!this.entities.has(timer.aId)||!this.entities.has(timer.bId))continue;const elapsed=Number.isFinite(timer.elapsed)&&timer.elapsed>=0?timer.elapsed:0,transfers=Number.isFinite(timer.transfers)&&timer.transfers>=0?Math.floor(timer.transfers):Math.floor(elapsed),first=Math.min(timer.aId,timer.bId),second=Math.max(timer.aId,timer.bId);this.contactTimers.set(first+":"+second,{aId:first,bId:second,elapsed:elapsed,transfers:transfers});}
