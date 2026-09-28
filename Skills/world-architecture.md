@@ -34,4 +34,4 @@ The page also has a 2D fallback renderer for browsers where WebGL context creati
 
 
 ## Minimal visualization status
-The visualization is currently a deliberately simple view of the architecture. It does not implement detailed gameplay rendering or WebXR yet. The three basic object shapes are only visual placeholders.
+The visualization is currently a deliberately simple view of the architecture. It does not implement detailed gameplay rendering or WebXR yet. The three objects are circular movement prototypes backed by authoritative entity state. They are intentionally simple and do not yet implement their final gameplay-specific interaction consequences.
