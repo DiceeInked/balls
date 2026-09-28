@@ -35,3 +35,6 @@ The page also has a 2D fallback renderer for browsers where WebGL context creati
 
 ## Minimal visualization status
 The visualization is currently a deliberately simple view of the architecture. It does not implement detailed gameplay rendering or WebXR yet. The three objects are circular movement prototypes backed by authoritative entity state. The preview derives its logical bounds from the fixed stage and waits for valid nonzero layout dimensions before initialization, so transient mobile canvas sizing cannot redefine or erase the world. They are intentionally simple and do not yet implement their final gameplay-specific interaction consequences.
+
+## Step 9 implementation note
+Player capture and crack-repair progress are now authoritative Player state. The renderer may visualize the blackened world and cracks, but it does not own capture or repair state.
