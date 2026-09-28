@@ -43,3 +43,5 @@ The Step 1/2 foundation exposes a dedicated `VRWorld` state container suitable f
 
 The page now has separate simulation and rendering entry points. If WebGL is unavailable or its program cannot be used, a 2D fallback is attempted instead of continuing into invalid WebGL calls. The preview also measures the fixed stage rather than relying on a mobile canvas's transient client size, and it waits for a nonzero layout before initializing entities. Device-level visual verification is still required to confirm behavior on iPhone Safari.
 The Canvas preview also normalizes 8-digit RGBA hex colors before drawing, so a valid authoritative entity that is present in the simulation is not mistaken for a missing entity solely because the browser rejects that color syntax.
+## Step 9 update
+Debugging should expose whether the Player is captured, the trap source Spike ID, crack point count, sealed-point count, crack center, and current crack-point positions.
