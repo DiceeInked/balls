@@ -539,7 +539,7 @@
 
     restoreSnapshot(snapshot){
       if(!snapshot||typeof snapshot!=="object"||!Array.isArray(snapshot.entities)||!snapshot.player)return false;
-      const sourcePlayer=snapshot.player;if(!Number.isFinite(sourcePlayer.id)||sourcePlayer.type!=="player")return false;const ids=new Set([sourcePlayer.id]);for(const source of snapshot.entities){if(!source||!Number.isFinite(source.id)||!ENTITY_TYPES.includes(source.type)||ids.has(source.id))return false;ids.add(source.id);}
+      const sourcePlayer=snapshot.player;if(!Number.isFinite(sourcePlayer.id)||sourcePlayer.type!=="player")return false;const ids=new Set([sourcePlayer.id]);let playerEntryCount=0;for(const source of snapshot.entities){if(!source||!Number.isFinite(source.id))return false;if(source.id===sourcePlayer.id){if(source.type!=="player"||++playerEntryCount>1)return false;continue;}if(!ENTITY_TYPES.includes(source.type)||ids.has(source.id))return false;ids.add(source.id);}
       this.entities.clear();for(const type of ENTITY_TYPES)this.collectionFor(type).length=0;this.contactTimers.clear();this.timerEvents.length=0;this.activeEntities.length=0;
       this.worldTime=Number.isFinite(snapshot.worldTime)&&snapshot.worldTime>=0?snapshot.worldTime:0;
       this.accumulator=Number.isFinite(snapshot.accumulator)&&snapshot.accumulator>=0?Math.min(snapshot.accumulator,FIXED_STEP):0;
