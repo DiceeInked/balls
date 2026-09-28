@@ -19,4 +19,4 @@ World time should be persisted so long-running mechanics remain coherent across 
 
 ## Current implementation status
 
-The animation loop now calculates elapsed time and passes it through `VRSimulation.step(deltaSeconds, updateFn)`. The controller advances `VRWorld.worldTime` before running the update callback. This establishes the timing boundary, but fixed-step movement, per-contact timers, and bounded catch-up remain future work. The movement prototype now advances positions using elapsed simulation seconds with a small delta cap.
+The animation loop calculates elapsed time and passes it to the authoritative `VRWorld.step(deltaSeconds)`. The simulation advances `worldTime` and prototype movement from elapsed seconds with a small delta cap. Fixed-step simulation, per-contact timers, 100-second timers, and bounded hidden-tab catch-up remain future work.
