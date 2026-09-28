@@ -29,7 +29,7 @@ COMPLETED for the current 2D simulation/rendering layer. Glitches have fixed siz
 Implement the blue 3D diamond-like head, two diamond-derived thruster/control hands, XP display, left-hand menu, movement, and passive XP loss.
 
 ## 9. Player trap
-Implement Spike capture, blackened world, glowing crack generation, crack points and center, point dragging, repair detection, and player release.
+COMPLETED for the authoritative simulation and current 2D preview. Spike capture, blackened world, glowing crack generation, crack points and center, point dragging, repair detection, and player release are implemented.
 
 ## 10. VR rendering
 Add WebXR support, headset tracking, hand tracking, stereoscopic rendering, and optimized VR visuals.
