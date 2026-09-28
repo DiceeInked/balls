@@ -3,10 +3,10 @@
 The VR rebuild follows this implementation order.
 
 1. Clean-slate architecture
-Establish the authoritative simulation state and keep it separate from rendering. The first layer now exists in `vr/simulation.js`, and the page has distinct simulation-update and render functions. Continue removing gameplay ownership from rendering code.
+Establish the authoritative simulation state and keep it separate from rendering. The VR page now delegates prototype entity creation, identity, bounds, movement, velocity, direction, and collision processing to `vr/simulation.js`; `vr/index.html` is responsible for layout measurement and rendering only. The simulation/render seam is established for the current prototype.
 
 2. World coordinates
-Implement stable world positions, velocities, directions, IDs, and world boundaries.
+Implement stable world positions, velocities, directions, IDs, and world boundaries. The prototype now stores persistent x/y positions, velocities, a direction angle derived from authoritative velocity, stable IDs, and persistent world bounds.
 
 3. Simulation clock
 Implement controlled simulation time, one-second contact timing, 100-second timers, and bounded catch-up.
