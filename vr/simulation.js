@@ -225,7 +225,7 @@
         this.syncDirection(entity);
       }
 
-      for(const entity of this.activeEntities)this.advance100SecondTimer(entity,dt);
+      for(const entity of this.metaballs)this.advance100SecondTimer(entity,dt);
       this.advance100SecondTimer(this.player,dt);
       this.resolvePairCollisions();
     }
