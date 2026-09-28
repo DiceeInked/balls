@@ -321,7 +321,7 @@
         vx1=-Math.sin(d)*v;vy1=Math.cos(d)*v;
         vx2=Math.sin(d)*v;vy2=-Math.cos(d)*v;
       }
-      const childOffset=Math.max(2,(s.radius||0)*0.5);
+      const childOffset=Math.max(2,(s.radius||0)*1.5);
       const childA=this.register({x:x+(vx1/v)*childOffset,y:y+(vy1/v)*childOffset,vx:vx1,vy:vy1,direction:Math.atan2(vy1,vx1),speed:v,radius:s.radius,xp:a},"spike");
       const childB=this.register({x:x+(vx2/v)*childOffset,y:y+(vy2/v)*childOffset,vx:vx2,vy:vy2,direction:Math.atan2(vy2,vx2),speed:v,radius:s.radius,xp:b},"spike");
       if(childA)this.clampEntityToBounds(childA);
