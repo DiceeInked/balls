@@ -96,7 +96,7 @@ canvas{width:100%;height:100%;display:block}
     ctx.fillRect(0,0,viewWidth,viewHeight);
 
     for(const entity of world.metaballs)drawMetaball(entity);
-    for(const entity of world.spikes)drawCircle(entity,drawColors.spike);
+    for(const entity of world.spikes)drawSpike(entity,drawColors.spike);
     for(const entity of world.glitches)drawCircle(entity,drawColors.glitch);
   }
 
