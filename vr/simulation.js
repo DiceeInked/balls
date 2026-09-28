@@ -168,6 +168,7 @@
       if(moved<=0)return 0;
       source.xp=available-moved; destination.xp=this.normalizeXp(destination.xp)+moved; return moved;
     }
+    transferAndDirty(a,b,n){const m=this.transferXp(a,b,n);if(m)this.persistence.majorDirty=true;return m;}
 
     gainMetaballBounceXp(entity){
       if(!entity||entity.type!=="metaball")return 0;
