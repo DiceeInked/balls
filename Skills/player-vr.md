@@ -30,3 +30,6 @@ The authoritative Player state stores 3D position (`x`, `y`, `z`), 3D velocity, 
 The Player starts at 16 XP. Every 100 seconds of simulation time, one XP is removed, clamped at zero. The existing shared contact-timer system continues to handle continuous XP loss from other entities.
 
 The left-hand menu state is authoritative: the input layer reports whether the player is looking toward the left hand, and the simulation mirrors that condition into `menuOpen`. Final tracked-pose interpretation and 3D presentation are deferred to the WebXR layer.
+
+## Step 9 implementation
+Spike contact now captures the Player through the authoritative simulation. Capture creates persisted crack state, disables Player movement, and remains active until every crack point is dragged to the central target. The existing hand-state input boundary supplies the positions used for dragging; no renderer-owned trap state is required.
