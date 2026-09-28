@@ -218,8 +218,8 @@
       }
 
       for(const entity of this.activeEntities){
-        entity.x+=entity.vx*simulationDt;
-        entity.y+=entity.vy*simulationDt;
+        entity.x+=entity.vx*dt;
+        entity.y+=entity.vy*dt;
         this.bounceFromWalls(entity);
         this.syncDirection(entity);
       }
@@ -329,12 +329,27 @@
         accumulator:this.accumulator,
         nextEntityId:this.nextEntityId,
         droppedSimulationTime:this.droppedSimulationTime,
-        contactTimers:[...this.contactTimers.values()].map(timer=>({...timer})),
-        timerEvents:this.timerEvents.map(event=>({...event)}),
-        bounds:{...this.bounds},
-        player:{...this.player},
-        entities:[...this.entities.values()].map(entity=>({...entity})),
-        colors:{...COLORS}
+        contactTimers:Array.from(this.contactTimers.values()).map(function(timer){
+          return{
+            aId:timer.aId,
+            bId:timer.bId,
+            elapsed:timer.elapsed,
+            transfers:timer.transfers
+          };
+        }),
+        timerEvents:this.timerEvents.map(function(event){
+          return{
+            type:event.type,
+            entityId:event.entityId,
+            worldTime:event.worldTime
+          };
+        }),
+        bounds:{width:this.bounds.width,height:this.bounds.height},
+        player:Object.assign({},this.player),
+        entities:Array.from(this.entities.values()).map(function(entity){
+          return Object.assign({},entity);
+        }),
+        colors:Object.assign({},COLORS)
       };
     }
   }
