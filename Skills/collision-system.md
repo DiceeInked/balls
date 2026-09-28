@@ -21,7 +21,7 @@ Interaction examples:
 
 Collision responses must be resolved according to the entity interaction rules rather than applying one generic bounce response to every object.
 
-Step 6 adds an entity-specific Spike interaction pass before the generic physical collision pass. Metaball/Spike contact uses the authoritative per-pair timer for immediate-plus-continuous XP transfer. Glitch/Spike contact consumes the Spike without applying a bounce response. Spike/Spike contact performs the defined split/destruction behavior.
+Step 7 expands the entity-specific interaction pass. Metaball/Glitch contact uses the authoritative per-pair timer for continuous XP transfer. The controlled-entity/Glitch contact uses the same timer, with the resource moving into the Glitch. Generic physical separation is skipped for Metaball/Glitch; the controlled-entity interaction is handled as a gameplay contact rather than a circular bounce.
 
 A collision should be processed in a stable order. If a collision transforms, destroys, splits, or consumes an entity, later collision checks in the same simulation step must not use the invalid old object as though it still existed.
 
