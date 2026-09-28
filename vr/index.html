@@ -70,11 +70,22 @@ canvas{width:100%;height:100%;display:block}
     return true;
   }
 
+  function canvasColor(color){
+    const match=/^#([0-9a-f]{8})$/i.exec(color||"");
+    if(!match)return color;
+    const hex=match[1];
+    const r=parseInt(hex.slice(0,2),16);
+    const g=parseInt(hex.slice(2,4),16);
+    const b=parseInt(hex.slice(4,6),16);
+    const a=parseInt(hex.slice(6,8),16)/255;
+    return "rgba("+r+", "+g+", "+b+", "+a+")";
+  }
+
   function drawCircle(entity,color){
     if(!entity)return;
     ctx.beginPath();
     ctx.arc(entity.x,entity.y,entity.radius,0,Math.PI*2);
-    ctx.fillStyle=color;
+    ctx.fillStyle=canvasColor(color);
     ctx.fill();
   }
 
