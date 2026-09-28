@@ -32,6 +32,5 @@ The page now routes each animation frame through a `VRSimulation.step()` boundar
 
 The page also has a 2D fallback renderer for browsers where WebGL context creation fails or the shader program cannot be used. Rendering failure must not stop the simulation or leave the page entirely blank when the fallback canvas is available.
 
-
 ## Minimal visualization status
-The visualization is currently a deliberately simple view of the architecture. It does not implement detailed gameplay rendering or WebXR yet. The three objects are circular movement prototypes backed by authoritative entity state. They are intentionally simple and do not yet implement their final gameplay-specific interaction consequences.
+The visualization is currently a deliberately simple view of the architecture. It does not implement detailed gameplay rendering or WebXR yet. The three objects are circular movement prototypes backed by authoritative entity state. The preview derives its logical bounds from the fixed stage and waits for valid nonzero layout dimensions before initialization, so transient mobile canvas sizing cannot redefine or erase the world. They are intentionally simple and do not yet implement their final gameplay-specific interaction consequences.
