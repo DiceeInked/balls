@@ -35,4 +35,4 @@ The debug system must not become the authoritative source of gameplay state.
 
 The Step 1 foundation exposes a dedicated `VRWorld` state container suitable for authoritative debugging, including world time, entity registry, player state, and bounds. Debug views must continue to read this state rather than become owners of it.
 
-The page now has separate simulation and rendering entry points. If WebGL is unavailable or its program cannot be used, a 2D fallback is attempted instead of continuing into invalid WebGL calls. Device-level visual verification is still required to confirm behavior on iPhone Safari.
+The page now has separate simulation and rendering entry points. If WebGL is unavailable or its program cannot be used, a 2D fallback is attempted instead of continuing into invalid WebGL calls. The preview also measures the fixed stage rather than relying on a mobile canvas's transient client size, and it waits for a nonzero layout before initializing entities. Device-level visual verification is still required to confirm behavior on iPhone Safari.
