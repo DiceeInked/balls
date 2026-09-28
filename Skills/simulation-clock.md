@@ -11,7 +11,7 @@ Continuous XP drains follow this rule:
 
 Metaball XP generation occurs every 100 seconds of simulation time for each Metaball.
 
-The player loses 1 XP every 100 seconds of simulation time. The current implementation exposes the player's 100-second timer but does not apply the future passive XP-loss consequence until the Player step.
+The player loses 1 XP every 100 seconds of simulation time. Step 8 now consumes the Player's 100-second timer event and applies that loss in the authoritative simulation, clamped at zero.
 
 A fixed or controlled simulation tick should be preferred for deterministic gameplay. If a browser tab is throttled or paused, catch-up must be bounded so returning to the page cannot cause an enormous physics spike.
 
