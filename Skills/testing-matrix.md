@@ -63,8 +63,7 @@ A mechanic is not considered verified merely because it looks correct visually. 
 
 
 ## Visualization smoke test
-Before detailed VR rendering is added, verify that the VR page loads on desktop and iPhone Safari and visibly shows the square field plus the three placeholder object shapes.
-
+Before detailed VR rendering is added, verify that the VR page loads on desktop and iPhone Safari and visibly shows the square field plus the three placeholder object shapes. On mobile, also verify that the stage has nonzero measured dimensions before entity initialization and that a resize/layout event does not make the entities disappear.
 
 ## Movement prototype verification
 The minimal VR page should show three circular entities using authoritative positions. Each entity must move from elapsed simulation time, remain inside the square after wall collisions, and separate correctly when circular hitboxes overlap. Rendering must not maintain a second copy of their positions.
