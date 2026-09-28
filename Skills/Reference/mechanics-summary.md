@@ -76,6 +76,9 @@ The player starts at 16 XP and loses 1 XP every 100 seconds.
 
 On Spike capture, the world becomes black and glowing cracks appear in front of the player. The player must drag crack points toward the center until the crack is repaired.
 
+## Player Trap implementation
+Spike contact captures the Player and creates a 12-point crack with a central target. Active hand positions drag nearby points toward the center. All points must seal before the Player is released. Capture and crack progress are persisted.
+
 ## Collision and lifecycle rules
 
 Collisions are separated into physical collisions, interaction contacts, XP drains, and transformation/consumption contacts.
