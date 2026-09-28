@@ -7,7 +7,7 @@ floor(10% of the Metaball's current XP)
 
 The minimum generated amount is 1 XP.
 
-The pickup is stored physically inside the Metaball rather than immediately added to the player.
+The pickup is stored physically inside the Metaball rather than immediately added to the player. The authoritative state is `metaball.pickup.storedXp`, so generated amounts accumulate until collection is implemented.
 
 Visual behavior:
 - A normal Metaball has a bright white glowing center.
@@ -20,4 +20,4 @@ Collection behavior:
 - All XP stored in that pickup is transferred to the player.
 - The pickup is then consumed.
 
-The pickup must have its own authoritative state so rendering or hand animation cannot accidentally award XP twice.
+The pickup must have its own authoritative state so rendering or hand animation cannot accidentally award XP twice. The current 2D preview only visualizes the stored pickup as a black center orb; it does not collect or transfer it yet.
