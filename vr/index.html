@@ -80,7 +80,7 @@ canvas{width:100%;height:100%;display:block}
     });
   }
 
-  function drawSpike(entity,color){const count=world.spikePointCount?world.spikePointCount(entity):3;ctx.beginPath();for(let i=0;i<count;i++){const a=(entity.rotation||0)+Math.PI*2*i/count,x=entity.x+Math.cos(a)*entity.radius,y=entity.y+Math.sin(a)*entity.radius;if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);}ctx.closePath();ctx.fillStyle=color;ctx.fill();}
+  function drawSpike(entity,color){const count=world.spikePointCount?world.spikePointCount(entity):3;ctx.beginPath();for(let i=0;i<count;i++){const a=(entity.direction||0)+Math.PI*2*i/count,x=entity.x+Math.cos(a)*entity.radius,y=entity.y+Math.sin(a)*entity.radius;if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);}ctx.closePath();ctx.fillStyle=color;ctx.fill();}
 
   function drawCircle(entity,color){
     if(!entity)return;
@@ -100,6 +100,25 @@ canvas{width:100%;height:100%;display:block}
     for(const entity of world.metaballs)drawMetaball(entity);
     for(const entity of world.spikes)drawSpike(entity,drawColors.spike);
     for(const entity of world.glitches)drawCircle(entity,drawColors.glitch);
+    drawPlayer();
+    if(world.player&&world.player.captured)drawPlayerTrap();
+  }
+
+  function drawPlayer(){
+    const player=world.player;if(!player)return;
+    const size=Math.max(7,player.radius*.7);
+    ctx.save();ctx.translate(player.x,player.y);ctx.rotate(player.heading||0);ctx.beginPath();ctx.moveTo(0,-size);ctx.lineTo(size,0);ctx.lineTo(0,size);ctx.lineTo(-size,0);ctx.closePath();ctx.fillStyle="#3b82f6";ctx.fill();ctx.restore();
+    ctx.fillStyle="#fff";ctx.font="700 12px monospace";ctx.textAlign="center";ctx.textBaseline="bottom";ctx.fillText(String(player.xp),player.x,player.y-size-4);
+  }
+
+  function drawPlayerTrap(){
+    const trap=world.player&&world.player.trap;if(!trap||!trap.active)return;
+    ctx.fillStyle="rgba(0,0,0,.94)";ctx.fillRect(0,0,viewWidth,viewHeight);
+    const center=trap.center;
+    ctx.save();ctx.lineWidth=2;ctx.shadowBlur=12;ctx.shadowColor="#ffffff";ctx.strokeStyle="#ffffff";ctx.fillStyle="#ffffff";
+    for(const point of trap.points){ctx.beginPath();ctx.moveTo(point.x,point.y);ctx.lineTo(center.x,center.y);ctx.stroke();ctx.beginPath();ctx.arc(point.x,point.y,point.sealed?4:3,0,Math.PI*2);ctx.fill();}
+    ctx.beginPath();ctx.arc(center.x,center.y,6,0,Math.PI*2);ctx.fill();ctx.restore();
+    ctx.fillStyle="#fff";ctx.font="700 12px monospace";ctx.textAlign="center";ctx.textBaseline="top";ctx.fillText("REPAIR",center.x,Math.min(viewHeight-14,center.y+14));
   }
 
   function drawMetaball(entity){
