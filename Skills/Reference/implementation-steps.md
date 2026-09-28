@@ -62,3 +62,7 @@ The active skills remain authoritative. These reference steps provide the broade
 
 ## Visualization reset checkpoint
 Before continuing detailed VR rendering, the page should first remain a simple reliable Canvas 2D preview with the three basic object shapes. Once that smoke test is reliable, detailed WebXR rendering can be rebuilt from the clean foundation.
+
+
+## Current movement prototype checkpoint
+The minimal VR page now uses circular hitbox visuals for Metaball, Spike, and Glitch. Their authoritative positions and velocities are updated in `vr/simulation.js`, with square-boundary bouncing and basic circular pair collision response. The next work should build on this verified movement foundation rather than restoring the removed detailed renderer.
