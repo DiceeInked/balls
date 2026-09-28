@@ -257,7 +257,7 @@
     }
 
     steerGlitch(entity,dt){
-      if(!entity||entity.type!=="glitch"||entity.remove||this.player.captured)return;
+      if(!entity||entity.type!=="glitch"||entity.remove)return;
       const dx=this.player.x-entity.x,dy=this.player.y-entity.y;
       if(Math.hypot(dx,dy)<=0.000001)return;
       const target=Math.atan2(dy,dx),current=Number.isFinite(entity.direction)?entity.direction:Math.atan2(entity.vy,entity.vx),delta=Math.atan2(Math.sin(target-current),Math.cos(target-current));
