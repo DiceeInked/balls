@@ -21,8 +21,8 @@ World coordinates must remain stable when the player looks around, changes camer
 
 
 ## Step 1 implementation note
-The Step 1 foundation stores persistent world bounds and authoritative entity collections in `VRWorld`. Stable entity IDs are allocated independently of array indexes, so rendering order cannot redefine identity.
+The Step 1/2 foundation stores persistent world bounds and authoritative entity collections in `VRWorld`. Stable entity IDs are allocated independently of array indexes, so rendering order cannot redefine identity. Prototype entities also store authoritative x/y positions, x/y velocities, a direction angle, speed, radius, and XP.
 
 
 ## Movement prototype
-The preview entities now have authoritative world-space `x`, `y`, `vx`, `vy`, and `radius` values. Their positions are advanced from elapsed simulation time, independent of rendering coordinates.
+The preview entities now have authoritative world-space `x`, `y`, `vx`, `vy`, `direction`, `speed`, and `radius` values. Their positions are advanced from elapsed simulation time inside the simulation, independent of rendering coordinates. Resizing the display updates world bounds and clamps entities instead of resetting their world positions.
