@@ -1,3 +1,4 @@
+The current movement prototype checkpoint includes rendering the complete authoritative Metaball, Spike, and Glitch collections. The prototype Glitch color is exactly RGBA `#00FFC8FF`.
 # VR Implementation Steps
 
 This is the consolidated implementation order for the VR rebuild.
