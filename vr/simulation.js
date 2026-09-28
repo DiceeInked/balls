@@ -157,7 +157,7 @@
 
       this.activeEntities.length=0;
       for(const type of ENTITY_TYPES){
-        for(const entity of this[type+"s"]){
+        for(const entity of this.collectionFor(type)){
           if(!entity.remove)this.activeEntities.push(entity);
         }
       }
