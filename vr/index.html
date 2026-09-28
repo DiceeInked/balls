@@ -21,7 +21,6 @@ canvas{width:100%;height:100%;display:block}
   const ctx=canvas.getContext("2d");
   const world=window.VRWorld;
   const colors=window.VRWorldColors;
-  const radiusRatio=0.055;
   let lastTime=performance.now();
   let initialized=false;
 
@@ -35,38 +34,18 @@ canvas{width:100%;height:100%;display:block}
     if(width<1||height<1)return false;
 
     const d=Math.min(window.devicePixelRatio||1,2);
-    canvas.width=Math.max(1,Math.round(width*d));
-    canvas.height=Math.max(1,Math.round(height*d));
+    const pixelWidth=Math.max(1,Math.round(width*d));
+    const pixelHeight=Math.max(1,Math.round(height*d));
+
+    if(canvas.width!==pixelWidth||canvas.height!==pixelHeight){
+      canvas.width=pixelWidth;
+      canvas.height=pixelHeight;
+    }
+
     canvas.style.width=width+"px";
     canvas.style.height=height+"px";
     ctx.setTransform(d,0,0,d,0,0);
     world.setBounds(width,height);
-
-    for(const e of world.metaballs.concat(world.spikes,world.glitches)){
-      e.radius=Math.min(width,height)*radiusRatio;
-      e.x=Math.max(e.radius,Math.min(width-e.radius,e.x));
-      e.y=Math.max(e.radius,Math.min(height-e.radius,e.y));
-    }
-    return true;
-  }
-
-  function makeEntity(type,x,y,vx,vy){
-    const {width,height}=getStageSize();
-    const r=Math.min(width,height)*radiusRatio;
-    return world.register({x,y,vx,vy,radius:r,xp:16},type);
-  }
-
-  function resetEntities(){
-    const {width,height}=getStageSize();
-    if(width<1||height<1)return false;
-
-    for(const e of [...world.metaballs,...world.spikes,...world.glitches])world.unregister(e);
-
-    makeEntity("metaball",width*.27,height*.35,82,57);
-    makeEntity("spike",width*.52,height*.62,-71,64);
-    makeEntity("glitch",width*.74,height*.38,-62,-79);
-    world.setBounds(width,height);
-    initialized=true;
     return true;
   }
 
@@ -91,21 +70,27 @@ canvas{width:100%;height:100%;display:block}
 
   function draw(){
     const {width,height}=getStageSize();
+    if(width<1||height<1)return;
+
     ctx.clearRect(0,0,width,height);
     ctx.fillStyle="#111";
     ctx.fillRect(0,0,width,height);
+
     for(const entity of world.metaballs)drawCircle(entity,colors.meta);
     for(const entity of world.spikes)drawCircle(entity,colors.spike);
     for(const entity of world.glitches)drawCircle(entity,colors.glitch);
   }
 
+  function initialize(){
+    if(initialized)return true;
+    if(!resize())return false;
+    initialized=world.resetPrototypeEntities();
+    return initialized;
+  }
+
   function loop(now){
-    if(!initialized){
-      resize();
-      resetEntities();
-    }else{
-      resize();
-    }
+    initialize();
+    resize();
 
     const dt=Math.min(Math.max((now-lastTime)/1000,0),0.05);
     lastTime=now;
@@ -115,9 +100,8 @@ canvas{width:100%;height:100%;display:block}
     requestAnimationFrame(loop);
   }
 
-  addEventListener("resize",()=>{resize();resetEntities();});
-  resize();
-  resetEntities();
+  addEventListener("resize",resize);
+  initialize();
   requestAnimationFrame(loop);
 })();
 </script>
