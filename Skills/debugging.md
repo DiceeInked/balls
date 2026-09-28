@@ -19,6 +19,9 @@ Useful debug information includes:
 - Metaball reproduction events
 - XP pickup timers and stored XP
 - Player XP and player state
+- Player movement input and velocity
+- Player head and hand state
+- Player left-hand gaze/menu state
 - Player capture and crack progress
 - WebXR support and session state
 - WebGL/shader errors
