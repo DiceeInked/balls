@@ -26,11 +26,10 @@
   const SPIKE_MIN_VERTICES=3;
   const SPIKE_POINT_CAP=32;
   const SPIKE_POINTS_PER_XP=4;
-  const STEP6_READY=1;
 
   class VRWorldState{
     constructor(){
-      this.version=5;
+      this.version=6;
       this.worldTime=0;
       this.accumulator=0;
       this.contactTimers=new Map();
