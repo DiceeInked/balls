@@ -154,3 +154,7 @@ Visual correctness alone is not sufficient. The authoritative simulation state m
 
 ## Visualization reset
 The VR visualization was reset to a minimal Canvas 2D preview: square field, yellow Metaball circle, red Spike triangle, and red Glitch square. This is intentionally not a detailed VR renderer.
+
+
+## Current movement prototype
+The VR preview currently uses three circular entities: yellow Metaball, red Spike, and cyan/blue Glitch. Each has authoritative position, velocity, and radius state. They move using elapsed simulation time, bounce from the square boundaries, and use basic circular collision separation/response. These are prototype physics only and do not replace the final entity-specific interaction rules.
