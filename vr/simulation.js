@@ -1,4 +1,4 @@
-/* Authoritative VR world state and movement prototype. */
+/* Authoritative VR world state, persistence, and Metaball prototype systems. */
 (function(){
   const COLORS={
     meta:"#ffED00FF",
@@ -19,15 +19,20 @@
   const TIMER_INTERVAL=100;
   const TIMER_EPSILON=1e-9;
   const PROTOTYPE_RADIUS_RATIO=0.055;
+  const BOUNCE_XP=1;
+  const REPRODUCTION_THRESHOLD=32;
+  const PICKUP_MIN_XP=1;
+  const PERSISTENCE_SCHEMA=1;
 
   class VRWorldState{
     constructor(){
-      this.version=4;
+      this.version=5;
       this.worldTime=0;
       this.accumulator=0;
       this.contactTimers=new Map();
       this.timerEvents=[];
       this.droppedSimulationTime=0;
+      this.persistence={storageAvailable:false,saveCount:0,lastSaveWorldTime:null,lastLoadWorldTime:null,lastError:null,majorDirty:false};
       this.nextEntityId=1;
       this.entities=new Map();
       this.metaballs=[];
@@ -72,6 +77,7 @@
     unregister(entity){
       if(!entity||!entity.id)return;
       this.entities.delete(entity.id);
+      for(const [key,timer] of this.contactTimers){if(timer.aId===entity.id||timer.bId===entity.id)this.contactTimers.delete(key);}
       for(const type of ENTITY_TYPES){
         const collection=this.collectionFor(type);
         const index=collection.indexOf(entity);
@@ -109,7 +115,8 @@
         direction:Math.atan2(vy,vx),
         speed,
         radius:Math.min(this.bounds.width,this.bounds.height)*PROTOTYPE_RADIUS_RATIO,
-        xp:16
+        xp:16,
+        pickup:type==="metaball"?{storedXp:0}:undefined
       },type);
       if(entity)this.clampEntityToBounds(entity);
       return entity;
@@ -141,6 +148,41 @@
 
       entity.x=Math.max(minX,Math.min(maxX,entity.x));
       entity.y=Math.max(minY,Math.min(maxY,entity.y));
+    }
+
+    normalizeXp(value){const xp=Math.floor(Number(value));return Number.isFinite(xp)?Math.max(0,xp):0;}
+
+    transferXp(source,destination,amount){
+      if(!source||!destination||source.id===destination.id)return 0;
+      const requested=this.normalizeXp(amount),available=this.normalizeXp(source.xp),moved=Math.min(requested,available);
+      if(moved<=0)return 0;
+      source.xp=available-moved; destination.xp=this.normalizeXp(destination.xp)+moved; return moved;
+    }
+
+    gainMetaballBounceXp(entity){
+      if(!entity||entity.type!=="metaball")return 0;
+      entity.xp=this.normalizeXp(entity.xp)+BOUNCE_XP; this.tryReproduceMetaball(entity); return BOUNCE_XP;
+    }
+
+    tryReproduceMetaball(entity){
+      if(!entity||entity.type!=="metaball"||this.normalizeXp(entity.xp)<=REPRODUCTION_THRESHOLD)return null;
+      const direction=Number.isFinite(entity.direction)?entity.direction:Math.atan2(entity.vy,entity.vx),speed=Number.isFinite(entity.speed)?entity.speed:Math.hypot(entity.vx,entity.vy);
+      const child=this.register({x:entity.x,y:entity.y,vx:-Math.cos(direction)*speed,vy:-Math.sin(direction)*speed,direction:direction+Math.PI,speed:speed,radius:entity.radius,xp:16,pickup:{storedXp:0}},"metaball");
+      if(!child)return null;
+      entity.xp=this.normalizeXp(entity.xp)-16; this.persistence.majorDirty=true; this.clampEntityToBounds(child); return child;
+    }
+
+    generateMetaballPickup(entity){
+      if(!entity||entity.type!=="metaball")return 0;
+      if(!entity.pickup)entity.pickup={storedXp:0};
+      const amount=Math.max(PICKUP_MIN_XP,Math.floor(this.normalizeXp(entity.xp)*.1));
+      entity.pickup.storedXp=this.normalizeXp(entity.pickup.storedXp)+amount; this.persistence.majorDirty=true; return amount;
+    }
+
+    processTimerEvents(){
+      const events=this.consumeTimerEvents();
+      for(const event of events){const entity=this.entities.get(event.entityId);if(event.type==="100-second"&&entity&&entity.type==="metaball")this.generateMetaballPickup(entity);}
+      return events;
     }
 
     setVelocity(entity,vx,vy){
@@ -228,6 +270,7 @@
       for(const entity of this.metaballs)this.advance100SecondTimer(entity,dt);
       this.advance100SecondTimer(this.player,dt);
       this.resolvePairCollisions();
+      this.processTimerEvents();
     }
 
     step(dt){
@@ -262,23 +305,24 @@
       const minY=Math.min(radius,height*.5);
       const maxY=Math.max(minY,height-radius);
 
+      let bounced=false;
       if(entity.x<minX){
         entity.x=minX;
-        entity.vx=Math.abs(entity.vx);
+        entity.vx=Math.abs(entity.vx); bounced=true;
       }else if(entity.x>maxX){
         entity.x=maxX;
-        entity.vx=-Math.abs(entity.vx);
+        entity.vx=-Math.abs(entity.vx); bounced=true;
       }
 
       if(entity.y<minY){
         entity.y=minY;
-        entity.vy=Math.abs(entity.vy);
+        entity.vy=Math.abs(entity.vy); bounced=true;
       }else if(entity.y>maxY){
         entity.y=maxY;
-        entity.vy=-Math.abs(entity.vy);
+        entity.vy=-Math.abs(entity.vy); bounced=true;
       }
 
-      this.syncDirection(entity);
+      this.syncDirection(entity); if(bounced)this.gainMetaballBounceXp(entity);
     }
 
     resolvePairCollisions(){
@@ -326,6 +370,7 @@
     snapshot(){
       return{
         version:this.version,
+        persistenceSchema:PERSISTENCE_SCHEMA,
         worldTime:this.worldTime,
         accumulator:this.accumulator,
         nextEntityId:this.nextEntityId,
@@ -346,13 +391,43 @@
           };
         }),
         bounds:{width:this.bounds.width,height:this.bounds.height},
-        player:Object.assign({},this.player),
+        player:Object.assign({},this.player,{pickup:this.player.pickup?Object.assign({},this.player.pickup):undefined}),
         entities:Array.from(this.entities.values()).map(function(entity){
-          return Object.assign({},entity);
+          return Object.assign({},entity,{pickup:entity.pickup?Object.assign({},entity.pickup):undefined});
         }),
         colors:Object.assign({},COLORS)
       };
     }
+
+    restoreSnapshot(snapshot){
+      if(!snapshot||typeof snapshot!=="object"||!Array.isArray(snapshot.entities)||!snapshot.player)return false;
+      const sourcePlayer=snapshot.player;if(!Number.isFinite(sourcePlayer.id)||sourcePlayer.type!=="player")return false;
+      this.entities.clear();for(const type of ENTITY_TYPES)this.collectionFor(type).length=0;this.contactTimers.clear();this.timerEvents.length=0;this.activeEntities.length=0;
+      this.worldTime=Number.isFinite(snapshot.worldTime)&&snapshot.worldTime>=0?snapshot.worldTime:0;
+      this.accumulator=Number.isFinite(snapshot.accumulator)&&snapshot.accumulator>=0?Math.min(snapshot.accumulator,FIXED_STEP):0;
+      this.droppedSimulationTime=Number.isFinite(snapshot.droppedSimulationTime)&&snapshot.droppedSimulationTime>=0?snapshot.droppedSimulationTime:0;
+      this.bounds={width:Number.isFinite(snapshot.bounds&&snapshot.bounds.width)?Math.max(0,snapshot.bounds.width):0,height:Number.isFinite(snapshot.bounds&&snapshot.bounds.height)?Math.max(0,snapshot.bounds.height):0};
+      const player=Object.assign({},sourcePlayer);player.type="player";player.xp=this.normalizeXp(player.xp);player.captured=!!player.captured;player.timer100=Number.isFinite(player.timer100)&&player.timer100>=0?player.timer100%TIMER_INTERVAL:0;this.player=player;this.entities.set(player.id,player);
+      let maxId=player.id;
+      for(const source of snapshot.entities){
+        if(!source||source.id===player.id||!ENTITY_TYPES.includes(source.type)||!Number.isFinite(source.id))continue;
+        const entity=Object.assign({},source);entity.x=Number.isFinite(entity.x)?entity.x:0;entity.y=Number.isFinite(entity.y)?entity.y:0;entity.vx=Number.isFinite(entity.vx)?entity.vx:0;entity.vy=Number.isFinite(entity.vy)?entity.vy:0;entity.radius=Number.isFinite(entity.radius)&&entity.radius>0?entity.radius:Math.min(this.bounds.width,this.bounds.height)*PROTOTYPE_RADIUS_RATIO;entity.xp=this.normalizeXp(entity.xp);entity.speed=Math.hypot(entity.vx,entity.vy);entity.direction=entity.speed>0?Math.atan2(entity.vy,entity.vx):Number.isFinite(entity.direction)?entity.direction:0;entity.timer100=Number.isFinite(entity.timer100)&&entity.timer100>=0?entity.timer100%TIMER_INTERVAL:0;entity.remove=false;if(entity.type==="metaball")entity.pickup={storedXp:this.normalizeXp(entity.pickup&&entity.pickup.storedXp)};this.entities.set(entity.id,entity);this.collectionFor(entity.type).push(entity);maxId=Math.max(maxId,entity.id);
+      }
+      const requestedNext=Number.isFinite(snapshot.nextEntityId)?Math.floor(snapshot.nextEntityId):1;this.nextEntityId=Math.max(1,requestedNext,maxId+1);
+      if(Array.isArray(snapshot.contactTimers))for(const timer of snapshot.contactTimers){if(!timer||timer.aId===timer.bId||!this.entities.has(timer.aId)||!this.entities.has(timer.bId))continue;const elapsed=Number.isFinite(timer.elapsed)&&timer.elapsed>=0?timer.elapsed:0,transfers=Number.isFinite(timer.transfers)&&timer.transfers>=0?Math.floor(timer.transfers):Math.floor(elapsed),first=Math.min(timer.aId,timer.bId),second=Math.max(timer.aId,timer.bId);this.contactTimers.set(first+":"+second,{aId:first,bId:second,elapsed:elapsed,transfers:transfers});}
+      if(Array.isArray(snapshot.timerEvents))for(const event of snapshot.timerEvents)if(event&&event.type==="100-second"&&this.entities.has(event.entityId))this.timerEvents.push({type:event.type,entityId:event.entityId,worldTime:Number.isFinite(event.worldTime)?event.worldTime:this.worldTime});
+      this.persistence.majorDirty=false;this.updateEntityBounds();return true;
+    }
+
+    savePersistence(storage){
+      try{if(!storage||typeof storage.setItem!=="function")throw new Error("Storage unavailable");storage.setItem("balls-vr-world",JSON.stringify({schema:PERSISTENCE_SCHEMA,savedAt:Date.now(),world:this.snapshot()}));this.persistence.storageAvailable=true;this.persistence.saveCount++;this.persistence.lastSaveWorldTime=this.worldTime;this.persistence.lastError=null;this.persistence.majorDirty=false;return true;}catch(error){this.persistence.lastError=String(error&&error.message||error);return false;}
+    }
+
+    loadPersistence(storage){
+      try{if(!storage||typeof storage.getItem!=="function")throw new Error("Storage unavailable");const raw=storage.getItem("balls-vr-world");if(!raw){this.persistence.storageAvailable=true;return false;}const payload=JSON.parse(raw);if(!payload||payload.schema!==PERSISTENCE_SCHEMA||!payload.world)throw new Error("Invalid persistence snapshot");if(!this.restoreSnapshot(payload.world))throw new Error("Persistence snapshot rejected");this.persistence.storageAvailable=true;this.persistence.lastLoadWorldTime=this.worldTime;this.persistence.lastError=null;return true;}catch(error){this.persistence.lastError=String(error&&error.message||error);return false;}
+    }
+
+    clearPersistence(storage){try{if(storage&&typeof storage.removeItem==="function")storage.removeItem("balls-vr-world");return true;}catch(error){this.persistence.lastError=String(error&&error.message||error);return false;}}
   }
 
   window.VRWorldColors=COLORS;
