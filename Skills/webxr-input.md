@@ -15,3 +15,6 @@ The left hand has two special functions:
 The input layer must handle session start, session end, lost input sources, and temporarily unavailable tracking without corrupting the simulation.
 
 Input should be frame-rate independent wherever it affects gameplay.
+
+## Step 8 simulation boundary
+The input layer supplies normalized thrust, head orientation, both hand states, and whether the player is looking toward the left hand through the authoritative Player input boundary. The simulation owns movement, velocity, and menu state. WebXR session/pose acquisition and final hand-pose mapping remain renderer/input-layer work for Step 10.
