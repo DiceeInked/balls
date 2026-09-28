@@ -301,7 +301,32 @@
       return events;
     }
 
-    splitEntity(s){if(!s||s.remove)return;if(this.spikePointCount(s)<=3){s.remove=true;return;}const n=this.normalizeXp(s.xp),a=Math.floor(n/2),b=n-a,d=s.direction||0,v=Math.max(1,s.speed||1);this.register({x:s.x,y:s.y,vx:-Math.sin(d)*v,vy:Math.cos(d)*v,direction:d+Math.PI/2,speed:v,radius:s.radius,xp:a},"spike");this.register({x:s.x,y:s.y,vx:Math.sin(d)*v,vy:-Math.cos(d)*v,direction:d-Math.PI/2,speed:v,radius:s.radius,xp:b},"spike");s.remove=true;this.persistence.majorDirty=true;}
+    splitEntity(s,wallNormalX=0,wallNormalY=0){
+      if(!s||s.remove)return;
+      if(this.spikePointCount(s)<=3){s.remove=true;return;}
+      const n=this.normalizeXp(s.xp),a=Math.floor(n/2),b=n-a,d=s.direction||0,v=Math.max(1,s.speed||1);
+      const hasWallNormal=Math.hypot(wallNormalX,wallNormalY)>0.000001;
+      let x=s.x,y=s.y,vx1,vy1,vx2,vy2;
+      if(hasWallNormal){
+        const normalLength=Math.hypot(wallNormalX,wallNormalY);
+        const nx=wallNormalX/normalLength,ny=wallNormalY/normalLength;
+        const splitAngle=Math.PI/4;
+        const baseAngle=Math.atan2(ny,nx);
+        const angleA=baseAngle-splitAngle,angleB=baseAngle+splitAngle;
+        vx1=Math.cos(angleA)*v;vy1=Math.sin(angleA)*v;
+        vx2=Math.cos(angleB)*v;vy2=Math.sin(angleB)*v;
+        const offset=Math.max(2,(s.radius||0)*0.35);
+        x-=nx*offset;y-=ny*offset;
+      }else{
+        vx1=-Math.sin(d)*v;vy1=Math.cos(d)*v;
+        vx2=Math.sin(d)*v;vy2=-Math.cos(d)*v;
+      }
+      const childA=this.register({x,y,vx:vx1,vy:vy1,direction:Math.atan2(vy1,vx1),speed:v,radius:s.radius,xp:a},"spike");
+      const childB=this.register({x,y,vx:vx2,vy:vy2,direction:Math.atan2(vy2,vx2),speed:v,radius:s.radius,xp:b},"spike");
+      if(childA)this.clampEntityToBounds(childA);
+      if(childB)this.clampEntityToBounds(childB);
+      s.remove=true;this.persistence.majorDirty=true;
+    }
 
     drainContact(source,destination,a,b,dt){if(!source||!destination||source.remove||destination.remove)return 0;const timer=this.beginContact(a,b);timer.elapsed+=dt;let moved=0;if(timer.transfers===0){moved=this.transferAndDirty(source,destination,1);timer.transfers=moved>0?1:0;}const intervals=Math.floor((timer.elapsed+TIMER_EPSILON)/CONTACT_INTERVAL);const extra=Math.max(0,intervals-Math.max(0,timer.transfers-1));if(extra>0){const n=this.transferAndDirty(source,destination,extra);timer.transfers+=n;moved+=n;}return moved;}
 
@@ -440,23 +465,24 @@
       const maxY=Math.max(minY,height-radius);
 
       let bounced=false;
+      let wallNormalX=0,wallNormalY=0;
       if(entity.x<minX){
         entity.x=minX;
-        entity.vx=Math.abs(entity.vx); bounced=true;
+        entity.vx=Math.abs(entity.vx); wallNormalX=1; bounced=true;
       }else if(entity.x>maxX){
         entity.x=maxX;
-        entity.vx=-Math.abs(entity.vx); bounced=true;
+        entity.vx=-Math.abs(entity.vx); wallNormalX=-1; bounced=true;
       }
 
       if(entity.y<minY){
         entity.y=minY;
-        entity.vy=Math.abs(entity.vy); bounced=true;
+        entity.vy=Math.abs(entity.vy); wallNormalY=1; bounced=true;
       }else if(entity.y>maxY){
         entity.y=maxY;
-        entity.vy=-Math.abs(entity.vy); bounced=true;
+        entity.vy=-Math.abs(entity.vy); wallNormalY=-1; bounced=true;
       }
 
-      this.syncDirection(entity); if(bounced&&entity.type==="metaball")this.gainMetaballBounceXp(entity); if(bounced&&entity.type==="spike")this.splitEntity(entity); return bounced;
+      this.syncDirection(entity); if(bounced&&entity.type==="metaball")this.gainMetaballBounceXp(entity); if(bounced&&entity.type==="spike")this.splitEntity(entity,wallNormalX,wallNormalY); return bounced;
     }
 
     resolvePairCollisions(){
