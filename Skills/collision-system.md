@@ -21,10 +21,12 @@ Interaction examples:
 
 Collision responses must be resolved according to the entity interaction rules rather than applying one generic bounce response to every object.
 
+Step 6 adds an entity-specific Spike interaction pass before the generic physical collision pass. Metaball/Spike contact uses the authoritative per-pair timer for immediate-plus-continuous XP transfer. Glitch/Spike contact consumes the Spike without applying a bounce response. Spike/Spike contact performs the defined split/destruction behavior.
+
 A collision should be processed in a stable order. If a collision transforms, destroys, splits, or consumes an entity, later collision checks in the same simulation step must not use the invalid old object as though it still existed.
 
 Collision state should use stable entity IDs where possible.
 
-
 ## Movement prototype
-The current clean-slate preview uses circular hitboxes for Metaballs, Spikes, and Glitches. The authoritative simulation now owns movement, wall handling, and basic equal-mass circle collision resolution, while the page only renders the resulting state. Later entity-specific interaction rules override this generic preview response.
+
+The current clean-slate preview uses circular physical hitboxes for Metaballs, Spikes, and Glitches. The authoritative simulation owns movement, wall handling, entity-specific Spike interactions, and basic equal-mass circle collision resolution. Later entity-specific interaction rules override the generic preview response.
