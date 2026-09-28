@@ -23,11 +23,13 @@ Useful debug information includes:
 - WebXR support and session state
 - WebGL/shader errors
 - Persistence saves and resumes
+- Persistence validation failures
+- Metaball pickup stored XP and reproduction
 - Whether the WebGL renderer or 2D fallback is active
 
 Debug output should make it possible to distinguish a simulation bug from a rendering bug.
 
-Every gameplay event that creates, destroys, transforms, splits, captures, or transfers XP should be traceable while debugging.
+Every gameplay event that creates, destroys, transforms, splits, captures, or transfers XP should be traceable while debugging. Step 4/5 state should additionally expose persistence status, stored pickup XP, and reproduction events.
 
 The debug system must not become the authoritative source of gameplay state.
 
