@@ -1,6 +1,6 @@
 # Glitches
 
-Glitches are red entities with a fixed physical size.
+Glitches are blue entities with a fixed physical size.
 
 XP does not change a Glitch's physical size. XP controls its steering strength and curvature toward a target.
 
@@ -29,4 +29,4 @@ Glitch and Spike interaction:
 
 Glitches also drain player XP according to the shared XP-drain rules.
 
-Glitches should have a visually chaotic, glitch-like presentation rather than a smooth orb-like appearance. Their visual effect must not be mistaken for their physical hitbox.
+Glitches should have a visually chaotic, glitch-like presentation rather than a smooth orb-like appearance. During the movement prototype they are intentionally rendered as blue/cyan circles so their physical hitbox is easy to inspect. The final visual effect must not be mistaken for their physical hitbox.
