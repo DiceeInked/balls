@@ -7,7 +7,7 @@ Persist enough state to resume the simulation safely:
 - Metaballs
 - Spikes
 - Glitches
-- Player state
+- Player state, including 3D position/velocity, movement input, head state, hand state, menu state, capture state, and XP
 - XP
 - Positions and velocities
 - Entity IDs
