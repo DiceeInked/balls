@@ -155,6 +155,11 @@
 
     normalizeXp(value){const xp=Math.floor(Number(value));return Number.isFinite(xp)?Math.max(0,xp):0;}
 
+    getSpikePoints(entity){
+      if(!entity||entity.type!=="spike")return SPIKE_MIN_VERTICES;
+      return Math.max(SPIKE_MIN_VERTICES,Math.min(SPIKE_POINT_CAP,SPIKE_MIN_VERTICES+Math.floor(this.normalizeXp(entity.xp)/SPIKE_POINTS_PER_XP)));
+    }
+
     transferXp(source,destination,amount){
       if(!source||!destination||source.id===destination.id)return 0;
       const requested=this.normalizeXp(amount),available=this.normalizeXp(source.xp),moved=Math.min(requested,available);
