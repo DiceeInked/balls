@@ -145,6 +145,22 @@
       return true;
     }
 
+
+    resetPrototypeWorld(){
+      for(const type of ENTITY_TYPES){
+        for(const entity of [...this.collectionFor(type)])this.unregister(entity);
+      }
+      this.worldTime=0;
+      this.accumulator=0;
+      this.contactTimers.clear();
+      this.timerEvents.length=0;
+      this.droppedSimulationTime=0;
+      this.nextEntityId=1;
+      this.player={id:this.allocateEntityId(),type:"player",x:0,y:0,z:0,heading:0,xp:16,radius:Math.min(this.bounds.width,this.bounds.height)*PROTOTYPE_RADIUS_RATIO,captured:false,timer100:0};
+      this.entities.set(this.player.id,this.player);
+      this.persistence.majorDirty=false;
+      return this.resetPrototypeEntities();
+    }
     clampEntityToBounds(entity){
       const {width,height}=this.bounds;
       const radius=Math.max(0,entity.radius||0);
