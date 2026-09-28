@@ -13,7 +13,7 @@ The page now uses the authoritative `VRWorld.step()` boundary before rendering. 
 
 The renderer has a 2D fallback for cases where WebGL is unavailable or its shader program cannot be used. Rendering failure must not reset the authoritative world.
 
-The simulation uses elapsed world time. Continuous XP drains transfer 1 XP immediately on contact, then 1 XP after each additional full uninterrupted second. Metaball pickup generation and passive player XP loss use 100-second simulation timers. Contact timers are tracked per relevant pair.
+The simulation uses authoritative fixed-step world time. Continuous XP drains will use per-pair contact timers that count additional full uninterrupted seconds after the immediate contact transfer. Metaball pickup generation and passive player XP loss will consume 100-second timer events. Step 3 now provides those timing primitives without prematurely applying the future gameplay consequences.
 
 The world should remain logically loaded when the tab is hidden or rendering is throttled. Persistent state includes world time, entities, player state, XP, positions, velocities, IDs, relevant timers, pickup state, and capture state. Resuming uses bounded simulation catch-up.
 
