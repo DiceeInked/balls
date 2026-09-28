@@ -335,7 +335,7 @@
         entity.vy=-Math.abs(entity.vy); bounced=true;
       }
 
-      this.syncDirection(entity); if(bounced)this.gainMetaballBounceXp(entity); return bounced;
+      this.syncDirection(entity); if(bounced&&entity.type==="metaball")this.gainMetaballBounceXp(entity); if(bounced&&entity.type==="spike")this.splitEntity(entity); return bounced;
     }
 
     resolvePairCollisions(){
