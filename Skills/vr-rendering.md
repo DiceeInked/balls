@@ -12,7 +12,7 @@ The VR entry flow should:
 Rendering colors:
 - Metaballs: yellow
 - Spikes: red
-- Glitches: red
+- Glitches: blue
 - Player: blue
 - XP pickup orb: black
 - Metaball glow: bright white
@@ -30,4 +30,4 @@ The current `vr/index.html` page is still a 2D simulation preview, not a complet
 
 
 ## Minimal preview
-The current VR page intentionally uses Canvas 2D instead of WebGL/WebXR. It renders a square field with a yellow Metaball circle, red Spike triangle, and red Glitch square. This is a temporary visualization foundation before detailed VR rendering is rebuilt.
+The current VR page intentionally uses Canvas 2D instead of WebGL/WebXR. It renders a square field with three circular hitboxes: yellow Metaball, red Spike, and cyan/blue Glitch. Their positions are read from the authoritative simulation. This is a temporary visualization foundation before detailed VR rendering is rebuilt.
