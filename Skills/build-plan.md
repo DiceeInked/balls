@@ -24,7 +24,7 @@ COMPLETED for the current 2D simulation/rendering layer. Spikes now use XP-linke
 COMPLETED for the current 2D simulation/rendering layer. Glitches now have fixed size, XP-based steering toward the current target, continuous Metaball interaction, continuous controlled-entity interaction, zero-XP removal, and Spike consumption/spreading.
 
 8. Player
-Implement the blue 3D diamond-like head, two diamond-derived thruster/control hands, XP display, left-hand menu, movement, and passive XP loss.
+COMPLETED for the authoritative simulation layer. The Player now owns XP, 3D position/velocity state, normalized movement/thrust input, head state, both hand state, left-hand gaze/menu state, and passive 100-second XP loss. Detailed WebXR pose wiring and final 3D rendering remain part of later steps.
 
 9. Player trap
 Implement Spike capture, blackened world, glowing crack generation, crack points and center, point dragging, repair detection, and player release.
