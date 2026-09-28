@@ -68,3 +68,6 @@ The visualization smoke test should verify that the authoritative Glitch collect
 
 ## Movement prototype verification
 The minimal VR page should show three circular entities using authoritative positions and velocities. Each entity must move from elapsed simulation time, maintain a stable direction derived from authoritative velocity, remain inside the square after wall collisions, and separate correctly when circular hitboxes overlap. Resizing the stage must change presentation bounds without resetting the entities. Rendering must not maintain a second copy of their positions.
+
+## Simulation clock verification
+Verify that repeated frames advance world time through fixed 1/60-second simulation steps. Verify that a large elapsed frame is bounded rather than replaying an unbounded number of physics steps. Verify that a contact timer counts only uninterrupted full-second intervals and resets when the contact ends. Verify that 100-second timer events fire at the exact interval boundary despite floating-point drift, and that timer events identify the correct authoritative entity.
