@@ -28,6 +28,9 @@
   const SPIKE_POINTS_PER_XP=4;
   const GLITCH_STEERING_CAP=128;
   const GLITCH_STEERING_RATE=20;
+  const PLAYER_ACCELERATION=240;
+  const PLAYER_MAX_SPEED=260;
+  const PLAYER_DAMPING=3.5;
 
   class VRWorldState{
     constructor(){
@@ -45,16 +48,11 @@
       this.glitches=[];
       this.activeEntities=[];
       this.player={
-        id:this.allocateEntityId(),
-        type:"player",
-        x:0,
-        y:0,
-        z:0,
-        heading:0,
-        xp:16,
-        radius:0,
-        captured:false,
-        timer100:0
+        id:this.allocateEntityId(), type:"player", x:0, y:0, z:0,
+        vx:0, vy:0, vz:0, heading:0, xp:16, radius:0, captured:false, timer100:0,
+        movementInput:{x:0,y:0,z:0}, head:{pitch:0,yaw:0,roll:0},
+        leftHand:{x:0,y:0,z:0,active:false}, rightHand:{x:0,y:0,z:0,active:false},
+        gazeAtLeftHand:false, menuOpen:false
       };
       this.bounds={width:0,height:0};
       this.entities.set(this.player.id,this.player);
@@ -156,7 +154,7 @@
       this.timerEvents.length=0;
       this.droppedSimulationTime=0;
       this.nextEntityId=1;
-      this.player={id:this.allocateEntityId(),type:"player",x:0,y:0,z:0,heading:0,xp:16,radius:Math.min(this.bounds.width,this.bounds.height)*PROTOTYPE_RADIUS_RATIO,captured:false,timer100:0};
+      this.player={id:this.allocateEntityId(),type:"player",x:0,y:0,z:0,vx:0,vy:0,vz:0,heading:0,xp:16,radius:Math.min(this.bounds.width,this.bounds.height)*PROTOTYPE_RADIUS_RATIO,captured:false,timer100:0,movementInput:{x:0,y:0,z:0},head:{pitch:0,yaw:0,roll:0},leftHand:{x:0,y:0,z:0,active:false},rightHand:{x:0,y:0,z:0,active:false},gazeAtLeftHand:false,menuOpen:false};
       this.entities.set(this.player.id,this.player);
       this.persistence.majorDirty=false;
       return this.resetPrototypeEntities();
@@ -176,6 +174,29 @@
     }
 
     normalizeXp(value){const xp=Math.floor(Number(value));return Number.isFinite(xp)?Math.max(0,xp):0;}
+
+    setPlayerInput(input){
+      const source=input&&typeof input==="object"?input:{};
+      const thrust=source.thrust&&typeof source.thrust==="object"?source.thrust:{};
+      const tx=Number.isFinite(thrust.x)?thrust.x:0,ty=Number.isFinite(thrust.y)?thrust.y:0,tz=Number.isFinite(thrust.z)?thrust.z:0;
+      const magnitude=Math.hypot(tx,ty,tz),scale=magnitude>1?1/magnitude:1;
+      this.player.movementInput={x:tx*scale,y:ty*scale,z:tz*scale};
+      const head=source.head&&typeof source.head==="object"?source.head:{};
+      this.player.head={pitch:Number.isFinite(head.pitch)?head.pitch:0,yaw:Number.isFinite(head.yaw)?head.yaw:0,roll:Number.isFinite(head.roll)?head.roll:0};
+      const copyHand=(hand)=>({x:Number.isFinite(hand&&hand.x)?hand.x:0,y:Number.isFinite(hand&&hand.y)?hand.y:0,z:Number.isFinite(hand&&hand.z)?hand.z:0,active:!!(hand&&hand.active)});
+      this.player.leftHand=copyHand(source.leftHand); this.player.rightHand=copyHand(source.rightHand);
+      this.player.gazeAtLeftHand=!!source.gazeAtLeftHand; this.player.menuOpen=this.player.gazeAtLeftHand;
+    }
+
+    simulatePlayerMovement(dt){
+      const player=this.player;if(!player||player.captured)return;
+      const input=player.movementInput||{x:0,y:0,z:0};
+      player.vx+=input.x*PLAYER_ACCELERATION*dt; player.vy+=input.y*PLAYER_ACCELERATION*dt; player.vz+=input.z*PLAYER_ACCELERATION*dt;
+      const damping=Math.exp(-PLAYER_DAMPING*dt); player.vx*=damping; player.vy*=damping; player.vz*=damping;
+      const speed=Math.hypot(player.vx,player.vy,player.vz);
+      if(speed>PLAYER_MAX_SPEED){const scale=PLAYER_MAX_SPEED/speed;player.vx*=scale;player.vy*=scale;player.vz*=scale;}
+      player.x+=player.vx*dt; player.y+=player.vy*dt; player.z+=player.vz*dt; this.clampEntityToBounds(player);
+    }
     spikePointCount(e){return e&&e.type==="spike"?Math.max(3,Math.min(32,3+Math.floor(this.normalizeXp(e.xp)/4))):3;}
 
     getSpikePoints(entity){
@@ -236,7 +257,11 @@
 
     processTimerEvents(){
       const events=this.consumeTimerEvents();
-      for(const event of events){const entity=this.entities.get(event.entityId);if(event.type==="100-second"&&entity&&entity.type==="metaball")this.generateMetaballPickup(entity);}
+      for(const event of events){
+        const entity=this.entities.get(event.entityId);
+        if(event.type==="100-second"&&entity&&entity.type==="metaball")this.generateMetaballPickup(entity);
+        if(event.type==="100-second"&&entity&&entity.type==="player"){entity.xp=Math.max(0,this.normalizeXp(entity.xp)-1);this.persistence.majorDirty=true;}
+      }
       return events;
     }
 
@@ -337,6 +362,7 @@
 
       for(const entity of this.metaballs)this.advance100SecondTimer(entity,dt);
       this.advance100SecondTimer(this.player,dt);
+      this.simulatePlayerMovement(dt);
       this.processInteractionContacts(dt);
       this.resolvePairCollisions();
       this.processTimerEvents();
@@ -463,7 +489,7 @@
           };
         }),
         bounds:{width:this.bounds.width,height:this.bounds.height},
-        player:Object.assign({},this.player,{pickup:this.player.pickup?Object.assign({},this.player.pickup):undefined}),
+        player:Object.assign({},this.player,{movementInput:Object.assign({},this.player.movementInput),head:Object.assign({},this.player.head),leftHand:Object.assign({},this.player.leftHand),rightHand:Object.assign({},this.player.rightHand),pickup:this.player.pickup?Object.assign({},this.player.pickup):undefined}),
         entities:Array.from(this.entities.values()).map(function(entity){
           return Object.assign({},entity,{pickup:entity.pickup?Object.assign({},entity.pickup):undefined});
         }),
@@ -479,7 +505,7 @@
       this.accumulator=Number.isFinite(snapshot.accumulator)&&snapshot.accumulator>=0?Math.min(snapshot.accumulator,FIXED_STEP):0;
       this.droppedSimulationTime=Number.isFinite(snapshot.droppedSimulationTime)&&snapshot.droppedSimulationTime>=0?snapshot.droppedSimulationTime:0;
       this.bounds={width:Number.isFinite(snapshot.bounds&&snapshot.bounds.width)?Math.max(0,snapshot.bounds.width):0,height:Number.isFinite(snapshot.bounds&&snapshot.bounds.height)?Math.max(0,snapshot.bounds.height):0};
-      const player=Object.assign({},sourcePlayer);player.type="player";player.radius=Number.isFinite(player.radius)&&player.radius>0?player.radius:Math.min(this.bounds.width,this.bounds.height)*PROTOTYPE_RADIUS_RATIO;player.xp=this.normalizeXp(player.xp);player.captured=!!player.captured;player.timer100=Number.isFinite(player.timer100)&&player.timer100>=0?player.timer100%TIMER_INTERVAL:0;this.player=player;this.entities.set(player.id,player);
+      const player=Object.assign({},sourcePlayer);player.type="player";player.radius=Number.isFinite(player.radius)&&player.radius>0?player.radius:Math.min(this.bounds.width,this.bounds.height)*PROTOTYPE_RADIUS_RATIO;player.x=Number.isFinite(player.x)?player.x:0;player.y=Number.isFinite(player.y)?player.y:0;player.z=Number.isFinite(player.z)?player.z:0;player.vx=Number.isFinite(player.vx)?player.vx:0;player.vy=Number.isFinite(player.vy)?player.vy:0;player.vz=Number.isFinite(player.vz)?player.vz:0;player.xp=this.normalizeXp(player.xp);player.captured=!!player.captured;player.timer100=Number.isFinite(player.timer100)&&player.timer100>=0?player.timer100%TIMER_INTERVAL:0;player.movementInput={x:Number.isFinite(player.movementInput&&player.movementInput.x)?player.movementInput.x:0,y:Number.isFinite(player.movementInput&&player.movementInput.y)?player.movementInput.y:0,z:Number.isFinite(player.movementInput&&player.movementInput.z)?player.movementInput.z:0};player.head={pitch:Number.isFinite(player.head&&player.head.pitch)?player.head.pitch:0,yaw:Number.isFinite(player.head&&player.head.yaw)?player.head.yaw:0,roll:Number.isFinite(player.head&&player.head.roll)?player.head.roll:0};player.leftHand={x:Number.isFinite(player.leftHand&&player.leftHand.x)?player.leftHand.x:0,y:Number.isFinite(player.leftHand&&player.leftHand.y)?player.leftHand.y:0,z:Number.isFinite(player.leftHand&&player.leftHand.z)?player.leftHand.z:0,active:!!(player.leftHand&&player.leftHand.active)};player.rightHand={x:Number.isFinite(player.rightHand&&player.rightHand.x)?player.rightHand.x:0,y:Number.isFinite(player.rightHand&&player.rightHand.y)?player.rightHand.y:0,z:Number.isFinite(player.rightHand&&player.rightHand.z)?player.rightHand.z:0,active:!!(player.rightHand&&player.rightHand.active)};player.gazeAtLeftHand=!!player.gazeAtLeftHand;player.menuOpen=player.gazeAtLeftHand;this.player=player;this.entities.set(player.id,player);
       let maxId=player.id;
       for(const source of snapshot.entities){
         if(!source||source.id===player.id||!ENTITY_TYPES.includes(source.type)||!Number.isFinite(source.id))continue;
