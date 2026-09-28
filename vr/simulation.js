@@ -155,6 +155,7 @@
     }
 
     normalizeXp(value){const xp=Math.floor(Number(value));return Number.isFinite(xp)?Math.max(0,xp):0;}
+    spikePointCount(e){return e&&e.type==="spike"?Math.max(3,Math.min(32,3+Math.floor(this.normalizeXp(e.xp)/4))):3;}
 
     getSpikePoints(entity){
       if(!entity||entity.type!=="spike")return SPIKE_MIN_VERTICES;
