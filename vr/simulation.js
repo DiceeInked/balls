@@ -7,6 +7,11 @@
   };
 
   const ENTITY_TYPES=["metaball","spike","glitch"];
+  const COLLECTION_KEYS={
+    metaball:"metaballs",
+    spike:"spikes",
+    glitch:"glitches"
+  };
   const MAX_SIMULATION_STEP=0.1;
   const PROTOTYPE_RADIUS_RATIO=0.055;
 
@@ -38,13 +43,17 @@
       return this.nextEntityId++;
     }
 
+    collectionFor(type){
+      return this[COLLECTION_KEYS[type]];
+    }
+
     register(entity,type){
       if(!entity||!ENTITY_TYPES.includes(type))return null;
       if(!entity.id)entity.id=this.allocateEntityId();
       entity.type=type;
       entity.remove=false;
       this.entities.set(entity.id,entity);
-      const collection=this[type+"s"];
+      const collection=this.collectionFor(type);
       if(!collection.includes(entity))collection.push(entity);
       return entity;
     }
@@ -53,7 +62,7 @@
       if(!entity||!entity.id)return;
       this.entities.delete(entity.id);
       for(const type of ENTITY_TYPES){
-        const collection=this[type+"s"];
+        const collection=this.collectionFor(type);
         const index=collection.indexOf(entity);
         if(index>=0)collection.splice(index,1);
       }
@@ -70,7 +79,7 @@
       if(width<=0||height<=0)return;
 
       for(const type of ENTITY_TYPES){
-        for(const entity of this[type+"s"]){
+        for(const entity of this.collectionFor(type)){
           if(!Number.isFinite(entity.radius)||entity.radius<=0){
             entity.radius=Math.min(width,height)*PROTOTYPE_RADIUS_RATIO;
           }
@@ -97,7 +106,7 @@
 
     resetPrototypeEntities(){
       for(const type of ENTITY_TYPES){
-        for(const entity of [...this[type+"s"]])this.unregister(entity);
+        for(const entity of [...this.collectionFor(type)])this.unregister(entity);
       }
 
       const {width,height}=this.bounds;
