@@ -17,6 +17,7 @@ The authoritative world contains:
 - Player survival state
 - Player-capture state
 - World time
+- Validated persistence state and Metaball pickup state
 
 Simulation and rendering should remain separate enough that gameplay can be tested without relying on visual effects.
 
