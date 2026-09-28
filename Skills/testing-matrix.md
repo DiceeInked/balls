@@ -37,11 +37,15 @@ Glitch tests:
 - Player drain
 
 Player tests:
-- Head and hand tracking
-- Thruster/control behavior
-- XP display
-- Left-hand menu
-- Passive 100-second drain
+- Authoritative Player starts at 16 XP
+- Player position and velocity persist independently of the renderer
+- Normalized thrust input produces fixed-step movement
+- Movement is suspended while captured
+- Head state persists and is accepted through the Player input boundary
+- Both hand states persist and are accepted through the Player input boundary
+- Looking-at-left-hand input opens the authoritative menu state
+- XP display reads the authoritative Player XP
+- Passive 100-second drain removes exactly 1 XP and clamps at zero
 - Glitch drain
 - Spike capture
 - Crack repair and release
