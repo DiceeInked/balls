@@ -12,13 +12,21 @@
     spike:"spikes",
     glitch:"glitches"
   };
-  const MAX_SIMULATION_STEP=0.1;
+  const FIXED_STEP=1/60;
+  const MAX_FRAME_DELTA=0.25;
+  const MAX_CATCH_UP_STEPS=8;
+  const CONTACT_INTERVAL=1;
+  const TIMER_INTERVAL=100;
   const PROTOTYPE_RADIUS_RATIO=0.055;
 
   class VRWorldState{
     constructor(){
-      this.version=3;
+      this.version=4;
       this.worldTime=0;
+      this.accumulator=0;
+      this.contactTimers=new Map();
+      this.timerEvents=[];
+      this.droppedSimulationTime=0;
       this.nextEntityId=1;
       this.entities=new Map();
       this.metaballs=[];
@@ -33,7 +41,8 @@
         z:0,
         heading:0,
         xp:16,
-        captured:false
+        captured:false,
+        timer100:0
       };
       this.bounds={width:0,height:0};
       this.entities.set(this.player.id,this.player);
@@ -52,6 +61,7 @@
       if(!entity.id)entity.id=this.allocateEntityId();
       entity.type=type;
       entity.remove=false;
+      entity.timer100=0;
       this.entities.set(entity.id,entity);
       const collection=this.collectionFor(type);
       if(!collection.includes(entity))collection.push(entity);
@@ -150,10 +160,55 @@
       if(Number.isFinite(dt)&&dt>0)this.worldTime+=dt;
     }
 
-    step(dt){
-      if(!Number.isFinite(dt)||dt<=0)return;
-      const simulationDt=Math.min(dt,MAX_SIMULATION_STEP);
-      this.advanceTime(simulationDt);
+    beginContact(a,b){
+      if(!a||!b||!a.id||!b.id)return null;
+      const first=a.id<b.id?a.id:b.id;
+      const second=a.id<b.id?b.id:a.id;
+      const key=first+":"+second;
+      let timer=this.contactTimers.get(key);
+      if(!timer){
+        timer={aId:first,bId:second,elapsed:0,transfers:0};
+        this.contactTimers.set(key,timer);
+      }
+      return timer;
+    }
+
+    endContact(a,b){
+      if(!a||!b||!a.id||!b.id)return;
+      const first=a.id<b.id?a.id:b.id;
+      const second=a.id<b.id?b.id:a.id;
+      this.contactTimers.delete(first+":"+second);
+    }
+
+    advanceContact(a,b,dt){
+      const timer=this.beginContact(a,b);
+      if(!timer||!Number.isFinite(dt)||dt<=0)return 0;
+      timer.elapsed+=dt;
+      const totalIntervals=Math.floor(timer.elapsed/CONTACT_INTERVAL);
+      const newIntervals=Math.max(0,totalIntervals-timer.transfers);
+      timer.transfers=totalIntervals;
+      return newIntervals;
+    }
+
+    advance100SecondTimer(entity,dt){
+      if(!entity||!Number.isFinite(dt)||dt<=0)return 0;
+      entity.timer100=(Number.isFinite(entity.timer100)?entity.timer100:0)+dt;
+      const intervals=Math.floor(entity.timer100/TIMER_INTERVAL);
+      if(intervals<=0)return 0;
+      entity.timer100-=intervals*TIMER_INTERVAL;
+      for(let i=0;i<intervals;i++){
+        this.timerEvents.push({type:"100-second",entityId:entity.id,worldTime:this.worldTime});
+      }
+      return intervals;
+    }
+
+    consumeTimerEvents(){
+      const events=this.timerEvents.splice(0,this.timerEvents.length);
+      return events;
+    }
+
+    simulateFixedStep(dt){
+      this.advanceTime(dt);
 
       this.activeEntities.length=0;
       for(const type of ENTITY_TYPES){
@@ -169,7 +224,31 @@
         this.syncDirection(entity);
       }
 
+      for(const entity of this.activeEntities)this.advance100SecondTimer(entity,dt);
+      this.advance100SecondTimer(this.player,dt);
       this.resolvePairCollisions();
+    }
+
+    step(dt){
+      if(!Number.isFinite(dt)||dt<=0)return 0;
+
+      let frameDelta=Math.min(dt,MAX_FRAME_DELTA);
+      if(dt>MAX_FRAME_DELTA)this.droppedSimulationTime+=dt-MAX_FRAME_DELTA;
+      this.accumulator+=frameDelta;
+
+      let steps=0;
+      while(this.accumulator>=FIXED_STEP&&steps<MAX_CATCH_UP_STEPS){
+        this.simulateFixedStep(FIXED_STEP);
+        this.accumulator-=FIXED_STEP;
+        steps++;
+      }
+
+      if(steps===MAX_CATCH_UP_STEPS&&this.accumulator>=FIXED_STEP){
+        this.droppedSimulationTime+=this.accumulator;
+        this.accumulator=0;
+      }
+
+      return steps;
     }
 
     bounceFromWalls(entity){
@@ -247,7 +326,11 @@
       return{
         version:this.version,
         worldTime:this.worldTime,
+        accumulator:this.accumulator,
         nextEntityId:this.nextEntityId,
+        droppedSimulationTime:this.droppedSimulationTime,
+        contactTimers:[...this.contactTimers.values()].map(timer=>({...timer})),
+        timerEvents:this.timerEvents.map(event=>({...event)}),
         bounds:{...this.bounds},
         player:{...this.player},
         entities:[...this.entities.values()].map(entity=>({...entity})),
