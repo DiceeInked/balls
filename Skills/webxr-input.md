@@ -18,3 +18,6 @@ Input should be frame-rate independent wherever it affects gameplay.
 
 ## Step 8 simulation boundary
 The input layer supplies normalized thrust, head orientation, both hand states, and whether the player is looking toward the left hand through the authoritative Player input boundary. The simulation owns movement, velocity, and menu state. WebXR session/pose acquisition and final hand-pose mapping remain renderer/input-layer work for Step 10.
+
+## Step 9 update
+The existing authoritative left/right hand position state is also the input boundary for trap interaction. While captured, an active hand near a crack point drags that point toward the authoritative trap center. WebXR pose acquisition remains outside the simulation.
