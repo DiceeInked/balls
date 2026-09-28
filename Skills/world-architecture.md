@@ -14,7 +14,7 @@ The authoritative world contains:
 - XP and entity-specific stats
 - Contact and drain timers
 - Metaball XP-pickup timers and stored pickup state
-- Player survival state
+- Player survival state, XP, movement input, velocity, head state, hand state, and menu state
 - Player-capture state
 - World time
 - Validated persistence state and Metaball pickup state
