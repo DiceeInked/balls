@@ -32,4 +32,6 @@ Collect:
 
 Step 6 adds Spike splitting and Spike consumption lifecycle rules. Spike children receive new stable IDs through the authoritative register path. A Spike consumed by a Glitch is marked removed, while the newly created Glitch receives a stable ID and randomized direction.
 
+Step 7 adds Glitch removal at 0 XP. A zero-XP Glitch is marked removed and finalized after interaction processing so stale objects are not reused.
+
 Lifecycle operations should be centralized enough to prevent duplicate entities, double XP transfers, stale collision references, or destroyed objects continuing to move.
