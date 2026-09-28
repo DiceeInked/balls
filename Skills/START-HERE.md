@@ -70,7 +70,7 @@ Glitch zero-XP removal has been tested.
 Player/Glitch transfer direction has been tested.
 Spike consumption and random child spawning have been tested.
 Spike removal/finalization and persistence round trips have been tested.
-Spike wall-split separation and multi-step recursive-split regression have been tested.
+The VR Spike split now follows the working original prototype's smaller 55%-radius children, perpendicular separation, ±0.24 directional fan-out, and 8-frame collision cooldown. The split regression was checked against the updated rules.
 Player Trap capture, 12-point crack creation, trap persistence, repair/release, captured movement lock, and malformed snapshot rejection have been smoke-tested.
 The current VR simulation, preview scripts, and legacy state bridge all parse successfully.
 
