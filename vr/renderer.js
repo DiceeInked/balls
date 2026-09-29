@@ -200,7 +200,7 @@
       this.floor = null;
       this.gridDots = null;
       this.vertexBuffer = null;
-      this.skyBuffer = null;
+      this.skySphere = null;
       this.running = false;
       this.currentFrame = null;
       this.resourcesReady = false;
