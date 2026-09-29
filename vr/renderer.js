@@ -197,6 +197,7 @@
       this.floor = null;
       this.gridDots = null;
       this.vertexBuffer = null;
+      this.skyBuffer = null;
       this.running = false;
       this.currentFrame = null;
     }
@@ -252,6 +253,15 @@
         gl.bindBuffer(gl.ARRAY_BUFFER, this.vertexBuffer);
         gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(6), gl.DYNAMIC_DRAW);
 
+        this.skyBuffer = gl.createBuffer();
+        if (!this.skyBuffer) throw new Error("Unable to create sky buffer.");
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.skyBuffer);
+        gl.bufferData(
+          gl.ARRAY_BUFFER,
+          new Float32Array([-1,-1, 3,-1, -1,3]),
+          gl.STATIC_DRAW
+        );
+
         gl.enable(gl.DEPTH_TEST);
         gl.depthFunc(gl.LEQUAL);
         gl.disable(gl.CULL_FACE);
@@ -272,6 +282,7 @@
           this.floor = null;
           this.gridDots = null;
           this.vertexBuffer = null;
+          this.skyBuffer = null;
           this.error = null;
         });
 
@@ -434,16 +445,7 @@
       gl.disable(gl.DEPTH_TEST);
       gl.depthMask(false);
       gl.useProgram(this.skyProgram);
-      gl.bindBuffer(gl.ARRAY_BUFFER, this.vertexBuffer);
-      gl.bufferData(
-        gl.ARRAY_BUFFER,
-        new Float32Array([
-          -1,-1,
-           3,-1,
-          -1, 3
-        ]),
-        gl.STREAM_DRAW
-      );
+      gl.bindBuffer(gl.ARRAY_BUFFER, this.skyBuffer);
       gl.vertexAttribPointer(this.skyLocations.position, 2, gl.FLOAT, false, 0, 0);
       gl.enableVertexAttribArray(this.skyLocations.position);
       gl.drawArrays(gl.TRIANGLES, 0, 3);
@@ -515,9 +517,10 @@
       let rightHand = null;
 
       for (const source of this.session.inputSources) {
-        if (!source.gripSpace) continue;
+        const inputSpace = source.gripSpace || source.targetRaySpace;
+        if (!inputSpace) continue;
 
-        const gripPose = frame.getPose(source.gripSpace, this.referenceSpace);
+        const gripPose = frame.getPose(inputSpace, this.referenceSpace);
         if (!gripPose) continue;
 
         const p = gripPose.transform.position;
@@ -565,7 +568,7 @@
 
         const handX = (leftHand.x - player.x) * WORLD_SCALE;
         const handY = (leftHand.z - player.z) * WORLD_SCALE;
-        const handZ = (leftHand.z - player.z) * WORLD_SCALE;
+        const handZ = (leftHand.y - player.y) * WORLD_SCALE;
         const distance = Math.hypot(handX, handY, handZ);
 
         if (distance > 0.0001) {
@@ -601,9 +604,10 @@
 
     drawHands(view) {
       for (const source of this.session.inputSources) {
-        if (!source.gripSpace) continue;
+        const inputSpace = source.gripSpace || source.targetRaySpace;
+        if (!inputSpace) continue;
 
-        const pose = this.currentFrame.getPose(source.gripSpace, this.referenceSpace);
+        const pose = this.currentFrame.getPose(inputSpace, this.referenceSpace);
         if (!pose) continue;
 
         const position = this.handPosition(pose);
