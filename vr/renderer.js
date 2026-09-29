@@ -39,19 +39,22 @@
   ].join("");
 
   const SKY_VERTEX_SHADER = [
-    "attribute vec2 aPosition;",
-    "varying vec2 vUv;",
+    "attribute vec3 aPosition;",
+    "uniform mat4 uProjection;",
+    "uniform mat4 uView;",
+    "uniform mat4 uModel;",
+    "varying float vHeight;",
     "void main(){",
-    "  vUv=aPosition*0.5+0.5;",
-    "  gl_Position=vec4(aPosition,0.0,1.0);",
+    "  vHeight=aPosition.y;",
+    "  gl_Position=uProjection*uView*uModel*vec4(aPosition,1.0);",
     "}"
   ].join("");
 
   const SKY_FRAGMENT_SHADER = [
     "precision mediump float;",
-    "varying vec2 vUv;",
+    "varying float vHeight;",
     "void main(){",
-    "  float h=clamp(vUv.y,0.0,1.0);",
+    "  float h=clamp(vHeight*0.5+0.5,0.0,1.0);",
     "  vec3 below=vec3(0.035,0.035,0.04);",
     "  vec3 horizon=vec3(0.52,0.52,0.54);",
     "  vec3 above=vec3(0.72,0.72,0.74);",
@@ -277,11 +280,15 @@
       };
 
       this.skyLocations = {
-        position: gl.getAttribLocation(this.skyProgram, "aPosition")
+        position: gl.getAttribLocation(this.skyProgram, "aPosition"),
+        projection: gl.getUniformLocation(this.skyProgram, "uProjection"),
+        view: gl.getUniformLocation(this.skyProgram, "uView"),
+        model: gl.getUniformLocation(this.skyProgram, "uModel")
       };
 
       this.octahedron = createOctahedron(gl);
       this.sphere = createSphere(gl);
+      this.skySphere = createSphere(gl);
       this.floor = createPlane(gl, GRID_RADIUS + 2);
       this.gridDots = createGridDots(gl, GRID_RADIUS, GRID_SPACING);
 
@@ -289,15 +296,6 @@
       if (!this.vertexBuffer) throw new Error("Unable to create dynamic line buffer.");
       gl.bindBuffer(gl.ARRAY_BUFFER, this.vertexBuffer);
       gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(6), gl.DYNAMIC_DRAW);
-
-      this.skyBuffer = gl.createBuffer();
-      if (!this.skyBuffer) throw new Error("Unable to create sky buffer.");
-      gl.bindBuffer(gl.ARRAY_BUFFER, this.skyBuffer);
-      gl.bufferData(
-        gl.ARRAY_BUFFER,
-        new Float32Array([-1,-1, 3,-1, -1,3]),
-        gl.STATIC_DRAW
-      );
 
       gl.disable(gl.DEPTH_TEST);
       gl.disable(gl.CULL_FACE);
@@ -469,17 +467,28 @@
       );
     }
 
-    drawSky() {
+    drawSky(view) {
       const gl = this.gl;
       gl.disable(gl.DEPTH_TEST);
       gl.depthMask(false);
       gl.useProgram(this.skyProgram);
-      gl.bindBuffer(gl.ARRAY_BUFFER, this.skyBuffer);
-      gl.vertexAttribPointer(this.skyLocations.position, 2, gl.FLOAT, false, 0, 0);
+      gl.bindBuffer(gl.ARRAY_BUFFER, this.skySphere.buffer);
+      gl.vertexAttribPointer(this.skyLocations.position, 3, gl.FLOAT, false, 0, 0);
       gl.enableVertexAttribArray(this.skyLocations.position);
-      gl.drawArrays(gl.TRIANGLES, 0, 3);
+      gl.uniformMatrix4fv(this.skyLocations.projection, false, view.projectionMatrix);
+      gl.uniformMatrix4fv(
+        this.skyLocations.view,
+        false,
+        removeViewTranslation(view.viewMatrix)
+      );
+      gl.uniformMatrix4fv(
+        this.skyLocations.model,
+        false,
+        modelMatrix(0, 0, 0, 45, 45, 45)
+      );
+      gl.drawArrays(this.skySphere.mode, 0, this.skySphere.count);
       gl.depthMask(true);
-      gl.enable(gl.DEPTH_TEST);
+      gl.disable(gl.DEPTH_TEST);
     }
 
     drawFloor(view) {
@@ -685,7 +694,7 @@
     }
 
     drawWorld(view) {
-      this.drawSky();
+      this.drawSky(view);
       this.drawFloor(view);
 
       const player = this.world.player;
@@ -713,7 +722,6 @@
     frame(time, frame) {
       if (!this.isActive) return;
 
-      // Keep the XR callback chain alive before doing any application work.
       const session = frame.session;
       session.requestAnimationFrame((nextTime, nextFrame) => {
         this.frame(nextTime, nextFrame);
@@ -725,9 +733,7 @@
 
       try {
         const pose = frame.getViewerPose(this.referenceSpace);
-        if (!pose || pose.views.length === 0) {
-          return;
-        }
+        if (!pose || pose.views.length === 0) return;
 
         const gl = this.gl;
         const layer = session.renderState.baseLayer;
@@ -740,20 +746,15 @@
           this.buildResources();
         }
 
-        // Canonical WebXR render target setup.
         gl.bindFramebuffer(gl.FRAMEBUFFER, layer.framebuffer);
         gl.disable(gl.SCISSOR_TEST);
         gl.disable(gl.BLEND);
         gl.disable(gl.DEPTH_TEST);
         gl.depthMask(false);
 
-        // Clear the entire XR framebuffer once. The XR compositor owns this
-        // framebuffer, so never inspect or modify its attachments directly.
         gl.clearColor(0.12, 0.12, 0.14, 1);
         gl.clear(gl.COLOR_BUFFER_BIT);
 
-        // Render the actual XR view for every eye. The viewport comes directly
-        // from the XR layer and the matrices come directly from that XRView.
         for (const view of pose.views) {
           const viewport = layer.getViewport(view);
           if (!viewport || viewport.width < 1 || viewport.height < 1) {
@@ -767,36 +768,11 @@
             viewport.height
           );
 
-          // This diagnostic background is deliberately view-dependent.
-          // If the headset receives new XR frames, its slight pulse changes
-          // with the XR frame count and remains visible even if the game
-          // scene encounters an application error.
-          this.drawSky();
-
           try {
-            this.drawFloor(view);
-
-            const player = this.world.player;
-            if (player.captured && player.trap) {
-              this.drawTrap(view);
-            } else {
-              for (const entity of this.world.metaballs) this.drawEntity(view, entity);
-              for (const entity of this.world.spikes) this.drawEntity(view, entity);
-              for (const entity of this.world.glitches) this.drawEntity(view, entity);
-
-              this.drawMesh(
-                view,
-                this.octahedron,
-                [0,0,0],
-                [0.18,0.18,0.18],
-                COLORS.player,
-                0.08
-              );
-            }
-
-            this.drawHands(view);
+            this.updateInput(frame, pose);
+            this.drawWorld(view);
           } catch (renderError) {
-            this.error = "XR render: " +
+            this.error = "XR frame: " +
               String(renderError && renderError.message || renderError);
           }
         }
@@ -815,6 +791,7 @@
         this.currentFrame = null;
       }
     }
+}
   }
 
   window.VRRenderer = VRRenderer;
