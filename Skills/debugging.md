@@ -47,3 +47,6 @@ The page now has separate simulation and rendering entry points. If WebGL is una
 The Canvas preview also normalizes 8-digit RGBA hex colors before drawing, so a valid authoritative entity that is present in the simulation is not mistaken for a missing entity solely because the browser rejects that color syntax.
 ## Step 9 update
 Debugging should expose whether the Player is captured, the trap source Spike ID, crack point count, sealed-point count, crack center, and current crack-point positions.
+
+## XR/WebGL failure retention
+The immersive renderer retains the most recent XR startup or frame error after session end. It also validates that the XR layer supplied a framebuffer with a nonzero size and reports a WebGL error code when a rendered XR frame leaves the context in an error state.
