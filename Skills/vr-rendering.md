@@ -35,7 +35,7 @@ The minimal 2D preview renders every entity in each authoritative Metaball, Spik
 
 The authoritative simulation remains a flat X/Y gameplay plane, but immersive VR maps that plane onto horizontal X/Z space. The authoritative Z coordinate is vertical in VR. Controller/headset Y is mapped to Player Z, while controller/headset Z is mapped to the simulation's Y axis.
 
-The immersive scene has a light-gray-to-dark-gray sky gradient, a dark floor beneath the player, and a player-centered dotted grid. The grid is rendered as a single point mesh rather than one WebGL draw call per dot. XR views always use the projection and view matrices supplied by WebXR and render into each XR viewport.
+The immersive scene has a light-gray-to-dark-gray sky gradient, a dark floor beneath the player, and a player-centered dotted grid. The grid is rendered as a single point mesh rather than one WebGL draw call per dot. XR views always use the projection and view matrices supplied by WebXR and render into each XR viewport. The flat simulation's positive Y direction maps toward WebXR negative Z, because negative Z is forward in the XR world.
 
 ## XR environment
 The immersive background uses a large world-locked sky sphere. The sphere is centered on the viewer for position-only purposes, while its translation is removed from the XR view matrix, so its light-gray-above, medium-gray-horizon, and dark-gray-below gradient stays aligned with world up instead of following the headset's screen. The XR clear color is also dark gray so a rendering failure is distinguishable from the intended environment. Controller rendering and input accept `gripSpace` with `targetRaySpace` as a fallback when a browser does not expose a grip pose.
