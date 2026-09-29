@@ -200,6 +200,8 @@
       this.skyBuffer = null;
       this.running = false;
       this.currentFrame = null;
+      this.resourcesReady = false;
+      this.contextEventsAttached = false;
     }
 
     get isActive() {
@@ -216,75 +218,42 @@
       if (this.gl) return true;
 
       try {
-        const gl = this.canvas.getContext("webgl", {
+        // Do not build shaders/buffers here. makeXRCompatible() can reconfigure
+        // the context, so all WebGL resources are created only after XR
+        // compatibility has been established.
+        let gl = this.canvas.getContext("webgl2", {
           alpha: false,
           antialias: true,
-          depth: true,
-          xrCompatible: true
+          depth: true
         });
+
+        if (!gl) {
+          gl = this.canvas.getContext("webgl", {
+            alpha: false,
+            antialias: true,
+            depth: true
+          });
+        }
 
         if (!gl) throw new Error("WebGL is unavailable in this browser.");
 
         this.gl = gl;
-        this.program = createProgram(gl, VERTEX_SHADER, FRAGMENT_SHADER);
-        this.skyProgram = createProgram(gl, SKY_VERTEX_SHADER, SKY_FRAGMENT_SHADER);
+        this.resourcesReady = false;
 
-        this.locations = {
-          position: gl.getAttribLocation(this.program, "aPosition"),
-          projection: gl.getUniformLocation(this.program, "uProjection"),
-          view: gl.getUniformLocation(this.program, "uView"),
-          model: gl.getUniformLocation(this.program, "uModel"),
-          color: gl.getUniformLocation(this.program, "uColor"),
-          glow: gl.getUniformLocation(this.program, "uGlow"),
-          pointSize: gl.getUniformLocation(this.program, "uPointSize")
-        };
+        if (!this.contextEventsAttached) {
+          this.contextEventsAttached = true;
 
-        this.skyLocations = {
-          position: gl.getAttribLocation(this.skyProgram, "aPosition")
-        };
+          this.canvas.addEventListener("webglcontextlost", event => {
+            event.preventDefault();
+            this.resourcesReady = false;
+            this.error = "WebGL context was lost while entering or running VR.";
+          });
 
-        this.octahedron = createOctahedron(gl);
-        this.sphere = createSphere(gl);
-        this.floor = createPlane(gl, GRID_RADIUS + 2);
-        this.gridDots = createGridDots(gl, GRID_RADIUS, GRID_SPACING);
-
-        this.vertexBuffer = gl.createBuffer();
-        if (!this.vertexBuffer) throw new Error("Unable to create dynamic line buffer.");
-        gl.bindBuffer(gl.ARRAY_BUFFER, this.vertexBuffer);
-        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(6), gl.DYNAMIC_DRAW);
-
-        this.skyBuffer = gl.createBuffer();
-        if (!this.skyBuffer) throw new Error("Unable to create sky buffer.");
-        gl.bindBuffer(gl.ARRAY_BUFFER, this.skyBuffer);
-        gl.bufferData(
-          gl.ARRAY_BUFFER,
-          new Float32Array([-1,-1, 3,-1, -1,3]),
-          gl.STATIC_DRAW
-        );
-
-        gl.enable(gl.DEPTH_TEST);
-        gl.depthFunc(gl.LEQUAL);
-        gl.disable(gl.CULL_FACE);
-
-        this.canvas.addEventListener("webglcontextlost", event => {
-          event.preventDefault();
-          this.error = "WebGL context was lost.";
-        });
-
-        this.canvas.addEventListener("webglcontextrestored", () => {
-          this.gl = null;
-          this.program = null;
-          this.skyProgram = null;
-          this.locations = null;
-          this.skyLocations = null;
-          this.octahedron = null;
-          this.sphere = null;
-          this.floor = null;
-          this.gridDots = null;
-          this.vertexBuffer = null;
-          this.skyBuffer = null;
-          this.error = null;
-        });
+          this.canvas.addEventListener("webglcontextrestored", () => {
+            this.resourcesReady = false;
+            this.error = "WebGL context restored; rebuilding XR rendering resources.";
+          });
+        }
 
         return true;
       } catch (error) {
@@ -293,6 +262,52 @@
       }
     }
 
+    buildResources() {
+      const gl = this.gl;
+      if (!gl) throw new Error("WebGL context is unavailable.");
+
+      this.program = createProgram(gl, VERTEX_SHADER, FRAGMENT_SHADER);
+      this.skyProgram = createProgram(gl, SKY_VERTEX_SHADER, SKY_FRAGMENT_SHADER);
+
+      this.locations = {
+        position: gl.getAttribLocation(this.program, "aPosition"),
+        projection: gl.getUniformLocation(this.program, "uProjection"),
+        view: gl.getUniformLocation(this.program, "uView"),
+        model: gl.getUniformLocation(this.program, "uModel"),
+        color: gl.getUniformLocation(this.program, "uColor"),
+        glow: gl.getUniformLocation(this.program, "uGlow"),
+        pointSize: gl.getUniformLocation(this.program, "uPointSize")
+      };
+
+      this.skyLocations = {
+        position: gl.getAttribLocation(this.skyProgram, "aPosition")
+      };
+
+      this.octahedron = createOctahedron(gl);
+      this.sphere = createSphere(gl);
+      this.floor = createPlane(gl, GRID_RADIUS + 2);
+      this.gridDots = createGridDots(gl, GRID_RADIUS, GRID_SPACING);
+
+      this.vertexBuffer = gl.createBuffer();
+      if (!this.vertexBuffer) throw new Error("Unable to create dynamic line buffer.");
+      gl.bindBuffer(gl.ARRAY_BUFFER, this.vertexBuffer);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(6), gl.DYNAMIC_DRAW);
+
+      this.skyBuffer = gl.createBuffer();
+      if (!this.skyBuffer) throw new Error("Unable to create sky buffer.");
+      gl.bindBuffer(gl.ARRAY_BUFFER, this.skyBuffer);
+      gl.bufferData(
+        gl.ARRAY_BUFFER,
+        new Float32Array([-1,-1, 3,-1, -1,3]),
+        gl.STATIC_DRAW
+      );
+
+      gl.enable(gl.DEPTH_TEST);
+      gl.depthFunc(gl.LEQUAL);
+      gl.disable(gl.CULL_FACE);
+
+      this.resourcesReady = true;
+    }
     async start() {
       if (this.isActive) return true;
       if (!this.isSupported) {
@@ -315,6 +330,10 @@
 
       try {
         await this.gl.makeXRCompatible();
+
+        // makeXRCompatible() may reconfigure the backing graphics context.
+        // Rebuild every shader/buffer after it resolves, never before.
+        this.buildResources();
 
         const layer = new XRWebGLLayer(session, this.gl, {
           antialias: true,
@@ -371,6 +390,7 @@
       this.layer = null;
       this.frameTime = 0;
       this.currentFrame = null;
+      this.error = null;
     }
 
     describeXRError(error) {
@@ -700,6 +720,10 @@
 
           const gl = this.gl;
 
+          if (!this.resourcesReady) {
+            this.buildResources();
+          }
+
           gl.bindFramebuffer(gl.FRAMEBUFFER, this.layer.framebuffer);
           // Keep the XR framebuffer visibly non-black even if a later draw call fails.
           gl.clearColor(0.12,0.12,0.14,1);
@@ -717,6 +741,14 @@
             );
 
             this.drawWorld(view);
+          }
+
+          // Submit the finished XR framebuffer to the browser's XR compositor.
+          gl.flush();
+
+          const glError = gl.getError();
+          if (glError !== gl.NO_ERROR) {
+            throw new Error("WebGL XR frame error 0x" + glError.toString(16) + ".");
           }
         }
       } catch (error) {
