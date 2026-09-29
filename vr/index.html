@@ -63,6 +63,7 @@ button{font:700 18px monospace}
   let resizeQueued = false;
   let nextPeriodicSave = 5;
   let vrStarting = false;
+  let nextStatusUpdate = 0;
 
   const normalizeColor = color => {
     const match = /^#([0-9a-f]{8})$/i.exec(color || "");
@@ -269,6 +270,69 @@ button{font:700 18px monospace}
     if (world.player && world.player.captured) drawPlayerTrap();
   };
 
+  const summarizeErrors = () => {
+    const errors = [];
+    if (world.getDiagnostics) {
+      const sim = world.getDiagnostics();
+      for (const entry of sim.errors || []) {
+        errors.push({source:"SIM",code:entry.code,message:entry.message});
+      }
+    }
+    if (renderer.getDiagnostics) {
+      const xr = renderer.getDiagnostics();
+      for (const entry of xr.errors || []) {
+        errors.push({source:"XR",code:entry.code,message:entry.message});
+      }
+    }
+    return errors.slice(0,6);
+  };
+
+  const updateDiagnostics = now => {
+    if (now < nextStatusUpdate) return;
+    nextStatusUpdate = now + 250;
+
+    const sim = world.getDiagnostics ? world.getDiagnostics() : null;
+    const xr = renderer.getDiagnostics ? renderer.getDiagnostics() : null;
+    const lines = [];
+
+    lines.push(
+      "SIM " + (sim && sim.halted ? "HALTED" : "OK") +
+      " • steps " + (sim ? sim.stepCount : "?") +
+      " • entities " + (sim ? sim.entityCount : "?") +
+      " • M/S/G " +
+      (sim ? sim.metaballs : "?") + "/" +
+      (sim ? sim.spikes : "?") + "/" +
+      (sim ? sim.glitches : "?")
+    );
+
+    if (xr && xr.active) {
+      lines.push(
+        "XR ACTIVE • frames " + xr.frameCount +
+        " • views " + xr.viewCount +
+        " • inputs " + xr.inputSourceCount +
+        " • stage " + xr.lastStage
+      );
+    } else {
+      lines.push(
+        "XR INACTIVE • supported " +
+        (xr && xr.supported ? "yes" : "no") +
+        " • stage " + (xr ? xr.lastStage : "unavailable")
+      );
+    }
+
+    const errors = summarizeErrors();
+    if (errors.length === 0) {
+      lines.push("ERRORS NONE");
+    } else {
+      lines.push("ERRORS " + errors.length);
+      for (const error of errors) {
+        lines.push(error.source + " " + error.code + " • " + error.message);
+      }
+    }
+
+    status.textContent = lines.join("\n");
+  };
+
   const resetSimulation = () => {
     const storage = getStorage();
 
@@ -349,32 +413,32 @@ button{font:700 18px monospace}
   };
 
   const loop = now => {
-    if (!initialized) initialize();
+    try {
+      if (!initialized) initialize();
 
-    const delta = Math.max(0, (now - lastTime) / 1000);
-    lastTime = now;
+      const delta = Math.max(0, (now - lastTime) / 1000);
+      lastTime = now;
 
-    if (initialized) {
-      // The desktop RAF remains the single simulation clock even while
-      // immersive XR is active. The XR renderer only supplies headset/hand
-      // input and presents the authoritative world.
-      world.step(delta);
+      if (initialized) {
+        world.step(delta);
 
-      if (world.persistence.majorDirty || world.worldTime >= nextPeriodicSave) {
-        saveWorld();
-        nextPeriodicSave = Math.floor(world.worldTime / 5 + 1) * 5;
+        if (world.persistence.majorDirty || world.worldTime >= nextPeriodicSave) {
+          saveWorld();
+          nextPeriodicSave = Math.floor(world.worldTime / 5 + 1) * 5;
+        }
       }
+
+      draw();
+    } catch (error) {
+      const message=String(error&&error.message||error);
+      if (world.recordError) {
+        world.recordError("PAGE-LOOP-001",message,"page-loop");
+      }
+      if (world.diagnostics) world.diagnostics.halted=true;
+      console.error("VR preview runtime failure:",error);
     }
 
-    if (renderer.isActive) {
-      status.textContent =
-        "Immersive VR active • XR frames: " + renderer.xrFrameCount +
-        " • pose timestamp: " + Math.round(renderer.xrLastPoseTime || 0);
-    } else if (renderer.error) {
-      status.textContent = "Last VR renderer error: " + renderer.error;
-    }
-
-    draw();
+    updateDiagnostics(now);
     requestAnimationFrame(loop);
   };
 
@@ -388,6 +452,7 @@ button{font:700 18px monospace}
   initialize();
   resizeXRCanvas();
   updateWebXRStatus();
+  updateDiagnostics(performance.now());
   requestAnimationFrame(loop);
 })();
 </script>
