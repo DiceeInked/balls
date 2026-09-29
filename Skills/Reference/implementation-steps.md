@@ -32,7 +32,7 @@ Implement the blue 3D diamond-like head, two diamond-derived thruster/control ha
 COMPLETED for the authoritative simulation and current 2D preview. Spike capture, blackened world, glowing crack generation, crack points and center, point dragging, repair detection, and player release are implemented.
 
 ## 10. VR rendering
-Add WebXR support, headset tracking, hand tracking, stereoscopic rendering, and optimized VR visuals.
+IMPLEMENTED for the initial renderer. `vr/renderer.js` provides immersive-session detection/startup, XR-compatible WebGL rendering, stereoscopic per-view rendering, headset pose input, controller/hand pose input, normalized thumbstick thrust, Player/hand visuals, entity visuals, XP indication, and trap crack rendering. Actual headset/browser verification remains required before marking device-specific testing complete.
 
 ## 11. Simulation/render separation
 Ensure the simulation remains authoritative and recoverable regardless of renderer state, WebGL state, WebXR state, or tab visibility.
