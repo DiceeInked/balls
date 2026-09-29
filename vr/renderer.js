@@ -223,8 +223,11 @@
         // compatibility has been established.
         const gl = this.canvas.getContext("webgl", {
           alpha: false,
-          antialias: true,
-          depth: true
+          antialias: false,
+          depth: false,
+          stencil: false,
+          xrCompatible: true,
+          premultipliedAlpha: true
         });
 
         if (!gl) throw new Error("WebGL is unavailable in this browser.");
@@ -294,9 +297,10 @@
         gl.STATIC_DRAW
       );
 
-      gl.enable(gl.DEPTH_TEST);
-      gl.depthFunc(gl.LEQUAL);
+      gl.disable(gl.DEPTH_TEST);
       gl.disable(gl.CULL_FACE);
+      gl.disable(gl.BLEND);
+      gl.disable(gl.SCISSOR_TEST);
 
       this.resourcesReady = true;
     }
@@ -328,9 +332,12 @@
         this.buildResources();
 
         const layer = new XRWebGLLayer(session, this.gl, {
-          antialias: true,
-          depth: true,
-          framebufferScaleFactor: 1
+          alpha: false,
+          antialias: false,
+          depth: false,
+          stencil: false,
+          framebufferScaleFactor: 1,
+          ignoreDepthValues: true
         });
 
         if (!layer.framebuffer) {
@@ -704,12 +711,66 @@
     frame(time, frame) {
       if (!this.isActive) return;
 
+      // Queue the next XR frame immediately. Rendering or simulation work in
+      // this callback must never prevent the animation loop from continuing.
+      this.session.requestAnimationFrame(
+        (nextTime, nextFrame) => this.frame(nextTime, nextFrame)
+      );
+
       this.currentFrame = frame;
 
       try {
         const pose = frame.getViewerPose(this.referenceSpace);
+        if (!pose || pose.views.length === 0) {
+          return;
+        }
 
-        if (pose) {
+        const gl = this.gl;
+        const layer = this.session.renderState.baseLayer || this.layer;
+
+        if (!layer || !layer.framebuffer) {
+          throw new Error("XR frame has no active WebGL framebuffer.");
+        }
+
+        if (!this.resourcesReady) {
+          this.buildResources();
+        }
+
+        // Render setup is isolated from simulation so gameplay errors cannot
+        // prevent the XR compositor from receiving a frame.
+        gl.bindFramebuffer(gl.FRAMEBUFFER, layer.framebuffer);
+        gl.disable(gl.SCISSOR_TEST);
+        gl.disable(gl.BLEND);
+        gl.disable(gl.DEPTH_TEST);
+        gl.depthMask(false);
+        gl.clearColor(0.12,0.12,0.14,1);
+        gl.clear(gl.COLOR_BUFFER_BIT);
+        gl.depthMask(true);
+
+        // Use the XR pose immediately. The background is drawn independently
+        // of simulation state so it remains visible even during a simulation
+        // or input failure.
+        for (const view of pose.views) {
+          const viewport = layer.getViewport(view);
+          if (
+            !viewport ||
+            viewport.width < 1 ||
+            viewport.height < 1
+          ) {
+            throw new Error("XR returned an invalid eye viewport.");
+          }
+
+          gl.viewport(
+            viewport.x,
+            viewport.y,
+            viewport.width,
+            viewport.height
+          );
+          this.drawSky();
+        }
+
+        // Input/simulation errors are recorded but do not suppress rendering.
+        try {
           const delta = this.frameTime === 0
             ? 0
             : Math.min(0.05, Math.max(0, (time - this.frameTime) / 1000));
@@ -717,50 +778,61 @@
           this.frameTime = time;
           this.updateInput(frame, pose);
           this.world.step(delta);
+        } catch (simulationError) {
+          this.error = "XR simulation/input: " +
+            String(simulationError && simulationError.message || simulationError);
+        }
 
-          const gl = this.gl;
+        // Render the authoritative state separately from input/simulation.
+        for (const view of pose.views) {
+          const viewport = layer.getViewport(view);
 
-          if (!this.resourcesReady) {
-            this.buildResources();
+          gl.viewport(
+            viewport.x,
+            viewport.y,
+            viewport.width,
+            viewport.height
+          );
+
+          try {
+            this.drawFloor(view);
+
+            const player = this.world.player;
+            if (player.captured && player.trap) {
+              this.drawTrap(view);
+            } else {
+              for (const entity of this.world.metaballs) this.drawEntity(view, entity);
+              for (const entity of this.world.spikes) this.drawEntity(view, entity);
+              for (const entity of this.world.glitches) this.drawEntity(view, entity);
+
+              this.drawMesh(
+                view,
+                this.octahedron,
+                [0,0,0],
+                [0.18,0.18,0.18],
+                COLORS.player,
+                0.08
+              );
+            }
+
+            this.drawHands(view);
+          } catch (renderError) {
+            this.error = "XR render: " +
+              String(renderError && renderError.message || renderError);
           }
+        }
 
-          gl.bindFramebuffer(gl.FRAMEBUFFER, this.layer.framebuffer);
-          // Keep the XR framebuffer visibly non-black even if a later draw call fails.
-          gl.clearColor(0.12,0.12,0.14,1);
-          gl.clearDepth(1);
-          gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+        gl.flush();
 
-          for (const view of pose.views) {
-            const viewport = this.layer.getViewport(view);
-
-            gl.viewport(
-              viewport.x,
-              viewport.y,
-              viewport.width,
-              viewport.height
-            );
-
-            this.drawWorld(view);
-          }
-
-          // Submit the finished XR framebuffer to the browser's XR compositor.
-          gl.flush();
-
-          const glError = gl.getError();
-          if (glError !== gl.NO_ERROR) {
-            throw new Error("WebGL XR frame error 0x" + glError.toString(16) + ".");
-          }
+        const glError = gl.getError();
+        if (glError !== gl.NO_ERROR) {
+          this.error = "WebGL XR frame error 0x" + glError.toString(16) + ".";
         }
       } catch (error) {
-        this.error = String(error && error.message || error);
+        this.error = "XR frame: " +
+          String(error && error.message || error);
       } finally {
         this.currentFrame = null;
-
-        if (this.isActive) {
-          this.session.requestAnimationFrame(
-            (nextTime, nextFrame) => this.frame(nextTime, nextFrame)
-          );
-        }
       }
     }
   }
