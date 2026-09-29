@@ -321,7 +321,7 @@
       gl.vertexAttribPointer(this.locations.position, 3, gl.FLOAT, false, 0, 0);
       gl.enableVertexAttribArray(this.locations.position);
       gl.uniformMatrix4fv(this.locations.projection, false, view.projectionMatrix);
-      gl.uniformMatrix4fv(this.locations.view, false, view.transform.inverse.matrix);
+      gl.uniformMatrix4fv(this.locations.view, false, view.viewMatrix);
       gl.uniformMatrix4fv(
         this.locations.model,
         false,
