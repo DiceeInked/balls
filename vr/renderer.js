@@ -39,22 +39,19 @@
   ].join("");
 
   const SKY_VERTEX_SHADER = [
-    "attribute vec3 aPosition;",
-    "uniform mat4 uProjection;",
-    "uniform mat4 uView;",
-    "uniform mat4 uModel;",
-    "varying float vHeight;",
+    "attribute vec2 aPosition;",
+    "varying vec2 vUv;",
     "void main(){",
-    "  vHeight=aPosition.y;",
-    "  gl_Position=uProjection*uView*uModel*vec4(aPosition,1.0);",
+    "  vUv=aPosition*0.5+0.5;",
+    "  gl_Position=vec4(aPosition,0.0,1.0);",
     "}"
   ].join("");
 
   const SKY_FRAGMENT_SHADER = [
     "precision mediump float;",
-    "varying float vHeight;",
+    "varying vec2 vUv;",
     "void main(){",
-    "  float h=clamp(vHeight*0.5+0.5,0.0,1.0);",
+    "  float h=clamp(vUv.y,0.0,1.0);",
     "  vec3 below=vec3(0.035,0.035,0.04);",
     "  vec3 horizon=vec3(0.52,0.52,0.54);",
     "  vec3 above=vec3(0.72,0.72,0.74);",
@@ -242,10 +239,7 @@
         };
 
         this.skyLocations = {
-          position: gl.getAttribLocation(this.skyProgram, "aPosition"),
-          projection: gl.getUniformLocation(this.skyProgram, "uProjection"),
-          view: gl.getUniformLocation(this.skyProgram, "uView"),
-          model: gl.getUniformLocation(this.skyProgram, "uModel")
+          position: gl.getAttribLocation(this.skyProgram, "aPosition")
         };
 
         this.octahedron = createOctahedron(gl);
@@ -435,25 +429,25 @@
       );
     }
 
-    drawSky(view) {
+    drawSky() {
       const gl = this.gl;
       gl.disable(gl.DEPTH_TEST);
+      gl.depthMask(false);
       gl.useProgram(this.skyProgram);
-      gl.bindBuffer(gl.ARRAY_BUFFER, this.sphere.buffer);
-      gl.vertexAttribPointer(this.skyLocations.position, 3, gl.FLOAT, false, 0, 0);
+      gl.bindBuffer(gl.ARRAY_BUFFER, this.vertexBuffer);
+      gl.bufferData(
+        gl.ARRAY_BUFFER,
+        new Float32Array([
+          -1,-1,
+           3,-1,
+          -1, 3
+        ]),
+        gl.STREAM_DRAW
+      );
+      gl.vertexAttribPointer(this.skyLocations.position, 2, gl.FLOAT, false, 0, 0);
       gl.enableVertexAttribArray(this.skyLocations.position);
-      gl.uniformMatrix4fv(this.skyLocations.projection, false, view.projectionMatrix);
-      gl.uniformMatrix4fv(
-        this.skyLocations.view,
-        false,
-        removeViewTranslation(view.viewMatrix)
-      );
-      gl.uniformMatrix4fv(
-        this.skyLocations.model,
-        false,
-        modelMatrix(0,0,0,50,50,50)
-      );
-      gl.drawArrays(this.sphere.mode, 0, this.sphere.count);
+      gl.drawArrays(gl.TRIANGLES, 0, 3);
+      gl.depthMask(true);
       gl.enable(gl.DEPTH_TEST);
     }
 
@@ -658,7 +652,7 @@
     }
 
     drawWorld(view) {
-      this.drawSky(view);
+      this.drawSky();
       this.drawFloor(view);
 
       const player = this.world.player;
@@ -703,7 +697,8 @@
           const gl = this.gl;
 
           gl.bindFramebuffer(gl.FRAMEBUFFER, this.layer.framebuffer);
-          gl.clearColor(0,0,0,1);
+          // Keep the XR framebuffer visibly non-black even if a later draw call fails.
+          gl.clearColor(0.12,0.12,0.14,1);
           gl.clearDepth(1);
           gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
