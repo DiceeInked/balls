@@ -411,13 +411,14 @@
     }
 
     worldPosition(entity) {
-      // XR view matrices are expressed in the active reference space.
-      // Keep the simulation's X/Y plane centered at the player's initial
-      // world origin, while vertical simulation Z maps to XR Y.
+      // WebXR looks down -Z. The simulation's Y axis is the second
+      // horizontal gameplay axis, so positive simulation Y maps toward
+      // negative XR Z rather than behind the viewer.
+      const player = this.world.player;
       return [
-        entity.x * WORLD_SCALE,
+        (entity.x - player.x) * WORLD_SCALE,
         entity.z * WORLD_SCALE,
-        entity.y * WORLD_SCALE
+        -(entity.y - player.y) * WORLD_SCALE
       ];
     }
 
@@ -566,7 +567,7 @@
         const p = gripPose.transform.position;
         const hand = {
           x: player.x + p.x / WORLD_SCALE,
-          y: player.y + p.z / WORLD_SCALE,
+          y: player.y - p.z / WORLD_SCALE,
           z: player.z + p.y / WORLD_SCALE,
           active: true
         };
