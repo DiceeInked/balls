@@ -21,3 +21,9 @@ The input layer supplies normalized thrust, head orientation, both hand states, 
 
 ## Step 9 update
 The existing authoritative left/right hand position state is also the input boundary for trap interaction. While captured, an active hand near a crack point drags that point toward the authoritative trap center. WebXR pose acquisition remains outside the simulation.
+
+
+## Coordinate consistency
+Controller grip/target poses are queried relative to the same XR reference space used for the viewer. Their physical positions are converted into the authoritative Player coordinate system using the same X/Y/Z mapping as world rendering. Visual controller markers remain in XR reference-space coordinates so they stay physically attached to the user's hands while virtual Player locomotion moves the game world around them.
+
+XR input failures are retained with structured diagnostic codes and do not stop the XR presentation loop or redefine authoritative Player state.
