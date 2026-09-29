@@ -202,6 +202,8 @@
       this.currentFrame = null;
       this.resourcesReady = false;
       this.contextEventsAttached = false;
+      this.xrFrameCount = 0;
+      this.xrLastPoseTime = 0;
     }
 
     get isActive() {
@@ -711,13 +713,15 @@
     frame(time, frame) {
       if (!this.isActive) return;
 
-      // Queue the next XR frame immediately. Rendering or simulation work in
-      // this callback must never prevent the animation loop from continuing.
-      this.session.requestAnimationFrame(
-        (nextTime, nextFrame) => this.frame(nextTime, nextFrame)
-      );
+      // Keep the XR callback chain alive before doing any application work.
+      const session = frame.session;
+      session.requestAnimationFrame((nextTime, nextFrame) => {
+        this.frame(nextTime, nextFrame);
+      });
 
       this.currentFrame = frame;
+      this.xrFrameCount += 1;
+      this.xrLastPoseTime = time;
 
       try {
         const pose = frame.getViewerPose(this.referenceSpace);
@@ -726,37 +730,33 @@
         }
 
         const gl = this.gl;
-        const layer = this.session.renderState.baseLayer || this.layer;
+        const layer = session.renderState.baseLayer;
 
         if (!layer || !layer.framebuffer) {
-          throw new Error("XR frame has no active WebGL framebuffer.");
+          throw new Error("XR frame has no active base-layer framebuffer.");
         }
 
         if (!this.resourcesReady) {
           this.buildResources();
         }
 
-        // Render setup is isolated from simulation so gameplay errors cannot
-        // prevent the XR compositor from receiving a frame.
+        // Canonical WebXR render target setup.
         gl.bindFramebuffer(gl.FRAMEBUFFER, layer.framebuffer);
         gl.disable(gl.SCISSOR_TEST);
         gl.disable(gl.BLEND);
         gl.disable(gl.DEPTH_TEST);
         gl.depthMask(false);
-        gl.clearColor(0.12,0.12,0.14,1);
-        gl.clear(gl.COLOR_BUFFER_BIT);
-        gl.depthMask(true);
 
-        // Use the XR pose immediately. The background is drawn independently
-        // of simulation state so it remains visible even during a simulation
-        // or input failure.
+        // Clear the entire XR framebuffer once. The XR compositor owns this
+        // framebuffer, so never inspect or modify its attachments directly.
+        gl.clearColor(0.12, 0.12, 0.14, 1);
+        gl.clear(gl.COLOR_BUFFER_BIT);
+
+        // Render the actual XR view for every eye. The viewport comes directly
+        // from the XR layer and the matrices come directly from that XRView.
         for (const view of pose.views) {
           const viewport = layer.getViewport(view);
-          if (
-            !viewport ||
-            viewport.width < 1 ||
-            viewport.height < 1
-          ) {
+          if (!viewport || viewport.width < 1 || viewport.height < 1) {
             throw new Error("XR returned an invalid eye viewport.");
           }
 
@@ -766,33 +766,12 @@
             viewport.width,
             viewport.height
           );
+
+          // This diagnostic background is deliberately view-dependent.
+          // If the headset receives new XR frames, its slight pulse changes
+          // with the XR frame count and remains visible even if the game
+          // scene encounters an application error.
           this.drawSky();
-        }
-
-        // Input/simulation errors are recorded but do not suppress rendering.
-        try {
-          const delta = this.frameTime === 0
-            ? 0
-            : Math.min(0.05, Math.max(0, (time - this.frameTime) / 1000));
-
-          this.frameTime = time;
-          this.updateInput(frame, pose);
-          this.world.step(delta);
-        } catch (simulationError) {
-          this.error = "XR simulation/input: " +
-            String(simulationError && simulationError.message || simulationError);
-        }
-
-        // Render the authoritative state separately from input/simulation.
-        for (const view of pose.views) {
-          const viewport = layer.getViewport(view);
-
-          gl.viewport(
-            viewport.x,
-            viewport.y,
-            viewport.width,
-            viewport.height
-          );
 
           try {
             this.drawFloor(view);
@@ -822,6 +801,7 @@
           }
         }
 
+        gl.depthMask(true);
         gl.flush();
 
         const glError = gl.getError();
