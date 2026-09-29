@@ -278,17 +278,17 @@ button{font:700 18px monospace}
     if (initialized) return true;
     if (!resize()) return false;
 
+    // A page load always starts a clean prototype. This deliberately clears
+    // any stale localStorage snapshot before the first simulation frame.
     const storage = getStorage();
+    if (storage) world.clearPersistence(storage);
 
-    if (storage && world.loadPersistence(storage)) {
-      initialized = true;
-    } else {
-      initialized = !!world.resetPrototypeEntities();
-      world.persistence.majorDirty = true;
-      saveWorld();
-    }
+    world.resetPrototypeWorld();
+    world.persistence.majorDirty = true;
 
-    return initialized;
+    initialized = true;
+    nextPeriodicSave = Math.floor(world.worldTime / 5 + 1) * 5;
+    return true;
   };
 
   const updateWebXRStatus = async () => {
@@ -362,13 +362,6 @@ button{font:700 18px monospace}
   resetButton.addEventListener("click", resetSimulation);
   vrButton.addEventListener("click", startOrStopVR);
   window.addEventListener("resize", requestResize);
-  window.addEventListener("pagehide", saveWorld);
-  window.addEventListener("beforeunload", saveWorld);
-
-  document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "hidden") saveWorld();
-  });
-
   if ("ResizeObserver" in window) {
     new ResizeObserver(requestResize).observe(stage);
   }
