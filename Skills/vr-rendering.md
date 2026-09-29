@@ -1,6 +1,6 @@
 # VR Rendering
 
-The VR version uses WebXR for immersive VR when supported. Step 10 now has a dedicated `vr/renderer.js` WebGL/WebXR renderer; the existing Canvas 2D preview remains the fallback.
+The VR version uses WebXR for immersive VR when supported. Step 10 has a dedicated `vr/renderer.js` WebGL/WebXR renderer, while `vr/index.html` always provides an independent Canvas 2D desktop preview. WebXR availability must not prevent the desktop preview from initializing.
 
 The VR entry flow should:
 - Detect whether immersive VR is supported.
