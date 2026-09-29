@@ -21,7 +21,10 @@ canvas{width:100%;height:100%;display:block}#xr-canvas{position:fixed;width:1px;
   const canvas=document.getElementById("preview");
   const ctx=canvas.getContext("2d");
   const resetButton=document.getElementById("reset");
-  const vrButton=document.getElementById("vr");\n  const status=document.getElementById("status");\n  const xrCanvas=document.getElementById("xr-canvas");\n  const world=window.VRWorld;
+  const vrButton=document.getElementById("vr");
+  const status=document.getElementById("status");
+  const xrCanvas=document.getElementById("xr-canvas");
+  const world=window.VRWorld;
   const renderer=new window.VRRenderer(xrCanvas,world);
   const colors=window.VRWorldColors;
   const drawColors={
@@ -178,7 +181,17 @@ canvas{width:100%;height:100%;display:block}#xr-canvas{position:fixed;width:1px;
   }
 
   resetButton.addEventListener("click",resetSimulation);
-  vrButton.addEventListener("click",async()=>{\n    vrButton.disabled=true;\n    status.textContent="Starting WebXR…";\n    try{\n      await renderer.start();\n      status.textContent="WebXR active. Exit VR from the headset to return to the preview.";\n    }catch(error){\n      status.textContent="VR unavailable: "+String(error&&error.message||error);\n      vrButton.disabled=false;\n    }\n  });
+  vrButton.addEventListener("click",async()=>{
+    vrButton.disabled=true;
+    status.textContent="Starting WebXR…";
+    try{
+      await renderer.start();
+      status.textContent="WebXR active. Exit VR from the headset to return to the preview.";
+    }catch(error){
+      status.textContent="VR unavailable: "+String(error&&error.message||error);
+      vrButton.disabled=false;
+    }
+  });
   addEventListener("resize",requestResize);
   addEventListener("pagehide",saveWorld);
   addEventListener("beforeunload",saveWorld);
