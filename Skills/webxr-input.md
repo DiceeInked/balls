@@ -12,7 +12,7 @@ The left hand has two special functions:
 - It displays player XP.
 - Looking toward it opens the player menu.
 
-The input layer must handle session start, session end, lost input sources, and temporarily unavailable tracking without corrupting the simulation.
+The input layer must handle session start, session end, lost input sources, and temporarily unavailable tracking without corrupting the simulation. Step 10 maps XR controller/hand poses into the authoritative Player input boundary and maps thumbstick input to normalized thrust without directly changing authoritative position.
 
 Input should be frame-rate independent wherever it affects gameplay.
 
