@@ -41,3 +41,9 @@ Player capture and crack-repair progress are now authoritative Player state. The
 
 ## Recent XR hardening
 The Step 11 separation work has been advanced in the XR frame path: XR framebuffer presentation is no longer dependent on successful input or simulation updates. Input/simulation failures are recorded and rendering continues from the last valid authoritative state. The desktop Canvas 2D preview also remains on the same authoritative simulation clock while immersive XR is active, so entering VR does not freeze the preview or require a second simulation owner.
+
+
+## XR rendering robustness update
+The immersive renderer now uses a single Player-relative world transform for all gameplay geometry, with `local-floor` Y=0 as the virtual floor and simulation Z as vertical world position. The floor, grid, entities, and Player visual therefore share one spatial model.
+
+The renderer uses an XR depth buffer for deterministic 3D occlusion. Runtime failures are diagnostic events only: simulation state is not reset because of a renderer error, and a simulation exception is contained at the fixed-step boundary for later inspection.
