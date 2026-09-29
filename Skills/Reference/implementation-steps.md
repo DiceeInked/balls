@@ -54,3 +54,7 @@ Before every future project change, read every active skill, compare the change 
 
 ## Recent XR hardening
 Step 11 note: the immersive frame loop now separates XR presentation from input/simulation execution. The next XR callback is queued before frame work, framebuffer setup and background rendering are independent of simulation errors, and the current session base layer is used for per-view rendering. The desktop preview continues stepping the same authoritative simulation while immersive XR is active, so there is no second simulation owner. The immersive sky is world-locked rather than screen-locked, using viewer-centered positioning with translation removed from the XR view transform. Device verification is still required.
+
+
+## Recent XR hardening
+Immersive rendering now uses a consistent Player-relative mapping: simulation X → XR X, simulation Y → XR -Z, and simulation Z → XR Y. `local-floor` Y=0 is treated as the virtual game floor. The renderer uses an XR depth buffer and records structured diagnostics for framebuffer, pose, viewport, input, resource-build, startup, WebGL, and frame failures. Simulation exceptions are contained at the fixed-step boundary so the diagnostics page remains alive.
