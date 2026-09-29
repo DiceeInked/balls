@@ -40,4 +40,4 @@ The visualization is currently a deliberately simple view of the architecture. I
 Player capture and crack-repair progress are now authoritative Player state. The renderer may visualize the blackened world and cracks, but it does not own capture or repair state.
 
 ## Recent XR hardening
-The Step 11 separation work has been advanced in the XR frame path: XR framebuffer presentation is no longer dependent on successful input or simulation updates. Input/simulation failures are recorded and rendering continues from the last valid authoritative state.
+The Step 11 separation work has been advanced in the XR frame path: XR framebuffer presentation is no longer dependent on successful input or simulation updates. Input/simulation failures are recorded and rendering continues from the last valid authoritative state. The desktop Canvas 2D preview also remains on the same authoritative simulation clock while immersive XR is active, so entering VR does not freeze the preview or require a second simulation owner.
