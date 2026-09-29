@@ -355,6 +355,10 @@ button{font:700 18px monospace}
       }
     }
 
+    if (!renderer.isActive && renderer.error) {
+      status.textContent = "Last VR renderer error: " + renderer.error;
+    }
+
     draw();
     requestAnimationFrame(loop);
   };
