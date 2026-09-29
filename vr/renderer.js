@@ -772,11 +772,19 @@
         const layer = session.renderState.baseLayer;
 
         if (!layer || !layer.framebuffer) {
-          throw new Error("XR frame has no active base-layer framebuffer.");
+          const message="XR frame has no active base-layer framebuffer.";
+          this.recordError("XR-FRAMEBUFFER-001",message,"framebuffer");
+          throw new Error(message);
         }
 
         if (!this.resourcesReady) {
-          this.buildResources();
+          try {
+            this.buildResources();
+          } catch (error) {
+            const message=String(error&&error.message||error);
+            this.recordError("GL-RESOURCE-001",message,"resource-build");
+            throw error;
+          }
         }
 
         gl.bindFramebuffer(gl.FRAMEBUFFER, layer.framebuffer);
@@ -799,7 +807,9 @@
         for (const view of pose.views) {
           const viewport = layer.getViewport(view);
           if (!viewport || viewport.width < 1 || viewport.height < 1) {
-            throw new Error("XR returned an invalid eye viewport.");
+            const message="XR returned an invalid eye viewport.";
+            this.recordError("XR-VIEWPORT-001",message,"viewport");
+            throw new Error(message);
           }
 
           gl.viewport(
