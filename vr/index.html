@@ -5,215 +5,376 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
 <title>VR World Preview</title>
 <style>
+:root{color-scheme:dark}
 html,body{margin:0;width:100%;height:100%;background:#080808;overflow:hidden}
-body{display:grid;place-items:center}#reset{position:fixed;top:12px;right:12px;width:42px;height:42px;border:2px solid #aaa;border-radius:8px;background:#111;color:#fff;font:700 22px monospace;cursor:pointer;z-index:10}#reset:hover{background:#222}
-#stage{width:min(82vmin,720px);height:min(82vmin,720px);background:#111;border:2px solid #666;border-radius:12px;overflow:hidden}
-canvas{width:100%;height:100%;display:block}#xr-canvas{position:fixed;width:1px;height:1px;left:-10px;top:-10px;opacity:0;pointer-events:none}#vr{position:fixed;top:12px;right:64px;height:42px;padding:0 12px;border:2px solid #00ffc8;border-radius:8px;background:#111;color:#00ffc8;font:700 18px monospace;cursor:pointer;z-index:10}#vr:disabled{opacity:.45;cursor:default}#status{position:fixed;left:12px;bottom:12px;max-width:min(90vw,520px);padding:8px 10px;border:1px solid #555;border-radius:6px;background:rgba(0,0,0,.8);color:#fff;font:12px monospace;z-index:10}
+body{display:grid;place-items:center}
+button{font:700 18px monospace}
+#stage{width:min(82vmin,720px);height:min(82vmin,720px);background:#111;border:2px solid #666;border-radius:12px;overflow:hidden;box-sizing:border-box}
+#preview{width:100%;height:100%;display:block}
+#controls{position:fixed;top:12px;right:12px;display:flex;gap:8px;z-index:10}
+.control{height:42px;padding:0 12px;border:2px solid #00ffc8;border-radius:8px;background:#111;color:#00ffc8;cursor:pointer}
+.control:hover{background:#18201f}
+.control:disabled{opacity:.45;cursor:wait}
+#reset{border-color:#aaa;color:#fff}
+#status{position:fixed;left:12px;bottom:12px;max-width:min(90vw,560px);padding:8px 10px;border:1px solid #555;border-radius:6px;background:rgba(0,0,0,.82);color:#fff;font:12px monospace;z-index:10;white-space:pre-wrap}
+#xr-canvas{position:fixed;width:1px;height:1px;left:-2px;top:-2px;opacity:0;pointer-events:none}
 </style>
 </head>
 <body>
-<div id="status" aria-live="polite"></div><button id="vr" type="button" disabled>VR</button><button id="reset" type="button" aria-label="Reset simulation">R</button>
-<div id="stage"><canvas id="preview"></canvas></div><canvas id="xr-canvas" aria-hidden="true"></canvas>
-<script src="simulation.js"></script><script src="renderer.js"></script>
+<div id="controls">
+  <button id="vr" class="control" type="button">VR</button>
+  <button id="reset" class="control" type="button" aria-label="Reset simulation">R</button>
+</div>
+<div id="stage"><canvas id="preview"></canvas></div>
+<canvas id="xr-canvas" aria-hidden="true"></canvas>
+<div id="status" aria-live="polite"></div>
+
+<script src="simulation.js"></script>
+<script src="renderer.js"></script>
 <script>
-(function(){
-  const stage=document.getElementById("stage");
-  const canvas=document.getElementById("preview");
-  const ctx=canvas.getContext("2d");
-  const resetButton=document.getElementById("reset");
-  const vrButton=document.getElementById("vr");
-  const status=document.getElementById("status");
-  const xrCanvas=document.getElementById("xr-canvas");
-  const world=window.VRWorld;
-  const renderer=new window.VRRenderer(xrCanvas,world);
-  const colors=window.VRWorldColors;
-  const drawColors={
-    meta:normalizeColor(colors.meta),
-    spike:normalizeColor(colors.spike),
-    glitch:normalizeColor(colors.glitch)
+(() => {
+  "use strict";
+
+  const stage = document.getElementById("stage");
+  const canvas = document.getElementById("preview");
+  const context = canvas.getContext("2d", { alpha: false });
+  const resetButton = document.getElementById("reset");
+  const vrButton = document.getElementById("vr");
+  const status = document.getElementById("status");
+  const xrCanvas = document.getElementById("xr-canvas");
+
+  if (!stage || !canvas || !context || !resetButton || !vrButton || !status || !xrCanvas) {
+    throw new Error("VR preview UI failed to initialize.");
+  }
+
+  if (!window.VRWorld || !window.VRRenderer || !window.VRWorldColors) {
+    status.textContent = "VR preview failed: required project scripts did not load.";
+    throw new Error("VRWorld, VRRenderer, or VRWorldColors is missing.");
+  }
+
+  const world = window.VRWorld;
+  const renderer = new window.VRRenderer(xrCanvas, world);
+  const colors = window.VRWorldColors;
+
+  let lastTime = performance.now();
+  let initialized = false;
+  let viewWidth = 0;
+  let viewHeight = 0;
+  let resizeQueued = false;
+  let nextPeriodicSave = 5;
+  let vrStarting = false;
+
+  const normalizeColor = color => {
+    const match = /^#([0-9a-f]{8})$/i.exec(color || "");
+    if (!match) return color;
+
+    const hex = match[1];
+    const red = parseInt(hex.slice(0, 2), 16);
+    const green = parseInt(hex.slice(2, 4), 16);
+    const blue = parseInt(hex.slice(4, 6), 16);
+    const alpha = parseInt(hex.slice(6, 8), 16) / 255;
+
+    return "rgba(" + red + "," + green + "," + blue + "," + alpha + ")";
   };
 
-  let lastTime=performance.now();
-  let initialized=false;
-  let viewWidth=0;
-  let viewHeight=0;
-  let resizeQueued=false;
-  let nextPeriodicSave=5;
+  const drawColors = {
+    meta: normalizeColor(colors.meta),
+    spike: normalizeColor(colors.spike),
+    glitch: normalizeColor(colors.glitch)
+  };
 
-  function normalizeColor(color){
-    const match=/^#([0-9a-f]{8})$/i.exec(color||"");
-    if(!match)return color;
-    const hex=match[1];
-    const r=parseInt(hex.slice(0,2),16);
-    const g=parseInt(hex.slice(2,4),16);
-    const b=parseInt(hex.slice(4,6),16);
-    const a=parseInt(hex.slice(6,8),16)/255;
-    return "rgba("+r+", "+g+", "+b+", "+a+")";
-  }
+  const getStorage = () => {
+    try {
+      return window.localStorage;
+    } catch {
+      return null;
+    }
+  };
 
-  function resize(){
-    const rect=stage.getBoundingClientRect();
-    const width=rect.width;
-    const height=rect.height;
-    if(width<1||height<1)return false;
+  const saveWorld = () => {
+    const storage = getStorage();
+    if (storage) world.savePersistence(storage);
+  };
 
-    const d=Math.min(window.devicePixelRatio||1,2);
-    const pixelWidth=Math.max(1,Math.round(width*d));
-    const pixelHeight=Math.max(1,Math.round(height*d));
+  const resize = () => {
+    const rect = stage.getBoundingClientRect();
+    const width = Math.max(0, rect.width);
+    const height = Math.max(0, rect.height);
 
-    if(canvas.width!==pixelWidth||canvas.height!==pixelHeight){
-      canvas.width=pixelWidth;
-      canvas.height=pixelHeight;
+    if (width < 1 || height < 1) return false;
+
+    const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
+    const pixelWidth = Math.max(1, Math.round(width * pixelRatio));
+    const pixelHeight = Math.max(1, Math.round(height * pixelRatio));
+
+    if (canvas.width !== pixelWidth || canvas.height !== pixelHeight) {
+      canvas.width = pixelWidth;
+      canvas.height = pixelHeight;
     }
 
-    viewWidth=width;
-    viewHeight=height;
-    canvas.style.width=width+"px";
-    canvas.style.height=height+"px";
-    ctx.setTransform(d,0,0,d,0,0);
-    world.setBounds(width,height);
-    return true;
-  }
+    viewWidth = width;
+    viewHeight = height;
+    context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+    world.setBounds(width, height);
 
-  function requestResize(){
-    if(resizeQueued)return;
-    resizeQueued=true;
-    requestAnimationFrame(()=>{
-      resizeQueued=false;
+    return true;
+  };
+
+  const requestResize = () => {
+    if (resizeQueued) return;
+
+    resizeQueued = true;
+    requestAnimationFrame(() => {
+      resizeQueued = false;
       resize();
     });
-  }
+  };
 
-  function drawSpike(entity,color){const count=world.spikePointCount?world.spikePointCount(entity):3;ctx.beginPath();for(let i=0;i<count;i++){const a=(entity.direction||0)+Math.PI*2*i/count,x=entity.x+Math.cos(a)*entity.radius,y=entity.y+Math.sin(a)*entity.radius;if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);}ctx.closePath();ctx.fillStyle=color;ctx.fill();}
+  const drawCircle = (entity, color) => {
+    context.beginPath();
+    context.arc(entity.x, entity.y, Math.max(0, entity.radius), 0, Math.PI * 2);
+    context.fillStyle = color;
+    context.fill();
+  };
 
-  function drawCircle(entity,color){
-    if(!entity)return;
-    ctx.beginPath();
-    ctx.arc(entity.x,entity.y,entity.radius,0,Math.PI*2);
-    ctx.fillStyle=color;
-    ctx.fill();
-  }
+  const drawSpike = entity => {
+    const count = Math.min(32, Math.max(3, world.spikePointCount(entity)));
+    const radius = Math.max(0, entity.radius);
+    const direction = Number.isFinite(entity.direction) ? entity.direction : 0;
 
-  function draw(){
-    if(viewWidth<1||viewHeight<1)return;
+    context.beginPath();
 
-    ctx.clearRect(0,0,viewWidth,viewHeight);
-    ctx.fillStyle="#111";
-    ctx.fillRect(0,0,viewWidth,viewHeight);
+    for (let i = 0; i < count; i += 1) {
+      const angle = direction + Math.PI * 2 * i / count;
+      const x = entity.x + Math.cos(angle) * radius;
+      const y = entity.y + Math.sin(angle) * radius;
 
-    for(const entity of world.metaballs)drawMetaball(entity);
-    for(const entity of world.spikes)drawSpike(entity,drawColors.spike);
-    for(const entity of world.glitches)drawCircle(entity,drawColors.glitch);
-    drawPlayer();
-    if(world.player&&world.player.captured)drawPlayerTrap();
-  }
-
-  function drawPlayer(){
-    const player=world.player;if(!player)return;
-    const size=Math.max(7,player.radius*.7);
-    ctx.save();ctx.translate(player.x,player.y);ctx.rotate(player.heading||0);ctx.beginPath();ctx.moveTo(0,-size);ctx.lineTo(size,0);ctx.lineTo(0,size);ctx.lineTo(-size,0);ctx.closePath();ctx.fillStyle="#3b82f6";ctx.fill();ctx.restore();
-    ctx.fillStyle="#fff";ctx.font="700 12px monospace";ctx.textAlign="center";ctx.textBaseline="bottom";ctx.fillText(String(player.xp),player.x,player.y-size-4);
-  }
-
-  function drawPlayerTrap(){
-    const trap=world.player&&world.player.trap;if(!trap||!trap.active)return;
-    ctx.fillStyle="rgba(0,0,0,.94)";ctx.fillRect(0,0,viewWidth,viewHeight);
-    const center=trap.center;
-    ctx.save();ctx.lineWidth=2;ctx.shadowBlur=12;ctx.shadowColor="#ffffff";ctx.strokeStyle="#ffffff";ctx.fillStyle="#ffffff";
-    for(const point of trap.points){ctx.beginPath();ctx.moveTo(point.x,point.y);ctx.lineTo(center.x,center.y);ctx.stroke();ctx.beginPath();ctx.arc(point.x,point.y,point.sealed?4:3,0,Math.PI*2);ctx.fill();}
-    ctx.beginPath();ctx.arc(center.x,center.y,6,0,Math.PI*2);ctx.fill();ctx.restore();
-    ctx.fillStyle="#fff";ctx.font="700 12px monospace";ctx.textAlign="center";ctx.textBaseline="top";ctx.fillText("REPAIR",center.x,Math.min(viewHeight-14,center.y+14));
-  }
-
-  function drawMetaball(entity){
-    drawCircle(entity,drawColors.meta);
-    if(entity.pickup&&entity.pickup.storedXp>0){
-      ctx.beginPath();
-      ctx.arc(entity.x,entity.y,Math.max(3,entity.radius*.32),0,Math.PI*2);
-      ctx.fillStyle="#000";
-      ctx.fill();
+      if (i === 0) context.moveTo(x, y);
+      else context.lineTo(x, y);
     }
-  }
 
-  function getStorage(){
-    try{return window.localStorage||null;}catch(error){return null;}
-  }
+    context.closePath();
+    context.fillStyle = drawColors.spike;
+    context.fill();
+  };
 
-  function resetSimulation(){
-    const storage=getStorage();
-    if(storage)world.clearPersistence(storage);
+  const drawMetaball = entity => {
+    drawCircle(entity, drawColors.meta);
+
+    if (entity.pickup && entity.pickup.storedXp > 0) {
+      context.beginPath();
+      context.arc(
+        entity.x,
+        entity.y,
+        Math.max(3, entity.radius * 0.32),
+        0,
+        Math.PI * 2
+      );
+      context.fillStyle = "#000";
+      context.fill();
+    }
+  };
+
+  const drawPlayer = () => {
+    const player = world.player;
+    if (!player) return;
+
+    const size = Math.max(7, player.radius * 0.7);
+    const heading = Number.isFinite(player.head && player.head.yaw)
+      ? player.head.yaw
+      : 0;
+
+    context.save();
+    context.translate(player.x, player.y);
+    context.rotate(heading);
+    context.beginPath();
+    context.moveTo(0, -size);
+    context.lineTo(size, 0);
+    context.lineTo(0, size);
+    context.lineTo(-size, 0);
+    context.closePath();
+    context.fillStyle = "#3b82f6";
+    context.fill();
+    context.restore();
+
+    context.fillStyle = "#fff";
+    context.font = "700 12px monospace";
+    context.textAlign = "center";
+    context.textBaseline = "bottom";
+    context.fillText(String(player.xp), player.x, player.y - size - 4);
+  };
+
+  const drawPlayerTrap = () => {
+    const trap = world.player && world.player.trap;
+    if (!trap || !trap.active) return;
+
+    context.fillStyle = "rgba(0,0,0,.94)";
+    context.fillRect(0, 0, viewWidth, viewHeight);
+
+    context.save();
+    context.lineWidth = 2;
+    context.shadowBlur = 12;
+    context.shadowColor = "#fff";
+    context.strokeStyle = "#fff";
+    context.fillStyle = "#fff";
+
+    for (const point of trap.points) {
+      context.beginPath();
+      context.moveTo(point.x, point.y);
+      context.lineTo(trap.center.x, trap.center.y);
+      context.stroke();
+
+      context.beginPath();
+      context.arc(point.x, point.y, point.sealed ? 4 : 3, 0, Math.PI * 2);
+      context.fill();
+    }
+
+    context.beginPath();
+    context.arc(trap.center.x, trap.center.y, 6, 0, Math.PI * 2);
+    context.fill();
+    context.restore();
+
+    context.fillStyle = "#fff";
+    context.font = "700 12px monospace";
+    context.textAlign = "center";
+    context.textBaseline = "top";
+    context.fillText(
+      "REPAIR",
+      trap.center.x,
+      Math.min(viewHeight - 14, trap.center.y + 14)
+    );
+  };
+
+  const draw = () => {
+    if (viewWidth < 1 || viewHeight < 1) return;
+
+    context.clearRect(0, 0, viewWidth, viewHeight);
+    context.fillStyle = "#111";
+    context.fillRect(0, 0, viewWidth, viewHeight);
+
+    for (const entity of world.metaballs) drawMetaball(entity);
+    for (const entity of world.spikes) drawSpike(entity);
+    for (const entity of world.glitches) drawCircle(entity, drawColors.glitch);
+
+    drawPlayer();
+
+    if (world.player && world.player.captured) drawPlayerTrap();
+  };
+
+  const resetSimulation = () => {
+    const storage = getStorage();
+
+    if (storage) world.clearPersistence(storage);
     world.resetPrototypeWorld();
-    world.persistence.majorDirty=true;
+    world.persistence.majorDirty = true;
     saveWorld();
-    nextPeriodicSave=Math.floor(world.worldTime/5+1)*5;
-    lastTime=performance.now();
-  }
 
-  function saveWorld(){
-    const storage=getStorage();
-    if(storage)world.savePersistence(storage);
-  }
+    nextPeriodicSave = Math.floor(world.worldTime / 5 + 1) * 5;
+    lastTime = performance.now();
+    status.textContent = "Simulation reset.";
+  };
 
-  function initialize(){
-    if(initialized)return true;
-    if(!resize())return false;
-    const storage=getStorage();
-    if(storage&&world.loadPersistence(storage))initialized=true;
-    else initialized=world.resetPrototypeEntities();
+  const initialize = () => {
+    if (initialized) return true;
+    if (!resize()) return false;
+
+    const storage = getStorage();
+
+    if (storage && world.loadPersistence(storage)) {
+      initialized = true;
+    } else {
+      initialized = !!world.resetPrototypeEntities();
+      world.persistence.majorDirty = true;
+      saveWorld();
+    }
+
     return initialized;
-  }
+  };
 
-  function loop(now){
-    initialize();
+  const updateWebXRStatus = async () => {
+    if (!window.isSecureContext) {
+      status.textContent = "Desktop preview active. WebXR requires HTTPS.";
+      return;
+    }
 
-    const dt=Math.max((now-lastTime)/1000,0);
-    lastTime=now;
+    if (!navigator.xr || typeof navigator.xr.isSessionSupported !== "function") {
+      status.textContent = "Desktop preview active. WebXR is not available in this browser.";
+      return;
+    }
 
-    if(initialized&&!renderer.session){
-      world.step(dt);
-      if(world.persistence.majorDirty||world.worldTime>=nextPeriodicSave){
+    try {
+      const supported = await navigator.xr.isSessionSupported("immersive-vr");
+      status.textContent = supported
+        ? "Desktop preview active. WebXR is ready."
+        : "Desktop preview active. No immersive VR device is available to this browser.";
+    } catch (error) {
+      status.textContent = "Desktop preview active. WebXR support check failed.";
+      console.warn("WebXR support check failed:", error);
+    }
+  };
+
+  const startOrStopVR = async () => {
+    if (vrStarting) return;
+
+    if (renderer.isActive) {
+      await renderer.stop();
+      vrButton.textContent = "VR";
+      status.textContent = "Returned to desktop preview.";
+      return;
+    }
+
+    vrStarting = true;
+    vrButton.disabled = true;
+    status.textContent = "Starting WebXR...";
+
+    try {
+      await renderer.start();
+      vrButton.textContent = "EXIT VR";
+      status.textContent = "WebXR active. Exit VR from the headset or press EXIT VR.";
+    } catch (error) {
+      status.textContent = "VR unavailable: " + String(error && error.message || error);
+      console.warn("WebXR startup failed:", error);
+    } finally {
+      vrStarting = false;
+      vrButton.disabled = false;
+    }
+  };
+
+  const loop = now => {
+    if (!initialized) initialize();
+
+    const delta = Math.max(0, (now - lastTime) / 1000);
+    lastTime = now;
+
+    if (initialized && !renderer.isActive) {
+      world.step(delta);
+
+      if (world.persistence.majorDirty || world.worldTime >= nextPeriodicSave) {
         saveWorld();
-        nextPeriodicSave=Math.floor(world.worldTime/5+1)*5;
+        nextPeriodicSave = Math.floor(world.worldTime / 5 + 1) * 5;
       }
     }
+
     draw();
     requestAnimationFrame(loop);
-  }
+  };
 
-  resetButton.addEventListener("click",resetSimulation);
-  vrButton.addEventListener("click",async()=>{
-    vrButton.disabled=true;
-    status.textContent="Starting WebXR…";
-    try{
-      await renderer.start();
-      status.textContent="WebXR active. Exit VR from the headset to return to the preview.";
-    }catch(error){
-      status.textContent="VR unavailable: "+String(error&&error.message||error);
-      vrButton.disabled=false;
-    }
-  });
-  addEventListener("resize",requestResize);
-  addEventListener("pagehide",saveWorld);
-  addEventListener("beforeunload",saveWorld);
-  document.addEventListener("visibilitychange",()=>{
-    if(document.visibilityState==="hidden")saveWorld();
+  resetButton.addEventListener("click", resetSimulation);
+  vrButton.addEventListener("click", startOrStopVR);
+  window.addEventListener("resize", requestResize);
+  window.addEventListener("pagehide", saveWorld);
+  window.addEventListener("beforeunload", saveWorld);
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") saveWorld();
   });
 
-  if("ResizeObserver" in window){
+  if ("ResizeObserver" in window) {
     new ResizeObserver(requestResize).observe(stage);
   }
 
-  if(window.isSecureContext&&navigator.xr){
-    navigator.xr.isSessionSupported("immersive-vr").then(supported=>{
-      vrButton.disabled=!supported;
-      status.textContent=supported?"WebXR ready.":"WebXR is not supported on this device.";
-      if(!supported)setTimeout(()=>{if(status.textContent==="WebXR is not supported on this device.")status.textContent="";},3000);
-    }).catch(()=>{status.textContent="WebXR support check failed.";});
-  }else{
-    status.textContent=window.isSecureContext?"WebXR is unavailable in this browser.":"WebXR requires a secure HTTPS page.";
-    vrButton.disabled=true;
-  }
   initialize();
+  updateWebXRStatus();
   requestAnimationFrame(loop);
 })();
 </script>
