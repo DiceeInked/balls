@@ -20,7 +20,70 @@ ent(v,e){let p=this.wp(e);if(e.type==="metaball"){let s=e.radius*S;this.draw(v,t
 eulerFromQuaternion(q){if(!q)return{pitch:0,yaw:0,roll:0};const sinp=2*(q.w*q.x+q.y*q.z),cosp=1-2*(q.x*q.x+q.y*q.y),siny=2*(q.w*q.y-q.z*q.x),cosy=1-2*(q.y*q.y+q.z*q.z),sinr=2*(q.w*q.z+q.x*q.y),cosr=1-2*(q.z*q.z+q.x*q.x);return{pitch:Math.atan2(sinp,cosp),yaw:Math.abs(siny)>=1?(Math.PI/2)*Math.sign(siny):Math.asin(siny),roll:Math.atan2(sinr,cosr)}}
 input(f,v){let p=this.w.player,tx=0,ty=0,tz=0,L=null,R=null;for(let i of this.r.inputSources){if(!i.gripSpace)continue;let z=f.getPose(i.gripSpace,this.ref);if(!z)continue;let q=z.transform.position,h={x:q.x,y:q.y,z:q.z};if(i.handedness==="left")L=h;if(i.handedness==="right")R=h;if(i.handedness==="left"||i.handedness==="right"){let a=i.gamepad&&i.gamepad.axes||[],x=a[0]||0,y=a[1]||0;if(i.handedness==="left"){tx+=x;ty-=y}else{tz+=x;ty-=y}}}let n=Math.hypot(tx,ty,tz);if(n>1){tx/=n;ty/=n;tz/=n}let W=h=>h?{x:p.x+h.x/S,y:p.y+h.y/S,z:p.z+h.z/S,active:true}:{x:p.x,y:p.y,z:p.z,active:false},gaze=false;if(L&&v&&v.views&&v.views.length){let t=v.views[0].transform,o=t.orientation,fx=2*(o.x*o.z+o.w*o.y),fy=2*(o.y*o.z-o.w*o.x),fz=1-2*(o.x*o.x+o.y*o.y),dx=L.x-t.position.x,dy=L.y-t.position.y,dz=L.z-t.position.z,d=Math.hypot(dx,dy,dz);if(d)gaze=(fx*dx+fy*dy+fz*dz)/d>.82}this.w.setPlayerInput({thrust:{x:tx,y:ty,z:tz},head:this.eulerFromQuaternion(v&&v.views&&v.views.length?v.views[0].transform.orientation:null),leftHand:W(L),rightHand:W(R),gazeAtLeftHand:gaze})}
 drawXp(v,pose){if(!pose)return;let p=pose.transform.position,n=Math.min(32,Math.max(0,this.w.player.xp));for(let i=0;i<n;i++){let a=i*Math.PI*2/Math.max(1,n),q=[p.x+Math.cos(a)*.075,p.y+Math.sin(a)*.075,p.z-.035];this.draw(v,this.q,q,[.008,.008,.008],C.w,1)}}
-frame(t,f){if(!this.r)return;let d=this.t?Math.max(0,(t-this.t)/1000):0;this.t=t;let v=f.getViewerPose(this.ref);if(!v){this.r.requestAnimationFrame((a,b)=>this.frame(a,b));return}this.input(f,v);this.w.step(d);let g=this.x;g.bindFramebuffer(g.FRAMEBUFFER,this.l.framebuffer);for(let view of v.views){let q=this.l.getViewport(view);g.viewport(q.x,q.y,q.width,q.height);g.clearColor(0,0,0,1);g.clear(g.COLOR_BUFFER_BIT|g.DEPTH_BUFFER_BIT);if(this.w.player.captured){let c=this.wp(this.w.player.trap.center);for(let p of this.w.player.trap.points)this.line(view,this.wp(p),c,C.w,1)}else{for(let e of this.w.metaballs)this.ent(view,e);for(let e of this.w.spikes)this.ent(view,e);for(let e of this.w.glitches)this.ent(view,e);this.draw(view,this.o,[view.transform.position.x,view.transform.position.y,view.transform.position.z],[.18,.18,.18],C.p,.04);for(let i of this.r.inputSources){if(!i.gripSpace)continue;let p=f.getPose(i.gripSpace,this.ref);if(p){let q=p.transform.position;this.draw(view,this.o,[q.x,q.y,q.z],[.055,.055,.055],i.handedness==="left"?C.g:C.p,.08);if(i.handedness==="left")this.drawXp(view,p)}}}}}this.r.requestAnimationFrame((a,b)=>this.frame(a,b))}
+frame(t,f){
+  if(!this.r)return;
+  let d=this.t?Math.max(0,(t-this.t)/1000):0;
+  this.t=t;
+  let pose=f.getViewerPose(this.ref);
+  if(!pose){
+    this.r.requestAnimationFrame((a,b)=>this.frame(a,b));
+    return;
+  }
+
+  this.input(f,pose);
+  this.w.step(d);
+
+  let g=this.x;
+  g.bindFramebuffer(g.FRAMEBUFFER,this.l.framebuffer);
+
+  for(let vi=0;vi<pose.views.length;vi++){
+    let view=pose.views[vi];
+    let viewport=this.l.getViewport(view);
+    g.viewport(viewport.x,viewport.y,viewport.width,viewport.height);
+    g.clearColor(0,0,0,1);
+    g.clear(g.COLOR_BUFFER_BIT|g.DEPTH_BUFFER_BIT);
+
+    if(this.w.player.captured){
+      let center=this.wp(this.w.player.trap.center);
+      for(let pi=0;pi<this.w.player.trap.points.length;pi++){
+        let point=this.w.player.trap.points[pi];
+        this.line(view,this.wp(point),center,C.w,1);
+      }
+    }else{
+      for(let i=0;i<this.w.metaballs.length;i++)this.ent(view,this.w.metaballs[i]);
+      for(let i=0;i<this.w.spikes.length;i++)this.ent(view,this.w.spikes[i]);
+      for(let i=0;i<this.w.glitches.length;i++)this.ent(view,this.w.glitches[i]);
+
+      this.draw(
+        view,
+        this.o,
+        [view.transform.position.x,view.transform.position.y,view.transform.position.z],
+        [.18,.18,.18],
+        C.p,
+        .04
+      );
+
+      for(let i=0;i<this.r.inputSources.length;i++){
+        let source=this.r.inputSources[i];
+        if(!source.gripSpace)continue;
+        let handPose=f.getPose(source.gripSpace,this.ref);
+        if(!handPose)continue;
+        let position=handPose.transform.position;
+        this.draw(
+          view,
+          this.o,
+          [position.x,position.y,position.z],
+          [.055,.055,.055],
+          source.handedness==="left"?C.g:C.p,
+          .08
+        );
+        if(source.handedness==="left")this.drawXp(view,handPose);
+      }
+    }
+  }
+
+  this.r.requestAnimationFrame((a,b)=>this.frame(a,b));
+}
 }
 window.VRRenderer=R;
 })();
