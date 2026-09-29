@@ -93,7 +93,7 @@ Randomness is used for gameplay variety, not authoritative state. A Glitch creat
 
 ## Rendering
 
-The current preview renders yellow Metaballs, XP-linked red Spike polygons, and the configured cyan Glitches. Detailed WebXR rendering remains later.
+The current preview renders yellow Metaballs, XP-linked red Spike polygons, and the configured cyan Glitches. Immersive WebXR renders the same authoritative collections stereoscopically, with a dark floor, dotted grid, blue Player, tracked hands, trap cracks, and a world-locked gray sky gradient. The Canvas 2D preview continues rendering the authoritative world while immersive XR is active.
 
 ## Testing
 
