@@ -39,9 +39,9 @@ Glitch contact drains 1 XP from the Player immediately and 1 more per additional
 Glitch/Spike contact consumes the Spike without a bounce. Half its XP goes to the existing Glitch and the other half creates a new Glitch with a random direction, clamped to bounds.
 
 ## Persistence and reset
-Page refresh intentionally resumes the saved VR world from localStorage key balls-vr-world. That is expected behavior, not a reset.
+Page load intentionally starts a fresh prototype world. Any stale localStorage snapshot under the balls-vr-world key is cleared before the first simulation frame, so a runaway or corrupted world cannot survive a refresh.
 
-The VR preview has an R button. R should mean a genuinely fresh simulation: clear saved VR state, reset world time and simulation timers, reset player XP/capture state, reset entity IDs, recreate the prototype entities, and save the fresh world.
+The VR preview has an R button. R means a genuinely fresh simulation: clear saved VR state, reset world time and simulation timers, reset player XP/capture state, reset entity IDs, and recreate the prototype entities. Page load performs the same fresh-world reset automatically.
 
 ## Current architecture
 Simulation is authoritative. Rendering is only a view.
