@@ -14,7 +14,7 @@ COMPLETED.
 COMPLETED for the clock layer.
 
 ## 4. Persistence
-COMPLETED for the current prototype layer.
+COMPLETED for the current prototype layer. Persistence APIs remain available for the simulation, but the current VR page deliberately clears its saved snapshot on page load so refresh always starts clean.
 
 ## 5. Metaballs
 COMPLETED for the current prototype layer.
