@@ -21,8 +21,10 @@
     "uniform mat4 uProjection;",
     "uniform mat4 uView;",
     "uniform mat4 uModel;",
+    "uniform float uPointSize;",
     "void main(){",
     "  gl_Position=uProjection*uView*uModel*vec4(aPosition,1.0);",
+    "  gl_PointSize=uPointSize;",
     "}"
   ].join("");
 
@@ -145,6 +147,16 @@
     return createMesh(gl, vertices, gl.TRIANGLES);
   }
 
+  function createGridDots(gl, radius, spacing) {
+    const vertices = [];
+    for (let x = -radius; x <= radius; x += spacing) {
+      for (let z = -radius; z <= radius; z += spacing) {
+        vertices.push(x, 0, z);
+      }
+    }
+    return createMesh(gl, vertices, gl.POINTS);
+  }
+
   function createPlane(gl, size) {
     return createMesh(gl, [
       -size,0,-size, size,0,-size, size,0,size,
@@ -186,6 +198,7 @@
       this.octahedron = null;
       this.sphere = null;
       this.floor = null;
+      this.gridDots = null;
       this.vertexBuffer = null;
       this.running = false;
       this.currentFrame = null;
@@ -224,7 +237,8 @@
           view: gl.getUniformLocation(this.program, "uView"),
           model: gl.getUniformLocation(this.program, "uModel"),
           color: gl.getUniformLocation(this.program, "uColor"),
-          glow: gl.getUniformLocation(this.program, "uGlow")
+          glow: gl.getUniformLocation(this.program, "uGlow"),
+          pointSize: gl.getUniformLocation(this.program, "uPointSize")
         };
 
         this.skyLocations = {
@@ -237,6 +251,7 @@
         this.octahedron = createOctahedron(gl);
         this.sphere = createSphere(gl);
         this.floor = createPlane(gl, GRID_RADIUS + 2);
+        this.gridDots = createGridDots(gl, GRID_RADIUS, GRID_SPACING);
 
         this.vertexBuffer = gl.createBuffer();
         if (!this.vertexBuffer) throw new Error("Unable to create dynamic line buffer.");
@@ -261,6 +276,7 @@
           this.octahedron = null;
           this.sphere = null;
           this.floor = null;
+          this.gridDots = null;
           this.vertexBuffer = null;
           this.error = null;
         });
@@ -396,6 +412,7 @@
       );
       gl.uniform4fv(this.locations.color, color);
       gl.uniform1f(this.locations.glow, glow);
+      gl.uniform1f(this.locations.pointSize, 1);
       gl.drawArrays(mesh.mode, 0, mesh.count);
     }
 
@@ -450,18 +467,18 @@
         COLORS.floor
       );
 
-      for (let x = -GRID_RADIUS; x <= GRID_RADIUS; x += GRID_SPACING) {
-        for (let z = -GRID_RADIUS; z <= GRID_RADIUS; z += GRID_SPACING) {
-          this.drawMesh(
-            view,
-            this.sphere,
-            [x, FLOOR_Y + 0.006, z],
-            [0.006,0.006,0.006],
-            COLORS.white,
-            0.2
-          );
-        }
-      }
+      const gl = this.gl;
+      gl.useProgram(this.program);
+      gl.bindBuffer(gl.ARRAY_BUFFER, this.gridDots.buffer);
+      gl.vertexAttribPointer(this.locations.position, 3, gl.FLOAT, false, 0, 0);
+      gl.enableVertexAttribArray(this.locations.position);
+      gl.uniformMatrix4fv(this.locations.projection, false, view.projectionMatrix);
+      gl.uniformMatrix4fv(this.locations.view, false, view.viewMatrix);
+      gl.uniformMatrix4fv(this.locations.model, false, modelMatrix(0, FLOOR_Y + 0.006, 0, 1, 1, 1));
+      gl.uniform4fv(this.locations.color, COLORS.white);
+      gl.uniform1f(this.locations.glow, 0.2);
+      gl.uniform1f(this.locations.pointSize, 3);
+      gl.drawArrays(this.gl.POINTS, 0, this.gridDots.count);
     }
 
     drawEntity(view, entity) {
