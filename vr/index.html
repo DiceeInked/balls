@@ -363,7 +363,11 @@ button{font:700 18px monospace}
       }
     }
 
-    if (!renderer.isActive && renderer.error) {
+    if (renderer.isActive) {
+      status.textContent =
+        "Immersive VR active • XR frames: " + renderer.xrFrameCount +
+        " • pose timestamp: " + Math.round(renderer.xrLastPoseTime || 0);
+    } else if (renderer.error) {
       status.textContent = "Last VR renderer error: " + renderer.error;
     }
 
