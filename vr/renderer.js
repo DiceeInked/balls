@@ -2,7 +2,8 @@
   const WORLD_SCALE = 0.01;
   const GRID_SPACING = 0.5;
   const GRID_RADIUS = 10;
-  const FLOOR_Y = -1.55;
+  const FLOOR_Y = 0;
+  const PLAYER_VISUAL_Y = 1.0;
 
   const COLORS = {
     metaball: [1, 0.929, 0, 1],
@@ -207,7 +208,19 @@
       this.contextEventsAttached = false;
       this.xrFrameCount = 0;
       this.xrLastPoseTime = 0;
+      this.diagnostics={lastError:null,errorCount:0,errors:[],lastStage:"idle",inputSourceCount:0,viewCount:0};
     }
+
+    recordError(code,message,stage){
+      const entry={code:String(code||"XR-UNKNOWN-001"),message:String(message||"Unknown renderer error."),stage:String(stage||"unknown"),frame:this.xrFrameCount,time:this.xrLastPoseTime||0};
+      this.diagnostics.lastError=entry;
+      this.diagnostics.errorCount+=1;
+      this.diagnostics.lastStage=entry.stage;
+      this.diagnostics.errors.unshift(entry);
+      if(this.diagnostics.errors.length>12)this.diagnostics.errors.length=12;
+    }
+
+    getDiagnostics(){return{active:this.isActive,supported:this.isSupported,frameCount:this.xrFrameCount,lastPoseTime:this.xrLastPoseTime,inputSourceCount:this.diagnostics.inputSourceCount,viewCount:this.diagnostics.viewCount,lastStage:this.diagnostics.lastStage,errorCount:this.diagnostics.errorCount,lastError:this.diagnostics.lastError,errors:this.diagnostics.errors.slice(0,8)};}
 
     get isActive() {
       return this.running && !!this.session;
@@ -229,7 +242,7 @@
         const gl = this.canvas.getContext("webgl", {
           alpha: false,
           antialias: false,
-          depth: false,
+          depth: true,
           stencil: false,
           xrCompatible: true,
           premultipliedAlpha: true
@@ -329,15 +342,15 @@
 
         // makeXRCompatible() may reconfigure the backing graphics context.
         // Rebuild every shader/buffer after it resolves, never before.
-        this.buildResources();
+        if (!this.resourcesReady) this.buildResources();
 
         const layer = new XRWebGLLayer(session, this.gl, {
           alpha: false,
           antialias: false,
-          depth: false,
+          depth: true,
           stencil: false,
           framebufferScaleFactor: 1,
-          ignoreDepthValues: true
+          ignoreDepthValues: false
         });
 
         if (!layer.framebuffer) {
@@ -365,6 +378,9 @@
         this.layer = layer;
         this.referenceSpace = referenceSpace;
         this.running = true;
+        this.diagnostics.lastStage="session-active";
+        this.diagnostics.inputSourceCount=0;
+        this.diagnostics.viewCount=0;
         this.frameTime = 0;
         this.error = null;
 
@@ -393,6 +409,7 @@
 
     handleSessionEnd() {
       this.running = false;
+      this.diagnostics.lastStage="session-ended";
       this.session = null;
       this.referenceSpace = null;
       this.layer = null;
@@ -417,7 +434,7 @@
       const player = this.world.player;
       return [
         (entity.x - player.x) * WORLD_SCALE,
-        entity.z * WORLD_SCALE,
+        (entity.z - player.z) * WORLD_SCALE,
         -(entity.y - player.y) * WORLD_SCALE
       ];
     }
@@ -496,13 +513,11 @@
 
     drawFloor(view) {
       const gl = this.gl;
-      this.drawMesh(
-        view,
-        this.floor,
-        [0, FLOOR_Y, 0],
-        [1,1,1],
-        COLORS.floor
-      );
+      const player=this.world.player;
+      const floorY=(FLOOR_Y-player.z)*WORLD_SCALE;
+      const floorX=-player.x*WORLD_SCALE;
+      const floorZ=player.y*WORLD_SCALE;
+      this.drawMesh(view,this.floor,[floorX,floorY,floorZ],[1,1,1],COLORS.floor);
 
       gl.useProgram(this.program);
       gl.bindBuffer(gl.ARRAY_BUFFER, this.gridDots.buffer);
@@ -510,7 +525,7 @@
       gl.enableVertexAttribArray(this.locations.position);
       gl.uniformMatrix4fv(this.locations.projection, false, view.projectionMatrix);
       gl.uniformMatrix4fv(this.locations.view, false, view.viewMatrix);
-      gl.uniformMatrix4fv(this.locations.model, false, modelMatrix(0, FLOOR_Y + 0.006, 0, 1, 1, 1));
+      gl.uniformMatrix4fv(this.locations.model, false, modelMatrix(floorX, floorY + 0.006, floorZ, 1, 1, 1));
       gl.uniform4fv(this.locations.color, COLORS.white);
       gl.uniform1f(this.locations.glow, 0.2);
       gl.uniform1f(this.locations.pointSize, 3);
@@ -618,6 +633,8 @@
         }
       }
 
+      this.diagnostics.inputSourceCount=this.session.inputSources.length;
+      this.diagnostics.lastStage="input";
       this.world.setPlayerInput({
         thrust: { x: thrustX, y: thrustY, z: thrustZ },
         head: this.eulerFromQuaternion(firstView && firstView.transform.orientation),
@@ -714,7 +731,7 @@
         this.drawMesh(
           view,
           this.octahedron,
-          [0, -1.45, 0],
+          [0, PLAYER_VISUAL_Y, 0],
           [0.18,0.18,0.18],
           COLORS.player,
           0.08
@@ -722,12 +739,14 @@
       }
 
       this.drawHands(view);
+      this.diagnostics.lastStage="rendered";
     }
 
     frame(time, frame) {
       if (!this.isActive) return;
 
       const session = frame.session;
+      this.diagnostics.lastStage="frame";
       session.requestAnimationFrame((nextTime, nextFrame) => {
         this.frame(nextTime, nextFrame);
       });
@@ -738,7 +757,11 @@
 
       try {
         const pose = frame.getViewerPose(this.referenceSpace);
-        if (!pose || pose.views.length === 0) return;
+        if (!pose || pose.views.length === 0) {
+          this.recordError("XR-POSE-001","WebXR returned no viewer views for the current frame.","pose");
+          return;
+        }
+        this.diagnostics.viewCount=pose.views.length;
 
         const gl = this.gl;
         const layer = session.renderState.baseLayer;
@@ -754,11 +777,12 @@
         gl.bindFramebuffer(gl.FRAMEBUFFER, layer.framebuffer);
         gl.disable(gl.SCISSOR_TEST);
         gl.disable(gl.BLEND);
-        gl.disable(gl.DEPTH_TEST);
-        gl.depthMask(false);
+        gl.enable(gl.DEPTH_TEST);
+        gl.depthMask(true);
 
         gl.clearColor(0.12, 0.12, 0.14, 1);
-        gl.clear(gl.COLOR_BUFFER_BIT);
+        gl.clearDepth(1);
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
         try {
           this.updateInput(frame, pose);
@@ -793,7 +817,10 @@
 
         const glError = gl.getError();
         if (glError !== gl.NO_ERROR) {
-          this.error = "WebGL XR frame error 0x" + glError.toString(16) + ".";
+          const hex=glError.toString(16);
+          const message="WebGL XR frame error 0x"+hex+".";
+          this.recordError("GL-ERROR-"+hex,message,"webgl");
+          this.error=message;
         }
       } catch (error) {
         this.error = "XR frame: " +
