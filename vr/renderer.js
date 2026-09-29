@@ -398,6 +398,7 @@
     }
 
     drawMesh(view, mesh, position, scale, color, glow = 0) {
+      const gl = this.gl;
       gl.useProgram(this.program);
       gl.bindBuffer(gl.ARRAY_BUFFER, mesh.buffer);
       gl.vertexAttribPointer(this.locations.position, 3, gl.FLOAT, false, 0, 0);
@@ -466,7 +467,6 @@
         COLORS.floor
       );
 
-      const gl = this.gl;
       gl.useProgram(this.program);
       gl.bindBuffer(gl.ARRAY_BUFFER, this.gridDots.buffer);
       gl.vertexAttribPointer(this.locations.position, 3, gl.FLOAT, false, 0, 0);
