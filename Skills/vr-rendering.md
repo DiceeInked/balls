@@ -39,3 +39,6 @@ The immersive scene has a light-gray-to-dark-gray sky gradient, a dark floor ben
 
 ## XR black-void hardening
 The immersive background is rendered as a fullscreen WebGL triangle instead of a camera-dependent sky sphere. This keeps the environment visible even if world-space transforms or headset camera matrices are problematic. The XR clear color is also a dark gray rather than black, so a rendering failure is visually distinguishable from an intentional pitch-black void. Controller rendering and input accept `gripSpace` with `targetRaySpace` as a fallback when a browser does not expose a grip pose.
+
+## XR WebGL resource lifecycle
+The renderer creates its WebGL shaders and buffers only after `makeXRCompatible()` resolves. That call may reconfigure the backing graphics context, so resources created before it can become invalid. Context-loss/restoration events mark the resources unavailable so they are rebuilt before rendering resumes.
