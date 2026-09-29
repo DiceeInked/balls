@@ -14,7 +14,7 @@ The page uses the authoritative `VRWorld.step()` boundary before rendering. Game
 
 The simulation uses authoritative fixed-step world time. Continuous XP drains use per-pair contact timers. Metaball pickup generation and future passive player XP loss consume 100-second timer events.
 
-The world should remain logically loaded when the tab is hidden or rendering is throttled. Persistent state includes world time, entities, player state, XP, positions, velocities, IDs, relevant timers, pickup state, and capture state.
+Persistence remains available as a simulation mechanism, but the current VR page intentionally clears the balls-vr-world snapshot on every page load and starts from a fresh prototype. This prevents a runaway or corrupted world from surviving a refresh.
 
 ## XP
 
