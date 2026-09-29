@@ -354,7 +354,10 @@ button{font:700 18px monospace}
     const delta = Math.max(0, (now - lastTime) / 1000);
     lastTime = now;
 
-    if (initialized && !renderer.isActive) {
+    if (initialized) {
+      // The desktop RAF remains the single simulation clock even while
+      // immersive XR is active. The XR renderer only supplies headset/hand
+      // input and presents the authoritative world.
       world.step(delta);
 
       if (world.persistence.majorDirty || world.worldTime >= nextPeriodicSave) {
