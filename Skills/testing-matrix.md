@@ -134,3 +134,14 @@ Verify:
 - Both children receive an 8-frame collision cooldown.
 - The children remain separate through the cooldown instead of recursively splitting.
 - A Spike at the minimum point count disappears instead of splitting.
+
+
+## XR diagnostic verification
+Verify that:
+- `local-floor` produces a game floor at XR Y=0 rather than a hard-coded below-floor offset.
+- Simulation Z changes move world geometry vertically relative to the Player.
+- The same X/Y/Z mapping is used for entity rendering and controller/tracked-hand input.
+- XR framebuffer dimensions and eye view counts are exposed in diagnostics.
+- A missing viewer pose, invalid viewport, XR startup failure, WebGL context loss, WebGL error, XR input failure, or render failure produces a retained diagnostic code.
+- A simulation exception halts simulation cleanly without killing the page's diagnostic loop.
+- Exiting XR leaves retained diagnostics visible in the desktop status panel.
