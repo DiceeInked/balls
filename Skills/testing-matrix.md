@@ -64,7 +64,8 @@ System tests:
 - Shader compilation/link failure
 - 2D fallback remains visible when WebGL is unavailable
 - iPhone Safari portrait and landscape layout
-- WebXR unavailable
+- Desktop preview with WebXR unavailable
+- VR control reports a useful diagnostic instead of disabling the desktop UI
 - WebXR session start/end
 - WebXR controller/hand pose input
 - Headset orientation reaches the authoritative Player input boundary
