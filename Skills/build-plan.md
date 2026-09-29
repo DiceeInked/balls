@@ -56,3 +56,7 @@ Before every future project change:
 4. Update every affected skill.
 5. Recheck the full skill set for contradictions.
 6. Verify the implementation against the updated specification.
+
+
+## Current Step 11/12 hardening
+The renderer/simulation boundary now contains runtime failures instead of allowing a fixed-step or page-loop exception to kill diagnostics. The immersive renderer records structured XR/WebGL error codes and exposes live frame, view, input, reference-space, and framebuffer diagnostics. Coordinate mapping has been normalized around the Player and `local-floor` where available.
