@@ -38,3 +38,6 @@ The visualization is currently a deliberately simple view of the architecture. I
 
 ## Step 9 implementation note
 Player capture and crack-repair progress are now authoritative Player state. The renderer may visualize the blackened world and cracks, but it does not own capture or repair state.
+
+## Recent XR hardening
+The Step 11 separation work has been advanced in the XR frame path: XR framebuffer presentation is no longer dependent on successful input or simulation updates. Input/simulation failures are recorded and rendering continues from the last valid authoritative state.
