@@ -42,3 +42,6 @@ The immersive background is rendered as a fullscreen WebGL triangle instead of a
 
 ## XR WebGL resource lifecycle
 The renderer creates its WebGL shaders and buffers only after `makeXRCompatible()` resolves. That call may reconfigure the backing graphics context, so resources created before it can become invalid. Context-loss/restoration events mark the resources unavailable so they are rebuilt before rendering resumes.
+
+## Recent XR hardening
+The immersive renderer now keeps the XR WebGL canvas full-size with an explicit backing resolution instead of using a 1×1 hidden canvas. The WebGL context requests XR compatibility at creation and also calls `makeXRCompatible()`; all shaders/buffers are built after XR compatibility resolves. The XR layer uses a minimal configuration without depth or antialiasing to reduce device-specific framebuffer complexity. The XR frame loop schedules its next callback before rendering, binds the current session base layer, renders each XR view using its returned viewport, and isolates input/simulation failures from presentation.
