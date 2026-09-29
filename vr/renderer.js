@@ -1,12 +1,19 @@
 (() => {
   const WORLD_SCALE = 0.01;
+  const GRID_SPACING = 0.5;
+  const GRID_RADIUS = 10;
+  const FLOOR_Y = -1.55;
+
   const COLORS = {
     metaball: [1, 0.929, 0, 1],
     spike: [1, 0, 0.329, 1],
     glitch: [0, 1, 0.784, 1],
     player: [0.231, 0.51, 0.965, 1],
+    handLeft: [0, 1, 0.784, 1],
+    handRight: [0.231, 0.51, 0.965, 1],
     white: [1, 1, 1, 1],
-    black: [0, 0, 0, 1]
+    black: [0, 0, 0, 1],
+    floor: [0.012, 0.012, 0.015, 1]
   };
 
   const VERTEX_SHADER = [
@@ -29,6 +36,36 @@
     "}"
   ].join("");
 
+  const SKY_VERTEX_SHADER = [
+    "attribute vec3 aPosition;",
+    "uniform mat4 uProjection;",
+    "uniform mat4 uView;",
+    "uniform mat4 uModel;",
+    "varying float vHeight;",
+    "void main(){",
+    "  vHeight=aPosition.y;",
+    "  gl_Position=uProjection*uView*uModel*vec4(aPosition,1.0);",
+    "}"
+  ].join("");
+
+  const SKY_FRAGMENT_SHADER = [
+    "precision mediump float;",
+    "varying float vHeight;",
+    "void main(){",
+    "  float h=clamp(vHeight*0.5+0.5,0.0,1.0);",
+    "  vec3 below=vec3(0.035,0.035,0.04);",
+    "  vec3 horizon=vec3(0.52,0.52,0.54);",
+    "  vec3 above=vec3(0.72,0.72,0.74);",
+    "  vec3 color;",
+    "  if(h<0.5){",
+    "    color=mix(below,horizon,h*2.0);",
+    "  }else{",
+    "    color=mix(horizon,above,(h-0.5)*2.0);",
+    "  }",
+    "  gl_FragColor=vec4(color,1.0);",
+    "}"
+  ].join("");
+
   function createShader(gl, type, source) {
     const shader = gl.createShader(type);
     if (!shader) throw new Error("Unable to create WebGL shader.");
@@ -42,12 +79,12 @@
     return shader;
   }
 
-  function createProgram(gl) {
+  function createProgram(gl, vertexSource, fragmentSource) {
     const program = gl.createProgram();
     if (!program) throw new Error("Unable to create WebGL program.");
 
-    const vertex = createShader(gl, gl.VERTEX_SHADER, VERTEX_SHADER);
-    const fragment = createShader(gl, gl.FRAGMENT_SHADER, FRAGMENT_SHADER);
+    const vertex = createShader(gl, gl.VERTEX_SHADER, vertexSource);
+    const fragment = createShader(gl, gl.FRAGMENT_SHADER, fragmentSource);
 
     gl.attachShader(program, vertex);
     gl.attachShader(program, fragment);
@@ -68,58 +105,39 @@
   function createMesh(gl, vertices, mode) {
     const buffer = gl.createBuffer();
     if (!buffer) throw new Error("Unable to create WebGL buffer.");
-
     gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
-
-    return {
-      buffer,
-      count: vertices.length / 3,
-      mode
-    };
+    return { buffer, count: vertices.length / 3, mode };
   }
 
   function createOctahedron(gl) {
     return createMesh(gl, [
-       0, 1, 0, -1, 0, 0, 0, 0, 1,
-       0, 1, 0,  0, 0, 1, 1, 0, 0,
-       0, 1, 0,  1, 0, 0, 0, 0,-1,
-       0, 1, 0,  0, 0,-1,-1, 0, 0,
-       0,-1, 0,  0, 0, 1,-1, 0, 0,
-       0,-1, 0,  1, 0, 0, 0, 0, 1,
-       0,-1, 0,  0, 0,-1, 1, 0, 0,
-       0,-1, 0, -1, 0, 0, 0, 0,-1,
-       0, 0, 1,  1, 0, 0, 0, 1, 0,
-       0, 0, 1,  0, 1, 0,-1, 0, 0,
-       0, 0,-1, -1, 0, 0, 0, 1, 0,
-       0, 0,-1,  0,-1, 0, 1, 0, 0
+       0,1,0,-1,0,0,0,0,1, 0,1,0,0,0,1,1,0,0,
+       0,1,0,1,0,0,0,0,-1, 0,1,0,0,0,-1,-1,0,0,
+       0,-1,0,0,0,1,-1,0,0, 0,-1,0,1,0,0,0,0,1,
+       0,-1,0,0,0,-1,1,0,0, 0,-1,0,-1,0,0,0,0,-1,
+       0,0,1,1,0,0,0,1,0, 0,0,1,0,1,0,-1,0,0,
+       0,0,-1,-1,0,0,0,1,0, 0,0,-1,0,-1,0,1,0,0
     ], gl.TRIANGLES);
   }
 
   function createSphere(gl) {
     const vertices = [];
-    const latitudeBands = 8;
-    const longitudeBands = 12;
+    const latBands = 8;
+    const lonBands = 12;
 
-    for (let lat = 0; lat < latitudeBands; lat += 1) {
-      const p0 = Math.PI * lat / latitudeBands - Math.PI / 2;
-      const p1 = Math.PI * (lat + 1) / latitudeBands - Math.PI / 2;
+    for (let lat = 0; lat < latBands; lat += 1) {
+      const p0 = Math.PI * lat / latBands - Math.PI / 2;
+      const p1 = Math.PI * (lat + 1) / latBands - Math.PI / 2;
 
-      for (let lon = 0; lon < longitudeBands; lon += 1) {
-        const a0 = Math.PI * 2 * lon / longitudeBands;
-        const a1 = Math.PI * 2 * (lon + 1) / longitudeBands;
-
-        const point = (p, a) => [
-          Math.cos(p) * Math.cos(a),
-          Math.sin(p),
-          Math.cos(p) * Math.sin(a)
-        ];
-
+      for (let lon = 0; lon < lonBands; lon += 1) {
+        const a0 = Math.PI * 2 * lon / lonBands;
+        const a1 = Math.PI * 2 * (lon + 1) / lonBands;
+        const point = (p, a) => [Math.cos(p) * Math.cos(a), Math.sin(p), Math.cos(p) * Math.sin(a)];
         const a = point(p0, a0);
         const b = point(p1, a0);
         const c = point(p1, a1);
         const d = point(p0, a1);
-
         vertices.push(...a, ...b, ...c, ...a, ...c, ...d);
       }
     }
@@ -127,13 +145,28 @@
     return createMesh(gl, vertices, gl.TRIANGLES);
   }
 
+  function createPlane(gl, size) {
+    return createMesh(gl, [
+      -size,0,-size, size,0,-size, size,0,size,
+      -size,0,-size, size,0,size, -size,0,size
+    ], gl.TRIANGLES);
+  }
+
   function modelMatrix(x, y, z, sx, sy, sz) {
     return new Float32Array([
-      sx, 0, 0, 0,
-      0, sy, 0, 0,
-      0, 0, sz, 0,
-      x, y, z, 1
+      sx,0,0,0,
+      0,sy,0,0,
+      0,0,sz,0,
+      x,y,z,1
     ]);
+  }
+
+  function removeViewTranslation(matrix) {
+    const result = new Float32Array(matrix);
+    result[12] = 0;
+    result[13] = 0;
+    result[14] = 0;
+    return result;
   }
 
   class VRRenderer {
@@ -142,17 +175,20 @@
       this.world = world;
       this.gl = null;
       this.program = null;
+      this.skyProgram = null;
       this.session = null;
       this.referenceSpace = null;
       this.layer = null;
       this.frameTime = 0;
       this.error = null;
-      this.positionBuffer = null;
-      this.vertexBuffer = null;
       this.locations = null;
+      this.skyLocations = null;
       this.octahedron = null;
       this.sphere = null;
+      this.floor = null;
+      this.vertexBuffer = null;
       this.running = false;
+      this.currentFrame = null;
     }
 
     get isActive() {
@@ -179,7 +215,9 @@
         if (!gl) throw new Error("WebGL is unavailable in this browser.");
 
         this.gl = gl;
-        this.program = createProgram(gl);
+        this.program = createProgram(gl, VERTEX_SHADER, FRAGMENT_SHADER);
+        this.skyProgram = createProgram(gl, SKY_VERTEX_SHADER, SKY_FRAGMENT_SHADER);
+
         this.locations = {
           position: gl.getAttribLocation(this.program, "aPosition"),
           projection: gl.getUniformLocation(this.program, "uProjection"),
@@ -189,18 +227,25 @@
           glow: gl.getUniformLocation(this.program, "uGlow")
         };
 
+        this.skyLocations = {
+          position: gl.getAttribLocation(this.skyProgram, "aPosition"),
+          projection: gl.getUniformLocation(this.skyProgram, "uProjection"),
+          view: gl.getUniformLocation(this.skyProgram, "uView"),
+          model: gl.getUniformLocation(this.skyProgram, "uModel")
+        };
+
         this.octahedron = createOctahedron(gl);
         this.sphere = createSphere(gl);
+        this.floor = createPlane(gl, GRID_RADIUS + 2);
 
         this.vertexBuffer = gl.createBuffer();
         if (!this.vertexBuffer) throw new Error("Unable to create dynamic line buffer.");
-
         gl.bindBuffer(gl.ARRAY_BUFFER, this.vertexBuffer);
         gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(6), gl.DYNAMIC_DRAW);
 
         gl.enable(gl.DEPTH_TEST);
+        gl.depthFunc(gl.LEQUAL);
         gl.disable(gl.CULL_FACE);
-        gl.useProgram(this.program);
 
         this.canvas.addEventListener("webglcontextlost", event => {
           event.preventDefault();
@@ -210,9 +255,12 @@
         this.canvas.addEventListener("webglcontextrestored", () => {
           this.gl = null;
           this.program = null;
+          this.skyProgram = null;
           this.locations = null;
+          this.skyLocations = null;
           this.octahedron = null;
           this.sphere = null;
+          this.floor = null;
           this.vertexBuffer = null;
           this.error = null;
         });
@@ -227,7 +275,7 @@
     async start() {
       if (this.isActive) return true;
       if (!this.isSupported) {
-        throw new Error("WebXR is not available in this browser. The desktop preview will continue normally.");
+        throw new Error("WebXR is not available in this browser.");
       }
 
       if (!this.initializeWebGL()) {
@@ -235,6 +283,7 @@
       }
 
       let session;
+
       try {
         session = await navigator.xr.requestSession("immersive-vr", {
           optionalFeatures: ["local-floor", "hand-tracking"]
@@ -245,15 +294,21 @@
 
       try {
         await this.gl.makeXRCompatible();
+
         const layer = new XRWebGLLayer(session, this.gl, {
           antialias: true,
           depth: true,
           framebufferScaleFactor: 1
         });
 
-        session.updateRenderState({ baseLayer: layer });
+        session.updateRenderState({
+          baseLayer: layer,
+          depthNear: 0.01,
+          depthFar: 100
+        });
 
         let referenceSpace;
+
         try {
           referenceSpace = await session.requestReferenceSpace("local-floor");
         } catch {
@@ -294,6 +349,7 @@
       this.referenceSpace = null;
       this.layer = null;
       this.frameTime = 0;
+      this.currentFrame = null;
     }
 
     describeXRError(error) {
@@ -310,13 +366,24 @@
       const player = this.world.player;
       return [
         (entity.x - player.x) * WORLD_SCALE,
-        (entity.y - player.y) * WORLD_SCALE,
-        (entity.z - player.z) * WORLD_SCALE
+        (entity.z - player.z) * WORLD_SCALE,
+        (entity.y - player.y) * WORLD_SCALE
+      ];
+    }
+
+    handPosition(pose) {
+      const player = this.world.player;
+      const p = pose.transform.position;
+      return [
+        p.x,
+        p.y,
+        p.z
       ];
     }
 
     drawMesh(view, mesh, position, scale, color, glow = 0) {
       const gl = this.gl;
+      gl.useProgram(this.program);
       gl.bindBuffer(gl.ARRAY_BUFFER, mesh.buffer);
       gl.vertexAttribPointer(this.locations.position, 3, gl.FLOAT, false, 0, 0);
       gl.enableVertexAttribArray(this.locations.position);
@@ -334,59 +401,96 @@
 
     drawLine(view, start, end, color, glow = 0) {
       const gl = this.gl;
+
       gl.bindBuffer(gl.ARRAY_BUFFER, this.vertexBuffer);
       gl.bufferSubData(gl.ARRAY_BUFFER, 0, new Float32Array([
         start[0], start[1], start[2],
         end[0], end[1], end[2]
       ]));
+
       this.drawMesh(
         view,
         { buffer: this.vertexBuffer, count: 2, mode: gl.LINES },
-        [0, 0, 0],
-        [1, 1, 1],
+        [0,0,0],
+        [1,1,1],
         color,
         glow
       );
+    }
+
+    drawSky(view) {
+      const gl = this.gl;
+      gl.disable(gl.DEPTH_TEST);
+      gl.useProgram(this.skyProgram);
+      gl.bindBuffer(gl.ARRAY_BUFFER, this.sphere.buffer);
+      gl.vertexAttribPointer(this.skyLocations.position, 3, gl.FLOAT, false, 0, 0);
+      gl.enableVertexAttribArray(this.skyLocations.position);
+      gl.uniformMatrix4fv(this.skyLocations.projection, false, view.projectionMatrix);
+      gl.uniformMatrix4fv(
+        this.skyLocations.view,
+        false,
+        removeViewTranslation(view.viewMatrix)
+      );
+      gl.uniformMatrix4fv(
+        this.skyLocations.model,
+        false,
+        modelMatrix(0,0,0,50,50,50)
+      );
+      gl.drawArrays(this.sphere.mode, 0, this.sphere.count);
+      gl.enable(gl.DEPTH_TEST);
+    }
+
+    drawFloor(view) {
+      const gl = this.gl;
+      this.drawMesh(
+        view,
+        this.floor,
+        [0, FLOOR_Y, 0],
+        [1,1,1],
+        COLORS.floor
+      );
+
+      for (let x = -GRID_RADIUS; x <= GRID_RADIUS; x += GRID_SPACING) {
+        for (let z = -GRID_RADIUS; z <= GRID_RADIUS; z += GRID_SPACING) {
+          this.drawMesh(
+            view,
+            this.sphere,
+            [x, FLOOR_Y + 0.006, z],
+            [0.006,0.006,0.006],
+            COLORS.white,
+            0.2
+          );
+        }
+      }
     }
 
     drawEntity(view, entity) {
       const position = this.worldPosition(entity);
 
       if (entity.type === "metaball") {
-        const scale = Math.max(0.01, entity.radius * WORLD_SCALE);
-        this.drawMesh(view, this.sphere, position, [scale, scale, scale], COLORS.metaball, 0.05);
-
-        if (entity.pickup && entity.pickup.storedXp > 0) {
-          const orb = Math.max(0.004, scale * 0.3);
-          this.drawMesh(
-            view,
-            this.sphere,
-            [position[0], position[1], position[2] + scale * 0.45],
-            [orb, orb, orb],
-            COLORS.black,
-            0
-          );
-        }
+        const scale = Math.max(0.025, entity.radius * WORLD_SCALE);
+        this.drawMesh(view, this.sphere, position, [scale,scale,scale], COLORS.metaball, 0.05);
         return;
       }
 
       if (entity.type === "glitch") {
-        const scale = Math.max(0.01, entity.radius * WORLD_SCALE);
-        this.drawMesh(view, this.sphere, position, [scale, scale, scale], COLORS.glitch, 0.02);
+        const scale = Math.max(0.025, entity.radius * WORLD_SCALE);
+        this.drawMesh(view, this.sphere, position, [scale,scale,scale], COLORS.glitch, 0.08);
         return;
       }
 
       const count = Math.min(32, Math.max(3, this.world.spikePointCount(entity)));
-      const scale = Math.max(0.01, entity.radius * WORLD_SCALE);
+      const scale = Math.max(0.025, entity.radius * WORLD_SCALE);
       const direction = Number.isFinite(entity.direction) ? entity.direction : 0;
 
       for (let i = 0; i < count; i += 1) {
         const a = direction + Math.PI * 2 * i / count;
         const b = direction + Math.PI * 2 * (i + 1) / count;
+
         this.drawLine(
           view,
-          [position[0] + Math.cos(a) * scale, position[1] + Math.sin(a) * scale, position[2]],
-          [position[0] + Math.cos(b) * scale, position[1] + Math.sin(b) * scale, position[2]],
+          [position[0] + Math.cos(a) * scale, position[1], position[2] + Math.sin(a) * scale],
+          [position[0] + Math.cos(b) * scale, position[1], position[2] + Math.sin(b) * scale],
           COLORS.spike
         );
       }
@@ -406,19 +510,16 @@
         const gripPose = frame.getPose(source.gripSpace, this.referenceSpace);
         if (!gripPose) continue;
 
-        const position = gripPose.transform.position;
+        const p = gripPose.transform.position;
         const hand = {
-          x: player.x + position.x / WORLD_SCALE,
-          y: player.y + position.y / WORLD_SCALE,
-          z: player.z + position.z / WORLD_SCALE,
+          x: player.x + p.x / WORLD_SCALE,
+          y: player.y + p.z / WORLD_SCALE,
+          z: player.z + p.y / WORLD_SCALE,
           active: true
         };
 
-        if (source.handedness === "left") {
-          leftHand = hand;
-        } else if (source.handedness === "right") {
-          rightHand = hand;
-        }
+        if (source.handedness === "left") leftHand = hand;
+        if (source.handedness === "right") rightHand = hand;
 
         const axes = source.gamepad && source.gamepad.axes ? source.gamepad.axes : [];
         const x = Number.isFinite(axes[0]) ? axes[0] : 0;
@@ -440,28 +541,32 @@
         thrustZ /= length;
       }
 
+      const firstView = pose.views[0];
       let gazeAtLeftHand = false;
-      if (leftHand && pose.views.length > 0) {
-        const viewer = pose.views[0].transform;
-        const orientation = viewer.orientation;
+
+      if (leftHand && firstView) {
+        const viewer = firstView.transform;
+        const q = viewer.orientation;
         const forward = [
-          2 * (orientation.x * orientation.z + orientation.w * orientation.y),
-          2 * (orientation.y * orientation.z - orientation.w * orientation.x),
-          1 - 2 * (orientation.x * orientation.x + orientation.y * orientation.y)
+          2 * (q.x * q.z + q.w * q.y),
+          2 * (q.y * q.z - q.w * q.x),
+          1 - 2 * (q.x * q.x + q.y * q.y)
         ];
-        const dx = leftHand.x * WORLD_SCALE - viewer.position.x;
-        const dy = leftHand.y * WORLD_SCALE - viewer.position.y;
-        const dz = leftHand.z * WORLD_SCALE - viewer.position.z;
-        const distance = Math.hypot(dx, dy, dz);
+
+        const handX = (leftHand.x - player.x) * WORLD_SCALE;
+        const handY = (leftHand.z - player.z) * WORLD_SCALE;
+        const handZ = (leftHand.y - player.z) * WORLD_SCALE;
+        const distance = Math.hypot(handX, handY, handZ);
 
         if (distance > 0.0001) {
-          gazeAtLeftHand = (forward[0] * dx + forward[1] * dy + forward[2] * dz) / distance > 0.82;
+          gazeAtLeftHand =
+            (forward[0] * handX + forward[1] * handZ + forward[2] * handY) / distance > 0.82;
         }
       }
 
       this.world.setPlayerInput({
         thrust: { x: thrustX, y: thrustY, z: thrustZ },
-        head: this.eulerFromQuaternion(pose.views[0].transform.orientation),
+        head: this.eulerFromQuaternion(firstView && firstView.transform.orientation),
         leftHand: leftHand || { x: player.x, y: player.y, z: player.z, active: false },
         rightHand: rightHand || { x: player.x, y: player.y, z: player.z, active: false },
         gazeAtLeftHand
@@ -469,14 +574,13 @@
     }
 
     eulerFromQuaternion(q) {
-      if (!q) return { pitch: 0, yaw: 0, roll: 0 };
+      if (!q) return { pitch:0, yaw:0, roll:0 };
 
       const sinPitch = 2 * (q.w * q.x + q.y * q.z);
       const cosPitch = 1 - 2 * (q.x * q.x + q.y * q.y);
       const sinYaw = 2 * (q.w * q.y - q.z * q.x);
-      const cosRoll = 1 - 2 * (q.y * q.y + q.z * q.z);
       const sinRoll = 2 * (q.w * q.z + q.x * q.y);
-      const cosYaw = 1 - 2 * (q.z * q.z + q.x * q.x);
+      const cosRoll = 1 - 2 * (q.y * q.y + q.z * q.z);
 
       return {
         pitch: Math.atan2(sinPitch, cosPitch),
@@ -485,72 +589,82 @@
       };
     }
 
-    drawPlayerXp(view, handPose) {
-      if (!handPose) return;
-
-      const position = handPose.transform.position;
-      const count = Math.min(32, Math.max(0, this.world.player.xp));
-
-      for (let i = 0; i < count; i += 1) {
-        const angle = i * Math.PI * 2 / Math.max(1, count);
-        const offset = 0.075;
-        const size = 0.008;
-
-        this.drawMesh(
-          view,
-          this.sphere,
-          [
-            position.x + Math.cos(angle) * offset,
-            position.y + Math.sin(angle) * offset,
-            position.z - 0.035
-          ],
-          [size, size, size],
-          COLORS.white,
-          1
-        );
-      }
-    }
-
-    drawWorld(view) {
-      const player = this.world.player;
-
-      if (player.captured && player.trap) {
-        const center = this.worldPosition(player.trap.center);
-
-        for (const point of player.trap.points) {
-          this.drawLine(view, this.worldPosition(point), center, COLORS.white, 1);
-        }
-        return;
-      }
-
-      for (const entity of this.world.metaballs) this.drawEntity(view, entity);
-      for (const entity of this.world.spikes) this.drawEntity(view, entity);
-      for (const entity of this.world.glitches) this.drawEntity(view, entity);
-
-      this.drawMesh(view, this.octahedron, [0, 0, 0], [0.18, 0.18, 0.18], COLORS.player, 0.04);
-
+    drawHands(view) {
       for (const source of this.session.inputSources) {
         if (!source.gripSpace) continue;
 
-        const handPose = this.currentFrame.getPose(source.gripSpace, this.referenceSpace);
-        if (!handPose) continue;
+        const pose = this.currentFrame.getPose(source.gripSpace, this.referenceSpace);
+        if (!pose) continue;
 
-        const position = handPose.transform.position;
-        const color = source.handedness === "left" ? COLORS.glitch : COLORS.player;
+        const position = this.handPosition(pose);
+        const color = source.handedness === "left" ? COLORS.handLeft : COLORS.handRight;
 
         this.drawMesh(
           view,
           this.octahedron,
-          [position.x, position.y, position.z],
-          [0.055, 0.055, 0.055],
+          position,
+          [0.07,0.07,0.07],
           color,
-          0.08
+          0.12
         );
 
         if (source.handedness === "left") {
-          this.drawPlayerXp(view, handPose);
+          const xp = Math.min(16, Math.max(0, this.world.player.xp));
+
+          for (let i = 0; i < xp; i += 1) {
+            const a = i * Math.PI * 2 / Math.max(1, xp);
+            this.drawMesh(
+              view,
+              this.sphere,
+              [
+                position[0] + Math.cos(a) * 0.1,
+                position[1] + Math.sin(a) * 0.1,
+                position[2] - 0.08
+              ],
+              [0.009,0.009,0.009],
+              COLORS.white,
+              1
+            );
+          }
         }
       }
+    }
+
+    drawTrap(view) {
+      const trap = this.world.player.trap;
+      if (!trap || !trap.active) return;
+
+      const center = this.worldPosition(trap.center);
+
+      for (const point of trap.points) {
+        this.drawLine(view, this.worldPosition(point), center, COLORS.white, 1);
+      }
+    }
+
+    drawWorld(view) {
+      this.drawSky(view);
+      this.drawFloor(view);
+
+      const player = this.world.player;
+
+      if (player.captured && player.trap) {
+        this.drawTrap(view);
+      } else {
+        for (const entity of this.world.metaballs) this.drawEntity(view, entity);
+        for (const entity of this.world.spikes) this.drawEntity(view, entity);
+        for (const entity of this.world.glitches) this.drawEntity(view, entity);
+
+        this.drawMesh(
+          view,
+          this.octahedron,
+          [0,0,0],
+          [0.18,0.18,0.18],
+          COLORS.player,
+          0.08
+        );
+      }
+
+      this.drawHands(view);
     }
 
     frame(time, frame) {
@@ -560,23 +674,33 @@
 
       try {
         const pose = frame.getViewerPose(this.referenceSpace);
-        if (pose) {
-          const delta = this.frameTime === 0 ? 0 : Math.max(0, (time - this.frameTime) / 1000);
-          this.frameTime = time;
 
+        if (pose) {
+          const delta = this.frameTime === 0
+            ? 0
+            : Math.min(0.05, Math.max(0, (time - this.frameTime) / 1000));
+
+          this.frameTime = time;
           this.updateInput(frame, pose);
           this.world.step(delta);
 
           const gl = this.gl;
+
           gl.bindFramebuffer(gl.FRAMEBUFFER, this.layer.framebuffer);
-          gl.useProgram(this.program);
-          gl.enable(gl.DEPTH_TEST);
-          gl.clearColor(0, 0, 0, 1);
+          gl.clearColor(0,0,0,1);
+          gl.clearDepth(1);
+          gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
           for (const view of pose.views) {
             const viewport = this.layer.getViewport(view);
-            gl.viewport(viewport.x, viewport.y, viewport.width, viewport.height);
-            gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+            gl.viewport(
+              viewport.x,
+              viewport.y,
+              viewport.width,
+              viewport.height
+            );
+
             this.drawWorld(view);
           }
         }
@@ -584,8 +708,11 @@
         this.error = String(error && error.message || error);
       } finally {
         this.currentFrame = null;
+
         if (this.isActive) {
-          this.session.requestAnimationFrame((nextTime, nextFrame) => this.frame(nextTime, nextFrame));
+          this.session.requestAnimationFrame(
+            (nextTime, nextFrame) => this.frame(nextTime, nextFrame)
+          );
         }
       }
     }
