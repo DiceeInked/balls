@@ -51,3 +51,6 @@ Check the implementation against every active skill and verify that no stale or 
 
 ## Ongoing change workflow
 Before every future project change, read every active skill, compare the change against the complete skill set, implement it, update affected skills, recheck for contradictions, and verify the implementation.
+
+## Recent XR hardening
+Step 11 note: the immersive frame loop now separates XR presentation from input/simulation execution. The next XR callback is queued before frame work, framebuffer setup and background rendering are independent of simulation errors, and the current session base layer is used for per-view rendering. Device verification is still required.
