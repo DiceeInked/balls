@@ -555,7 +555,7 @@
 
         const handX = (leftHand.x - player.x) * WORLD_SCALE;
         const handY = (leftHand.z - player.z) * WORLD_SCALE;
-        const handZ = (leftHand.y - player.z) * WORLD_SCALE;
+        const handZ = (leftHand.z - player.z) * WORLD_SCALE;
         const distance = Math.hypot(handX, handY, handZ);
 
         if (distance > 0.0001) {
