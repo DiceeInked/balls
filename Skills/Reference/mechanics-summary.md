@@ -104,3 +104,7 @@ Spike splits follow the working original prototype's child behavior: children us
 
 ## Recent XR hardening
 Rendering architecture note: immersive XR presentation is isolated from the authoritative simulation. A failure while reading XR input or advancing the simulation is recorded as a diagnostic without suppressing the XR background/world render for that frame.
+
+
+## Recent XR hardening
+The immersive presentation uses the authoritative Player position as the origin for gameplay geometry, with simulation Z as vertical position and `local-floor` Y=0 as the game floor. The XR renderer keeps retained error codes and runtime counters visible through the preview diagnostics panel. These diagnostics do not own gameplay state.
