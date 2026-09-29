@@ -66,6 +66,10 @@ System tests:
 - iPhone Safari portrait and landscape layout
 - WebXR unavailable
 - WebXR session start/end
+- WebXR controller/hand pose input
+- Headset orientation reaches the authoritative Player input boundary
+- XR renderer preserves simulation ownership
+- WebXR renderer diagnostics and fallback behavior
 - Quest-class performance
 
 A mechanic is not considered verified merely because it looks correct visually. The authoritative state must also be correct. Device-specific checks should be performed on the actual target browser before claiming they pass.
