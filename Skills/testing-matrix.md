@@ -70,6 +70,8 @@ System tests:
 - WebXR controller/hand pose input
 - Headset orientation reaches the authoritative Player input boundary
 - XR renderer preserves simulation ownership
+- Desktop 2D preview continues updating while immersive XR is active
+- WebXR sky remains world-oriented while headset pitch/yaw changes
 - WebXR renderer diagnostics and fallback behavior
 - Quest-class performance
 
