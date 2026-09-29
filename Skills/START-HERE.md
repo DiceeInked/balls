@@ -19,7 +19,7 @@ Current preview: vr/index.html
 7. Glitches: COMPLETED for current 2D prototype
 8. Player: COMPLETED for the authoritative simulation layer
 9. Player trap: COMPLETED
-10. VR rendering: NEXT
+10. VR rendering: IMPLEMENTED, device verification pending
 11. Simulation/render separation
 12. Debugging
 13. Testing
@@ -72,7 +72,7 @@ Spike consumption and random child spawning have been tested.
 Spike removal/finalization and persistence round trips have been tested.
 The VR Spike split now follows the working original prototype's smaller 55%-radius children, perpendicular separation, ±0.24 directional fan-out, and 8-frame collision cooldown. The split regression was checked against the updated rules.
 Player Trap capture, 12-point crack creation, trap persistence, repair/release, captured movement lock, and malformed snapshot rejection have been smoke-tested.
-The current VR simulation, preview scripts, and legacy state bridge all parse successfully.
+The current VR simulation, preview scripts, legacy state bridge, and Step 10 renderer are source-level complete; actual WebXR device verification remains pending.
 
 ## Change workflow
 Before every project change:
