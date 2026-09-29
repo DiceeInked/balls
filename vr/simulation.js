@@ -48,6 +48,7 @@
       this.timerEvents=[];
       this.droppedSimulationTime=0;
       this.persistence={storageAvailable:false,saveCount:0,lastSaveWorldTime:null,lastLoadWorldTime:null,lastError:null,majorDirty:false};
+      this.diagnostics={stepCount:0,errorCount:0,halted:false,lastError:null,errors:[]};
       this.nextEntityId=1;
       this.entities=new Map();
       this.metaballs=[];
@@ -67,6 +68,35 @@
 
     allocateEntityId(){
       return this.nextEntityId++;
+    }
+
+    recordError(code,message,stage){
+      const entry={
+        code:String(code||"SIM-UNKNOWN-001"),
+        message:String(message||"Unknown simulation error."),
+        stage:String(stage||"unknown"),
+        step:this.diagnostics.stepCount,
+        worldTime:this.worldTime
+      };
+      this.diagnostics.lastError=entry;
+      this.diagnostics.errorCount++;
+      this.diagnostics.errors.unshift(entry);
+      if(this.diagnostics.errors.length>12)this.diagnostics.errors.length=12;
+    }
+
+    getDiagnostics(){
+      return{
+        stepCount:this.diagnostics.stepCount,
+        errorCount:this.diagnostics.errorCount,
+        halted:this.diagnostics.halted,
+        lastError:this.diagnostics.lastError,
+        errors:this.diagnostics.errors.slice(0,8),
+        entityCount:this.entities.size,
+        metaballs:this.metaballs.length,
+        spikes:this.spikes.length,
+        glitches:this.glitches.length,
+        playerId:this.player&&this.player.id
+      };
     }
 
     collectionFor(type){
@@ -441,6 +471,7 @@
     }
 
     step(dt){
+      if(this.diagnostics.halted)return 0;
       if(!Number.isFinite(dt)||dt<=0)return 0;
 
       let frameDelta=Math.min(dt,MAX_FRAME_DELTA);
@@ -449,9 +480,21 @@
 
       let steps=0;
       while(this.accumulator>=FIXED_STEP&&steps<MAX_CATCH_UP_STEPS){
-        this.simulateFixedStep(FIXED_STEP);
-        this.accumulator-=FIXED_STEP;
-        steps++;
+        try{
+          this.simulateFixedStep(FIXED_STEP);
+          this.diagnostics.stepCount++;
+          this.accumulator-=FIXED_STEP;
+          steps++;
+        }catch(error){
+          this.diagnostics.halted=true;
+          this.accumulator=0;
+          this.recordError(
+            "SIM-STEP-001",
+            String(error&&error.message||error),
+            "fixed-step"
+          );
+          break;
+        }
       }
 
       if(steps===MAX_CATCH_UP_STEPS&&this.accumulator>=FIXED_STEP){
