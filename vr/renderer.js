@@ -797,7 +797,6 @@
         this.currentFrame = null;
       }
     }
-}
   }
 
   window.VRRenderer = VRRenderer;
