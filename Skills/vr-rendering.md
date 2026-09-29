@@ -31,3 +31,8 @@ The current `vr/index.html` page is still a 2D simulation preview, not a complet
 ## Minimal preview
 The current VR page intentionally uses Canvas 2D instead of WebGL/WebXR. It renders a square field with three circular hitboxes: yellow Metaball, red Spike, and cyan/blue Glitch. Their positions are read from the authoritative simulation. The preview measures the stage element for its logical world size and tolerates an initially zero-sized mobile layout before creating the entities. This is a temporary visualization foundation before detailed VR rendering is rebuilt.
 The minimal 2D preview renders every entity in each authoritative Metaball, Spike, and Glitch collection. Glitches use the exact prototype RGBA color `#00FFC8FF`. The preview normalizes configured 8-digit RGBA hex colors to `rgba(...)` strings at Canvas draw time so the exact configured colors remain reliable on browsers with incomplete 8-digit-hex Canvas support. The page does not create, move, reset, or otherwise own gameplay entities.
+## Immersive coordinate and environment rules
+
+The authoritative simulation remains a flat X/Y gameplay plane, but immersive VR maps that plane onto horizontal X/Z space. The authoritative Z coordinate is vertical in VR. Controller/headset Y is mapped to Player Z, while controller/headset Z is mapped to the simulation's Y axis.
+
+The immersive scene has a light-gray-to-dark-gray sky gradient, a dark floor beneath the player, and a player-centered dotted grid. The grid is rendered as a single point mesh rather than one WebGL draw call per dot. XR views always use the projection and view matrices supplied by WebXR and render into each XR viewport.
