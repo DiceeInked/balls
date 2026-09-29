@@ -82,3 +82,9 @@ Before every project change:
 4. Update every affected skill/reference.
 5. Recheck the full skill set for contradictions.
 6. Verify the implementation against the updated specification.
+
+
+## Recent XR coordinate and diagnostics hardening
+The immersive renderer now treats `local-floor` Y=0 as the game floor and converts simulation X/Y/Z into one consistent XR coordinate system, including Player-relative vertical movement. The XR floor and dotted grid follow the authoritative Player position instead of using a fixed hidden offset.
+
+Runtime diagnostics now keep structured error codes for simulation, XR startup/session, XR pose/input/rendering, WebGL context loss, and WebGL error states. The bottom status panel displays simulation health, entity counts, XR frame/view/input counts, and the most recent retained errors. A simulation exception is contained and marks the authoritative simulation halted instead of killing the page animation loop.
