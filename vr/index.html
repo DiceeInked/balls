@@ -8,19 +8,19 @@
 html,body{margin:0;width:100%;height:100%;background:#080808;overflow:hidden}
 body{display:grid;place-items:center}#reset{position:fixed;top:12px;right:12px;width:42px;height:42px;border:2px solid #aaa;border-radius:8px;background:#111;color:#fff;font:700 22px monospace;cursor:pointer;z-index:10}#reset:hover{background:#222}
 #stage{width:min(82vmin,720px);height:min(82vmin,720px);background:#111;border:2px solid #666;border-radius:12px;overflow:hidden}
-canvas{width:100%;height:100%;display:block}
+canvas{width:100%;height:100%;display:block}#xr-canvas{position:fixed;width:1px;height:1px;left:-10px;top:-10px;opacity:0;pointer-events:none}#vr{position:fixed;top:12px;right:64px;height:42px;padding:0 12px;border:2px solid #00ffc8;border-radius:8px;background:#111;color:#00ffc8;font:700 18px monospace;cursor:pointer;z-index:10}#vr:disabled{opacity:.45;cursor:default}#status{position:fixed;left:12px;bottom:12px;max-width:min(90vw,520px);padding:8px 10px;border:1px solid #555;border-radius:6px;background:rgba(0,0,0,.8);color:#fff;font:12px monospace;z-index:10}
 </style>
 </head>
 <body>
-<button id="reset" type="button" aria-label="Reset simulation">R</button>
-<div id="stage"><canvas id="preview"></canvas></div>
-<script src="simulation.js"></script>
+<div id="status" aria-live="polite"></div><button id="vr" type="button" disabled>VR</button><button id="reset" type="button" aria-label="Reset simulation">R</button>
+<div id="stage"><canvas id="preview"></canvas></div><canvas id="xr-canvas" aria-hidden="true"></canvas>
+<script src="simulation.js"></script><script src="renderer.js"></script>
 <script>
 (function(){
   const stage=document.getElementById("stage");
   const canvas=document.getElementById("preview");
   const ctx=canvas.getContext("2d");
-  const resetButton=document.getElementById("reset");
+  const resetButton=document.getElementById("reset");\n  const vrButton=document.getElementById("vr");\n  const status=document.getElementById("status");\n  const xrCanvas=document.getElementById("xr-canvas");\n  const renderer=new window.VRRenderer(xrCanvas,world);
   const world=window.VRWorld;
   const colors=window.VRWorldColors;
   const drawColors={
@@ -176,7 +176,7 @@ canvas{width:100%;height:100%;display:block}
     requestAnimationFrame(loop);
   }
 
-  resetButton.addEventListener("click",resetSimulation);
+  resetButton.addEventListener("click",resetSimulation);\n  vrButton.addEventListener("click",async()=>{\n    vrButton.disabled=true;\n    status.textContent="Starting WebXR…";\n    try{\n      await renderer.start();\n      status.textContent="WebXR active. Exit VR from the headset to return to the preview.";\n    }catch(error){\n      status.textContent="VR unavailable: "+String(error&&error.message||error);\n      vrButton.disabled=false;\n    }\n  });
   addEventListener("resize",requestResize);
   addEventListener("pagehide",saveWorld);
   addEventListener("beforeunload",saveWorld);
