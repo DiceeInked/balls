@@ -208,7 +208,7 @@
       this.contextEventsAttached = false;
       this.xrFrameCount = 0;
       this.xrLastPoseTime = 0;
-      this.diagnostics={lastError:null,errorCount:0,errors:[],lastStage:"idle",inputSourceCount:0,viewCount:0};
+      this.diagnostics={lastError:null,errorCount:0,errors:[],lastStage:"idle",inputSourceCount:0,viewCount:0,referenceSpace:"none",framebufferWidth:0,framebufferHeight:0};
     }
 
     recordError(code,message,stage){
@@ -220,7 +220,7 @@
       if(this.diagnostics.errors.length>12)this.diagnostics.errors.length=12;
     }
 
-    getDiagnostics(){return{active:this.isActive,supported:this.isSupported,frameCount:this.xrFrameCount,lastPoseTime:this.xrLastPoseTime,inputSourceCount:this.diagnostics.inputSourceCount,viewCount:this.diagnostics.viewCount,lastStage:this.diagnostics.lastStage,errorCount:this.diagnostics.errorCount,lastError:this.diagnostics.lastError,errors:this.diagnostics.errors.slice(0,8)};}
+    getDiagnostics(){return{active:this.isActive,supported:this.isSupported,frameCount:this.xrFrameCount,lastPoseTime:this.xrLastPoseTime,inputSourceCount:this.diagnostics.inputSourceCount,viewCount:this.diagnostics.viewCount,lastStage:this.diagnostics.lastStage,referenceSpace:this.diagnostics.referenceSpace,framebufferWidth:this.diagnostics.framebufferWidth,framebufferHeight:this.diagnostics.framebufferHeight,errorCount:this.diagnostics.errorCount,lastError:this.diagnostics.lastError,errors:this.diagnostics.errors.slice(0,8)};}
 
     get isActive() {
       return this.running && !!this.session;
@@ -367,10 +367,12 @@
         });
 
         let referenceSpace;
+        let referenceSpaceType="local-floor";
 
         try {
           referenceSpace = await session.requestReferenceSpace("local-floor");
         } catch {
+          referenceSpaceType="local";
           referenceSpace = await session.requestReferenceSpace("local");
         }
 
@@ -381,6 +383,7 @@
         this.diagnostics.lastStage="session-active";
         this.diagnostics.inputSourceCount=0;
         this.diagnostics.viewCount=0;
+        this.diagnostics.referenceSpace=referenceSpaceType;
         this.frameTime = 0;
         this.error = null;
 
@@ -508,7 +511,7 @@
       );
       gl.drawArrays(this.skySphere.mode, 0, this.skySphere.count);
       gl.depthMask(true);
-      gl.disable(gl.DEPTH_TEST);
+      gl.enable(gl.DEPTH_TEST);
     }
 
     drawFloor(view) {
@@ -762,6 +765,8 @@
           return;
         }
         this.diagnostics.viewCount=pose.views.length;
+        this.diagnostics.framebufferWidth=layer && layer.framebufferWidth || 0;
+        this.diagnostics.framebufferHeight=layer && layer.framebufferHeight || 0;
 
         const gl = this.gl;
         const layer = session.renderState.baseLayer;
