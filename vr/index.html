@@ -20,8 +20,9 @@ canvas{width:100%;height:100%;display:block}#xr-canvas{position:fixed;width:1px;
   const stage=document.getElementById("stage");
   const canvas=document.getElementById("preview");
   const ctx=canvas.getContext("2d");
-  const resetButton=document.getElementById("reset");\n  const vrButton=document.getElementById("vr");\n  const status=document.getElementById("status");\n  const xrCanvas=document.getElementById("xr-canvas");\n  const renderer=new window.VRRenderer(xrCanvas,world);
-  const world=window.VRWorld;
+  const resetButton=document.getElementById("reset");
+  const vrButton=document.getElementById("vr");\n  const status=document.getElementById("status");\n  const xrCanvas=document.getElementById("xr-canvas");\n  const world=window.VRWorld;
+  const renderer=new window.VRRenderer(xrCanvas,world);
   const colors=window.VRWorldColors;
   const drawColors={
     meta:normalizeColor(colors.meta),
@@ -165,7 +166,7 @@ canvas{width:100%;height:100%;display:block}#xr-canvas{position:fixed;width:1px;
     const dt=Math.max((now-lastTime)/1000,0);
     lastTime=now;
 
-    if(initialized){
+    if(initialized&&!renderer.session){
       world.step(dt);
       if(world.persistence.majorDirty||world.worldTime>=nextPeriodicSave){
         saveWorld();
@@ -176,7 +177,8 @@ canvas{width:100%;height:100%;display:block}#xr-canvas{position:fixed;width:1px;
     requestAnimationFrame(loop);
   }
 
-  resetButton.addEventListener("click",resetSimulation);\n  vrButton.addEventListener("click",async()=>{\n    vrButton.disabled=true;\n    status.textContent="Starting WebXR…";\n    try{\n      await renderer.start();\n      status.textContent="WebXR active. Exit VR from the headset to return to the preview.";\n    }catch(error){\n      status.textContent="VR unavailable: "+String(error&&error.message||error);\n      vrButton.disabled=false;\n    }\n  });
+  resetButton.addEventListener("click",resetSimulation);
+  vrButton.addEventListener("click",async()=>{\n    vrButton.disabled=true;\n    status.textContent="Starting WebXR…";\n    try{\n      await renderer.start();\n      status.textContent="WebXR active. Exit VR from the headset to return to the preview.";\n    }catch(error){\n      status.textContent="VR unavailable: "+String(error&&error.message||error);\n      vrButton.disabled=false;\n    }\n  });
   addEventListener("resize",requestResize);
   addEventListener("pagehide",saveWorld);
   addEventListener("beforeunload",saveWorld);
@@ -188,6 +190,16 @@ canvas{width:100%;height:100%;display:block}#xr-canvas{position:fixed;width:1px;
     new ResizeObserver(requestResize).observe(stage);
   }
 
+  if(window.isSecureContext&&navigator.xr){
+    navigator.xr.isSessionSupported("immersive-vr").then(supported=>{
+      vrButton.disabled=!supported;
+      status.textContent=supported?"WebXR ready.":"WebXR is not supported on this device.";
+      if(!supported)setTimeout(()=>{if(status.textContent==="WebXR is not supported on this device.")status.textContent="";},3000);
+    }).catch(()=>{status.textContent="WebXR support check failed.";});
+  }else{
+    status.textContent=window.isSecureContext?"WebXR is unavailable in this browser.":"WebXR requires a secure HTTPS page.";
+    vrButton.disabled=true;
+  }
   initialize();
   requestAnimationFrame(loop);
 })();
