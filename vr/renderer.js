@@ -755,6 +755,13 @@
         gl.clearColor(0.12, 0.12, 0.14, 1);
         gl.clear(gl.COLOR_BUFFER_BIT);
 
+        try {
+          this.updateInput(frame, pose);
+        } catch (inputError) {
+          this.error = "XR input: " +
+            String(inputError && inputError.message || inputError);
+        }
+
         for (const view of pose.views) {
           const viewport = layer.getViewport(view);
           if (!viewport || viewport.width < 1 || viewport.height < 1) {
@@ -769,10 +776,9 @@
           );
 
           try {
-            this.updateInput(frame, pose);
             this.drawWorld(view);
           } catch (renderError) {
-            this.error = "XR frame: " +
+            this.error = "XR render: " +
               String(renderError && renderError.message || renderError);
           }
         }
