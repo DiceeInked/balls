@@ -221,19 +221,11 @@
         // Do not build shaders/buffers here. makeXRCompatible() can reconfigure
         // the context, so all WebGL resources are created only after XR
         // compatibility has been established.
-        let gl = this.canvas.getContext("webgl2", {
+        const gl = this.canvas.getContext("webgl", {
           alpha: false,
           antialias: true,
           depth: true
         });
-
-        if (!gl) {
-          gl = this.canvas.getContext("webgl", {
-            alpha: false,
-            antialias: true,
-            depth: true
-          });
-        }
 
         if (!gl) throw new Error("WebGL is unavailable in this browser.");
 
@@ -341,6 +333,13 @@
           framebufferScaleFactor: 1
         });
 
+        if (!layer.framebuffer) {
+          throw new Error("XRWebGLLayer did not provide a framebuffer.");
+        }
+        if (layer.framebufferWidth < 1 || layer.framebufferHeight < 1) {
+          throw new Error("XR framebuffer has an invalid size.");
+        }
+
         session.updateRenderState({
           baseLayer: layer,
           depthNear: 0.01,
@@ -367,10 +366,12 @@
 
         return true;
       } catch (error) {
+        const message = String(error && error.message || error);
+        this.error = message;
         try {
           await session.end();
         } catch {}
-        throw new Error(String(error && error.message || error));
+        throw new Error(message);
       }
     }
 
@@ -390,7 +391,6 @@
       this.layer = null;
       this.frameTime = 0;
       this.currentFrame = null;
-      this.error = null;
     }
 
     describeXRError(error) {
