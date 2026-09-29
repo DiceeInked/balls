@@ -411,11 +411,13 @@
     }
 
     worldPosition(entity) {
-      const player = this.world.player;
+      // XR view matrices are expressed in the active reference space.
+      // Keep the simulation's X/Y plane centered at the player's initial
+      // world origin, while vertical simulation Z maps to XR Y.
       return [
-        (entity.x - player.x) * WORLD_SCALE,
-        (entity.z - player.z) * WORLD_SCALE,
-        (entity.y - player.y) * WORLD_SCALE
+        entity.x * WORLD_SCALE,
+        entity.z * WORLD_SCALE,
+        entity.y * WORLD_SCALE
       ];
     }
 
@@ -706,10 +708,12 @@
         for (const entity of this.world.spikes) this.drawEntity(view, entity);
         for (const entity of this.world.glitches) this.drawEntity(view, entity);
 
+        // Put the Player at the XR reference-space origin. The headset's
+        // height and position are handled by the XR view transform.
         this.drawMesh(
           view,
           this.octahedron,
-          [0,0,0],
+          [0, -1.45, 0],
           [0.18,0.18,0.18],
           COLORS.player,
           0.08
