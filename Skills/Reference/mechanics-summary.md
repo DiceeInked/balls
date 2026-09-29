@@ -101,3 +101,6 @@ Visual correctness alone is not sufficient. Authoritative simulation state must 
 
 ## Spike split separation
 Spike splits follow the working original prototype's child behavior: children use 55% of the parent's radius, spawn on opposite sides along the perpendicular to the parent's direction, fan their directions by ±0.24 radians, and receive an 8-frame collision cooldown. A wall bounce reflects the parent first, so both children move away from the wall.
+
+## Recent XR hardening
+Rendering architecture note: immersive XR presentation is isolated from the authoritative simulation. A failure while reading XR input or advancing the simulation is recorded as a diagnostic without suppressing the XR background/world render for that frame.
