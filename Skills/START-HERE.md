@@ -72,7 +72,7 @@ Spike consumption and random child spawning have been tested.
 Spike removal/finalization and persistence round trips have been tested.
 The VR Spike split now follows the working original prototype's smaller 55%-radius children, perpendicular separation, ±0.24 directional fan-out, and 8-frame collision cooldown. The split regression was checked against the updated rules.
 Player Trap capture, 12-point crack creation, trap persistence, repair/release, captured movement lock, and malformed snapshot rejection have been smoke-tested.
-The current VR simulation, desktop preview, legacy state bridge, and Step 10 renderer are source-level complete. The desktop preview no longer depends on WebXR availability, the VR button remains usable for diagnostics on ordinary computers, and actual immersive WebXR device verification remains pending.
+The current VR simulation, desktop preview, legacy state bridge, and Step 10 renderer are source-level complete. The desktop preview no longer depends on WebXR availability, remains live while immersive XR is active, the immersive environment uses a world-locked sky gradient, the VR button remains usable for diagnostics on ordinary computers, and actual immersive WebXR device verification remains pending.
 
 ## Change workflow
 Before every project change:
