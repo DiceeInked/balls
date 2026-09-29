@@ -53,3 +53,9 @@ The immersive renderer retains the most recent XR startup or frame error after s
 
 ## Recent XR hardening
 The immersive renderer now preserves separate diagnostics for XR-frame setup, XR input/simulation, XR rendering, and WebGL errors. The desktop page exposes the most recent retained VR renderer error after leaving immersive mode. XR framebuffer existence and eye viewport dimensions are validated each frame.
+
+
+## Diagnostic codes and failure containment
+The page keeps a rolling diagnostic history rather than only one free-form error string. Simulation failures use the `SIM-*` family; page-loop failures use `PAGE-LOOP-*`; XR failures use `XR-*`; and WebGL failures use `GL-*`. Each entry records its stage, and XR entries also retain the frame/time context available to the renderer. The status panel shows the most recent errors so a black or frozen headset view can be separated into startup, pose, framebuffer, rendering, input, simulation, or WebGL categories.
+
+A fixed-step simulation exception is caught at the simulation boundary, the simulation is halted, and the current state is left available for inspection. The page animation loop itself is also protected from an unexpected runtime exception.
