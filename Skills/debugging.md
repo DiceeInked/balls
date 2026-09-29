@@ -28,7 +28,9 @@ Useful debug information includes:
 - Persistence saves and resumes
 - Persistence validation failures
 - Metaball pickup stored XP and reproduction
-- Whether the WebGL renderer or 2D fallback is active
+- Whether the WebGL/XR renderer is active
+- Whether the Canvas 2D desktop preview is running
+- WebXR availability and the last XR startup error
 
 Debug output should make it possible to distinguish a simulation bug from a rendering bug.
 
