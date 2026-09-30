@@ -36,7 +36,7 @@ IMPLEMENTED with a real Three.js 3D/WebXR pipeline. Three.js owns XR presentatio
 COMPLETED for the current architecture. The simulation remains authoritative and advances independently of rendering. XR input is an explicit input boundary, while XR pose/diagnostic failures are isolated from rendering so the last valid authoritative state can still be displayed.
 
 12. Debugging
-PARTIALLY IMPLEMENTED. Runtime diagnostics now expose simulation health, entity counts, XR frames/views/input/tracking, pose movement, framebuffer size, render counts, retained XR/WebGL error codes, and start-gate input events. Deeper authoritative contact/event inspection remains later work.
+COMPLETED for the current prototype. The simulation now exposes a read-only authoritative debug snapshot containing entity state, contact timers, pending timer events, Player/trap state, persistence state, diagnostics, and a rolling gameplay event trace. The page also exposes this snapshot through `window.VRDebug` and reports live contact/timer/event counts in the status panel.
 
 13. Testing
 Test every interaction individually and in combinations, including high-speed collisions, simultaneous contacts, entity destruction order, long-running timers, reproduction, Spike splitting, Glitch spreading, pickup collection, player capture, persistence, tab throttling, and mobile rendering fallback.
