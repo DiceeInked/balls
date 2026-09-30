@@ -48,7 +48,7 @@
       this.timerEvents=[];
       this.droppedSimulationTime=0;
       this.persistence={storageAvailable:false,saveCount:0,lastSaveWorldTime:null,lastLoadWorldTime:null,lastError:null,majorDirty:false};
-      this.diagnostics={stepCount:0,errorCount:0,halted:false,lastError:null,errors:[]};
+      this.diagnostics={stepCount:0,errorCount:0,halted:false,lastError:null,errors:[],eventLog:[]};
       this.nextEntityId=1;
       this.entities=new Map();
       this.metaballs=[];
@@ -84,6 +84,18 @@
       if(this.diagnostics.errors.length>12)this.diagnostics.errors.length=12;
     }
 
+    recordEvent(type,data){
+      const event={
+        type:String(type||"unknown"),
+        step:this.diagnostics.stepCount,
+        worldTime:this.worldTime,
+        data:data&&typeof data==="object"?Object.assign({},data):{}
+      };
+      this.diagnostics.eventLog.unshift(event);
+      if(this.diagnostics.eventLog.length>64)this.diagnostics.eventLog.length=64;
+      return event;
+    }
+
     getDiagnostics(){
       return{
         stepCount:this.diagnostics.stepCount,
@@ -91,11 +103,68 @@
         halted:this.diagnostics.halted,
         lastError:this.diagnostics.lastError,
         errors:this.diagnostics.errors.slice(0,8),
+        eventCount:this.diagnostics.eventLog.length,
         entityCount:this.entities.size,
         metaballs:this.metaballs.length,
         spikes:this.spikes.length,
         glitches:this.glitches.length,
         playerId:this.player&&this.player.id
+      };
+    }
+
+    getDebugSnapshot(){
+      const summarize=entity=>entity?{
+        id:entity.id,
+        type:entity.type,
+        x:entity.x,y:entity.y,z:entity.z,
+        vx:entity.vx,vy:entity.vy,vz:entity.vz,
+        speed:entity.speed,
+        direction:entity.direction,
+        xp:entity.xp,
+        radius:entity.radius,
+        timer100:entity.timer100,
+        collisionCooldown:entity.collisionCooldown,
+        remove:!!entity.remove,
+        pickup:entity.pickup?{storedXp:entity.pickup.storedXp}:null
+      }:null;
+      return{
+        worldTime:this.worldTime,
+        accumulator:this.accumulator,
+        droppedSimulationTime:this.droppedSimulationTime,
+        bounds:Object.assign({},this.bounds),
+        player:Object.assign({},summarize(this.player),{
+          movementInput:this.player&&this.player.movementInput?Object.assign({},this.player.movementInput):null,
+          head:this.player&&this.player.head?Object.assign({},this.player.head):null,
+          leftHand:this.player&&this.player.leftHand?Object.assign({},this.player.leftHand):null,
+          rightHand:this.player&&this.player.rightHand?Object.assign({},this.player.rightHand):null,
+          gazeAtLeftHand:!!(this.player&&this.player.gazeAtLeftHand),
+          menuOpen:!!(this.player&&this.player.menuOpen),
+          captured:!!(this.player&&this.player.captured),
+          trap:this.player&&this.player.trap?{
+            active:!!this.player.trap.active,
+            sourceSpikeId:this.player.trap.sourceSpikeId,
+            center:Object.assign({},this.player.trap.center),
+            points:this.player.trap.points.map(point=>Object.assign({},point))
+          }:null
+        }),
+        entities:[...this.entities.values()].map(summarize),
+        contactTimers:[...this.contactTimers.values()].map(timer=>Object.assign({},timer)),
+        timerEvents:this.timerEvents.map(event=>Object.assign({},event)),
+        persistence:Object.assign({},this.persistence),
+        diagnostics:{
+          stepCount:this.diagnostics.stepCount,
+          errorCount:this.diagnostics.errorCount,
+          halted:this.diagnostics.halted,
+          lastError:this.diagnostics.lastError,
+          errors:this.diagnostics.errors.slice(0,8),
+          eventCount:this.diagnostics.eventLog.length
+        },
+        events:this.diagnostics.eventLog.slice(0,64).map(event=>({
+          type:event.type,
+          step:event.step,
+          worldTime:event.worldTime,
+          data:Object.assign({},event.data)
+        }))
       };
     }
 
@@ -111,6 +180,7 @@
       entity.timer100=0;
       if(type==="spike")entity.collisionCooldown=Number.isFinite(entity.collisionCooldown)?Math.max(0,Math.floor(entity.collisionCooldown)):0;
       this.entities.set(entity.id,entity);
+      this.recordEvent("entity-created",{id:entity.id,type});
       const collection=this.collectionFor(type);
       if(!collection.includes(entity))collection.push(entity);
       return entity;
@@ -118,6 +188,7 @@
 
     unregister(entity){
       if(!entity||!entity.id)return;
+      this.recordEvent("entity-destroyed",{id:entity.id,type:entity.type,xp:this.normalizeXp(entity.xp)});
       this.entities.delete(entity.id);
       for(const [key,timer] of this.contactTimers){if(timer.aId===entity.id||timer.bId===entity.id)this.contactTimers.delete(key);}
       for(const type of ENTITY_TYPES){
@@ -246,7 +317,9 @@
       }
       player.captured=true;player.vx=0;player.vy=0;player.vz=0;player.movementInput={x:0,y:0,z:0};
       player.trap={active:true,sourceSpikeId:spike.id,center:{x:player.x,y:player.y,z:player.z+1},points:points};
-      this.persistence.majorDirty=true;return true;
+      this.persistence.majorDirty=true;
+      this.recordEvent("player-captured",{playerId:player.id,sourceSpikeId:spike.id,pointCount:points.length});
+      return true;
     }
 
     updatePlayerTrap(dt){
@@ -263,7 +336,7 @@
         }
         if(Math.hypot(point.x-trap.center.x,point.y-trap.center.y,point.z-trap.center.z)<=TRAP_REPAIR_DISTANCE){point.x=trap.center.x;point.y=trap.center.y;point.z=trap.center.z;point.sealed=true;}
       }
-      if(trap.points.length>0&&trap.points.every(point=>point.sealed)){player.captured=false;player.trap=null;player.vx=0;player.vy=0;player.vz=0;this.persistence.majorDirty=true;}
+      if(trap.points.length>0&&trap.points.every(point=>point.sealed)){player.captured=false;player.trap=null;player.vx=0;player.vy=0;player.vz=0;this.persistence.majorDirty=true;this.recordEvent("player-released",{playerId:player.id});}
     }
 
     spikePointCount(e){return e&&e.type==="spike"?Math.max(3,Math.min(32,3+Math.floor(this.normalizeXp(e.xp)/4))):3;}
@@ -277,7 +350,9 @@
       if(!source||!destination||source.id===destination.id)return 0;
       const requested=this.normalizeXp(amount),available=this.normalizeXp(source.xp),moved=Math.min(requested,available);
       if(moved<=0)return 0;
-      source.xp=available-moved; destination.xp=this.normalizeXp(destination.xp)+moved; return moved;
+      source.xp=available-moved; destination.xp=this.normalizeXp(destination.xp)+moved;
+      this.recordEvent("xp-transfer",{sourceId:source.id,destinationId:destination.id,amount:moved});
+      return moved;
     }
     transferAndDirty(a,b,n){const m=this.transferXp(a,b,n);if(m)this.persistence.majorDirty=true;return m;}
 
@@ -306,7 +381,9 @@
 
     gainMetaballBounceXp(entity){
       if(!entity||entity.type!=="metaball")return 0;
-      entity.xp=this.normalizeXp(entity.xp)+BOUNCE_XP; this.tryReproduceMetaball(entity); return BOUNCE_XP;
+      entity.xp=this.normalizeXp(entity.xp)+BOUNCE_XP;
+      this.recordEvent("xp-gain",{id:entity.id,reason:"wall-bounce",amount:BOUNCE_XP});
+      this.tryReproduceMetaball(entity); return BOUNCE_XP;
     }
 
     tryReproduceMetaball(entity){
@@ -314,14 +391,18 @@
       const direction=Number.isFinite(entity.direction)?entity.direction:Math.atan2(entity.vy,entity.vx),speed=Number.isFinite(entity.speed)?entity.speed:Math.hypot(entity.vx,entity.vy);
       const child=this.register({x:entity.x,y:entity.y,vx:-Math.cos(direction)*speed,vy:-Math.sin(direction)*speed,direction:direction+Math.PI,speed:speed,radius:entity.radius,xp:16,pickup:{storedXp:0}},"metaball");
       if(!child)return null;
-      entity.xp=this.normalizeXp(entity.xp)-16; this.persistence.majorDirty=true; this.clampEntityToBounds(child); return child;
+      entity.xp=this.normalizeXp(entity.xp)-16; this.persistence.majorDirty=true; this.clampEntityToBounds(child);
+      this.recordEvent("metaball-reproduced",{parentId:entity.id,childId:child.id,parentXp:entity.xp,childXp:child.xp});
+      return child;
     }
 
     generateMetaballPickup(entity){
       if(!entity||entity.type!=="metaball")return 0;
       if(!entity.pickup)entity.pickup={storedXp:0};
       const amount=Math.max(PICKUP_MIN_XP,Math.floor(this.normalizeXp(entity.xp)*.1));
-      entity.pickup.storedXp=this.normalizeXp(entity.pickup.storedXp)+amount; this.persistence.majorDirty=true; return amount;
+      entity.pickup.storedXp=this.normalizeXp(entity.pickup.storedXp)+amount; this.persistence.majorDirty=true;
+      this.recordEvent("pickup-generated",{entityId:entity.id,amount,storedXp:entity.pickup.storedXp});
+      return amount;
     }
 
     processTimerEvents(){
@@ -329,14 +410,14 @@
       for(const event of events){
         const entity=this.entities.get(event.entityId);
         if(event.type==="100-second"&&entity&&entity.type==="metaball")this.generateMetaballPickup(entity);
-        if(event.type==="100-second"&&entity&&entity.type==="player"){entity.xp=Math.max(0,this.normalizeXp(entity.xp)-1);this.persistence.majorDirty=true;}
+        if(event.type==="100-second"&&entity&&entity.type==="player"){entity.xp=Math.max(0,this.normalizeXp(entity.xp)-1);this.persistence.majorDirty=true;this.recordEvent("player-xp-drain",{entityId:entity.id,amount:1});}
       }
       return events;
     }
 
     splitEntity(s){
       if(!s||s.remove)return;
-      if(this.getSpikePoints(s)<=3){s.remove=true;this.persistence.majorDirty=true;return;}
+      if(this.getSpikePoints(s)<=3){s.remove=true;this.persistence.majorDirty=true;this.recordEvent("spike-destroyed",{id:s.id,reason:"minimum-vertices"});return;}
       const n=this.normalizeXp(s.xp),a=Math.floor(n/2),b=n-a;
       const parentSpeed=Math.max(Math.hypot(s.vx,s.vy),1);
       const baseAngle=Number.isFinite(s.direction)?s.direction:Math.atan2(s.vy,s.vx);
@@ -363,11 +444,12 @@
       }
       s.remove=true;
       this.persistence.majorDirty=true;
+      this.recordEvent("spike-split",{parentId:s.id,childIds:this.spikes.filter(child=>child!==s&&child.collisionCooldown===SPIKE_COLLISION_COOLDOWN).map(child=>child.id).slice(-2)});
     }
 
     drainContact(source,destination,a,b,dt){if(!source||!destination||source.remove||destination.remove)return 0;const timer=this.beginContact(a,b);timer.elapsed+=dt;let moved=0;if(timer.transfers===0){moved=this.transferAndDirty(source,destination,1);timer.transfers=moved>0?1:0;}const intervals=Math.floor((timer.elapsed+TIMER_EPSILON)/CONTACT_INTERVAL);const extra=Math.max(0,intervals-Math.max(0,timer.transfers-1));if(extra>0){const n=this.transferAndDirty(source,destination,extra);timer.transfers+=n;moved+=n;}return moved;}
 
-    consumeSpike(spike,glitch){if(!spike||!glitch||spike.remove||glitch.remove)return;const total=this.normalizeXp(spike.xp),existing=Math.floor(total/2),childXp=total-existing;this.transferAndDirty(spike,glitch,existing);const angle=this.randomDirection();const speed=Math.max(1,glitch.speed||Math.hypot(glitch.vx,glitch.vy));const child=this.register({x:glitch.x,y:glitch.y,vx:Math.cos(angle)*speed,vy:Math.sin(angle)*speed,direction:angle,speed,radius:glitch.radius,xp:childXp},"glitch");spike.remove=true;if(child)this.clampEntityToBounds(child);this.persistence.majorDirty=true;}
+    consumeSpike(spike,glitch){if(!spike||!glitch||spike.remove||glitch.remove)return;const total=this.normalizeXp(spike.xp),existing=Math.floor(total/2),childXp=total-existing;this.transferAndDirty(spike,glitch,existing);const angle=this.randomDirection();const speed=Math.max(1,glitch.speed||Math.hypot(glitch.vx,glitch.vy));const child=this.register({x:glitch.x,y:glitch.y,vx:Math.cos(angle)*speed,vy:Math.sin(angle)*speed,direction:angle,speed,radius:glitch.radius,xp:childXp},"glitch");spike.remove=true;if(child)this.clampEntityToBounds(child);this.persistence.majorDirty=true;this.recordEvent("glitch-consumed-spike",{spikeId:spike.id,glitchId:glitch.id,newGlitchId:child&&child.id||null,transferredXp:existing,newGlitchXp:childXp});}
 
     processInteractionContacts(dt){const entities=this.activeEntities,active=new Set();for(let i=0;i<entities.length;i++){const a=entities[i];if(a.remove)continue;for(let j=i+1;j<entities.length;j++){const b=entities[j];if(b.remove)continue;const distance=Math.hypot(b.x-a.x,b.y-a.y);if(distance>=(a.radius||0)+(b.radius||0))continue;const key=Math.min(a.id,b.id)+":"+Math.max(a.id,b.id);active.add(key);if((a.type==="metaball"&&b.type==="spike")||(a.type==="spike"&&b.type==="metaball")){const meta=a.type==="metaball"?a:b,spike=a.type==="spike"?a:b;this.drainContact(meta,spike,meta,spike,dt);continue;}if((a.type==="glitch"&&b.type==="spike")||(a.type==="spike"&&b.type==="glitch")){const glitch=a.type==="glitch"?a:b,spike=a.type==="spike"?a:b;this.consumeSpike(spike,glitch);continue;}if((a.type==="metaball"&&b.type==="glitch")||(a.type==="glitch"&&b.type==="metaball")){const meta=a.type==="metaball"?a:b,glitch=a.type==="glitch"?a:b;this.drainContact(glitch,meta,glitch,meta,dt);if(glitch.xp<=0)glitch.remove=true;continue;}if(a.type==="spike"&&b.type==="spike"){if(a.collisionCooldown<=0&&b.collisionCooldown<=0){this.splitEntity(a);this.splitEntity(b);}}}}
       if(!this.player.captured){for(const spike of this.spikes){if(spike.remove)continue;const distance=Math.hypot(this.player.x-spike.x,this.player.y-spike.y);if(distance>=(spike.radius||0)+(this.player.radius||0))continue;const key=Math.min(spike.id,this.player.id)+":"+Math.max(spike.id,this.player.id);active.add(key);this.capturePlayer(spike);break;}}
