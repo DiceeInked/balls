@@ -5,6 +5,7 @@ This is the first skill to read when joining the project fresh. It is a current 
 ## Project
 Repository: DiceeInked/balls
 Project: Balls for Potitsitory
+Hosting: GitHub Pages. This repository is not hosted or deployed on Vercel.
 Current work: rebuilding the VR version from a clean-slate authoritative simulation.
 Authoritative simulation: vr/simulation.js
 Current preview: vr/index.html
@@ -19,7 +20,7 @@ Current preview: vr/index.html
 7. Glitches: COMPLETED for current 2D prototype
 8. Player: COMPLETED for the authoritative simulation layer
 9. Player trap: COMPLETED
-10. VR rendering: IMPLEMENTED, device verification pending
+10. VR rendering: IMPLEMENTED with a real Three.js 3D/WebXR scene, device verification pending
 11. Simulation/render separation
 12. Debugging
 13. Testing
@@ -96,3 +97,10 @@ The immersive frame path now declares and validates the XR base layer before rea
 The Player now starts at the center of the authoritative arena. Immersive VR opens with a visible start gate and a fixed diagnostic probe independent of simulation entities. The simulation remains paused until the start button is selected with an XR primary action or squeeze action. The gate is targeted through the XR input ray rather than accepting arbitrary button presses.
 
 Diagnostics now distinguish no input sources from input sources with no tracked pose, report viewer translation and rotation motion, report framebuffer dimensions, count rendered objects, and count selection/squeeze events.
+
+
+## Hosting and deployment
+The live project is served through GitHub Pages. Vercel is not the deployment target for DiceeInked/balls and should not be used to judge whether a change has reached the live site.
+
+## Rendering architecture reset
+The immersive renderer was replaced with a clean Three.js-based 3D pipeline. Three.js WebGLRenderer owns WebXR presentation, stereoscopic cameras, XR frame timing, and the XR framebuffer path. The game still keeps vr/simulation.js authoritative, but immersive rendering is no longer built from the previous hand-written raw WebGL shader/framebuffer system.
