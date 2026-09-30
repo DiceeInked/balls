@@ -61,6 +61,6 @@ The renderer retains structured XR/WebGL error entries with codes, stage, frame 
 ## Start gate and black-screen isolation
 Immersive VR now starts with a fixed in-world diagnostic probe and a large central start button. These objects use direct XR reference-space coordinates and are rendered before the authoritative simulation begins, providing a known-good visibility target. The simulation is paused while the start gate is active.
 
-The start button is activated through a WebXR primary select or squeeze action whose target ray intersects the button. The event frame is used to query the target-ray pose in the same reference space. WebXR defines these input events and provides the event frame specifically for obtaining the input source pose. citeturn999353search0turn999353search5
+The start button is activated through a WebXR primary select or squeeze action whose target ray intersects the button. The event frame is used to query the target-ray pose in the same reference space. WebXR defines these input events and provides the event frame specifically for obtaining the input source pose.
 
-The renderer treats a missing framebuffer, missing pose, invalid viewport, resource failure, input failure, and WebGL error as separately diagnosable conditions. A current frame must bind the `XRWebGLLayer` framebuffer before drawing and use the viewport returned for each eye. citeturn666256search0turn666256search2
+The renderer treats a missing framebuffer, missing pose, invalid viewport, resource failure, input failure, and WebGL error as separately diagnosable conditions. A current frame must bind the `XRWebGLLayer` framebuffer before drawing and use the viewport returned for each eye.
