@@ -21,7 +21,7 @@ Current preview: vr/index.html
 8. Player: COMPLETED for the authoritative simulation layer
 9. Player trap: COMPLETED
 10. VR rendering: IMPLEMENTED with a real Three.js 3D/WebXR scene, device verification pending
-11. Simulation/render separation
+11. Simulation/render separation: COMPLETED
 12. Debugging
 13. Testing
 14. Polish
