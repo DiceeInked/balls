@@ -23,7 +23,7 @@ Current preview: vr/index.html
 10. VR rendering: IMPLEMENTED with a real Three.js 3D/WebXR scene, device verification pending
 11. Simulation/render separation: COMPLETED
 12. Debugging: COMPLETED for the current prototype
-13. Testing
+13. Testing: IN PROGRESS. The authoritative simulation test harness passes 19/19 tests; device-specific WebXR/browser and performance checks remain pending.
 14. Polish
 15. Final architecture review
 
