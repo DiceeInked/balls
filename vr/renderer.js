@@ -640,12 +640,12 @@ class VRRenderer {
 
   updateEntityObject(entity, object) {
     const player = this.world.player;
-    const scaleX = (finiteOr(entity.x) - finiteOr(player.x)) * WORLD_SCALE;
-    const scaleY = (finiteOr(entity.z) - finiteOr(player.z)) * WORLD_SCALE;
-    const scaleZ = -(finiteOr(entity.y) - finiteOr(player.y)) * WORLD_SCALE;
+    const worldX = finiteOr(entity.x) * WORLD_SCALE;
+    const worldY = finiteOr(entity.z) * WORLD_SCALE;
+    const worldZ = -finiteOr(entity.y) * WORLD_SCALE;
 
     const radius = Math.max(0.02, finiteOr(entity.radius) * WORLD_SCALE);
-    object.position.set(scaleX, scaleY + radius, scaleZ);
+    object.position.set(worldX, worldY + radius, worldZ);
 
     if (entity.type === "metaball") {
       const radiusScale = radius / 0.35;
@@ -972,6 +972,7 @@ class VRRenderer {
 
     try {
       this.diagnostics.lastPoseTime = finiteOr(time);
+      this.diagnostics.frameCount = (this.diagnostics.frameCount || 0) + 1;
       this.diagnostics.lastStage = "frame";
 
       if (this.renderer.xr.isPresenting) {
