@@ -282,18 +282,22 @@
           this.canvas.addEventListener("webglcontextlost", event => {
             event.preventDefault();
             this.resourcesReady = false;
+            this.recordError("GL-CONTEXT-001","WebGL context was lost while entering or running VR.","webgl-context");
             this.error = "WebGL context was lost while entering or running VR.";
           });
 
           this.canvas.addEventListener("webglcontextrestored", () => {
             this.resourcesReady = false;
+            this.recordError("GL-CONTEXT-002","WebGL context restored; rebuilding XR rendering resources.","webgl-context");
             this.error = "WebGL context restored; rebuilding XR rendering resources.";
           });
         }
 
         return true;
       } catch (error) {
-        this.error = String(error && error.message || error);
+        const message=String(error&&error.message||error);
+        this.recordError("GL-INIT-001",message,"webgl-init");
+        this.error=message;
         return false;
       }
     }
@@ -343,11 +347,15 @@
     async start() {
       if (this.isActive) return true;
       if (!this.isSupported) {
-        throw new Error("WebXR is not available in this browser.");
+        const message="WebXR is not available in this browser.";
+        this.recordError("XR-SUPPORT-001",message,"support-check");
+        throw new Error(message);
       }
 
       if (!this.initializeWebGL()) {
-        throw new Error(this.error || "WebGL initialization failed.");
+        const message=this.error || "WebGL initialization failed.";
+        this.recordError("GL-INIT-002",message,"webgl-init");
+        throw new Error(message);
       }
 
       let session;
@@ -357,7 +365,9 @@
           optionalFeatures: ["local-floor", "hand-tracking"]
         });
       } catch (error) {
-        throw new Error(this.describeXRError(error));
+        const message=this.describeXRError(error);
+        this.recordError("XR-SESSION-001",message,"session-request");
+        throw new Error(message);
       }
 
       try {
@@ -434,6 +444,7 @@
         return true;
       } catch (error) {
         const message = String(error && error.message || error);
+        this.recordError("XR-START-001",message,"session-start");
         this.error = message;
         try {
           await session.end();
@@ -788,9 +799,9 @@
       } else if (player.captured && player.trap) {
         this.drawTrap(view);
       } else {
-        for (const entity of this.world.metaballs) this.drawEntity(view, entity);
-        for (const entity of this.world.spikes) this.drawEntity(view, entity);
-        for (const entity of this.world.glitches) this.drawEntity(view, entity);
+        for (const entity of this.world.metaballs) { this.drawEntity(view, entity); this.diagnostics.renderedObjects++; }
+        for (const entity of this.world.spikes) { this.drawEntity(view, entity); this.diagnostics.renderedObjects++; }
+        for (const entity of this.world.glitches) { this.drawEntity(view, entity); this.diagnostics.renderedObjects++; }
 
         // Put the Player at the XR reference-space origin. The headset's
         // height and position are handled by the XR view transform.
