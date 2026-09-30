@@ -225,7 +225,7 @@
       if(!pose)return false;
       const p=pose.transform.position;
       const q=pose.transform.orientation;
-      const forward=[2*(q.x*q.z+q.w*q.y),2*(q.y*q.z-q.w*q.x),1-2*(q.x*q.x+q.y*q.y)];
+      const forward=[-2*(q.x*q.z+q.w*q.y),-2*(q.y*q.z-q.w*q.x),-1+2*(q.x*q.x+q.y*q.y)];
       if(Math.abs(forward[2])<0.000001)return false;
       const t=(-1.6-p.z)/forward[2];
       if(t<0)return false;
@@ -674,9 +674,9 @@
         const viewer = firstView.transform;
         const q = viewer.orientation;
         const forward = [
-          2 * (q.x * q.z + q.w * q.y),
-          2 * (q.y * q.z - q.w * q.x),
-          1 - 2 * (q.x * q.x + q.y * q.y)
+          -2 * (q.x * q.z + q.w * q.y),
+          -2 * (q.y * q.z - q.w * q.x),
+          -1 + 2 * (q.x * q.x + q.y * q.y)
         ];
 
         const handX = (leftHand.x - player.x) * WORLD_SCALE;
