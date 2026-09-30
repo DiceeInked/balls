@@ -145,3 +145,9 @@ Verify that:
 - A missing viewer pose, invalid viewport, XR startup failure, WebGL context loss, WebGL error, XR input failure, or render failure produces a retained diagnostic code.
 - A simulation exception halts simulation cleanly without killing the page's diagnostic loop.
 - Exiting XR leaves retained diagnostics visible in the desktop status panel.
+
+
+## Black-screen isolation tests
+Verify that immediately after entering XR, before starting simulation, the diagnostic probe and start button are visible. Verify that the status panel reports XR frame count, eye view count, framebuffer dimensions, and rendered-object count. If the probe is absent while frames advance, inspect the XR framebuffer/view/shader path rather than gameplay coordinates.
+
+Verify the start button responds only when an XR primary select or squeeze ray intersects its hit area. Verify zero input sources and zero tracked poses appear as explicit warnings rather than as an “ERRORS NONE”-only state. Verify head translation and head rotation diagnostics can change independently.
