@@ -159,5 +159,15 @@ Verify the start button responds only when an XR primary select or squeeze ray i
 Verify that the renderer reports the exact WebGL operation when `0x501 / INVALID_VALUE` occurs. Verify that `aPosition` is linked at attribute location 0 and that XR viewport coordinates are non-negative, non-empty, inside the XR framebuffer, and within the implementation's maximum viewport dimensions.
 
 
+## Step 12 debugging verification
+Verify that:
+- `getDebugSnapshot()` reports authoritative entity IDs, types, positions, velocities, directions, XP, timers, and Player/trap state without changing gameplay state.
+- Active contact timers identify both entity IDs and elapsed/transfer counts.
+- Pending 100-second timer events are visible before processing.
+- Persistence status and dropped simulation time are exposed.
+- Gameplay events are retained for entity creation/destruction, XP transfers, reproduction, pickup generation, Player XP drain, Spike split/destruction/consumption, and Player capture/release.
+- The event trace remains bounded and does not become the simulation's source of truth.
+- `window.VRDebug` exposes read-only inspection functions while the page continues running normally.
+
 ## Three.js immersive rendering verification
 Verify that the immersive scene is composed of genuine 3D meshes, that head movement changes the XR camera view without changing authoritative world coordinates, that both eye views render through Three.js XR presentation, and that controller target rays can intersect the 3D start button. Verify that no manual XRWebGLLayer frame loop or hand-written shader attribute setup remains in the immersive renderer.
