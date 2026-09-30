@@ -10,7 +10,7 @@ The world contains Metaballs, Spikes, Glitches, the VR player, world boundaries 
 
 World coordinates are persistent and independent of the camera or headset view. Entities have stable IDs and the state needed to simulate them.
 
-The page uses the authoritative `VRWorld.step()` boundary before rendering. Gameplay state lives in the simulation; the page remains a 2D preview, not a finished WebXR scene.
+The page uses the authoritative `VRWorld.step()` boundary before rendering. Gameplay state lives in the simulation; the desktop page remains a 2D preview, while immersive XR uses the separate Three.js 3D scene.
 
 The simulation uses authoritative fixed-step world time. Continuous XP drains use per-pair contact timers. Metaball pickup generation and future passive player XP loss consume 100-second timer events.
 
@@ -93,7 +93,7 @@ Randomness is used for gameplay variety, not authoritative state. A Glitch creat
 
 ## Rendering
 
-The current preview renders yellow Metaballs, XP-linked red Spike polygons, and the configured cyan Glitches. Immersive WebXR renders the same authoritative collections stereoscopically, with a dark floor, dotted grid, blue Player, tracked hands, trap cracks, and a world-locked gray sky gradient. The Canvas 2D preview continues rendering the authoritative world while immersive XR is active.
+The current desktop preview renders yellow Metaballs, XP-linked red Spike polygons, and the configured cyan Glitches. Immersive WebXR renders the same authoritative collections through a genuine Three.js 3D scene with 3D spheres, extruded Spike meshes, irregular 3D Glitches, a blue 3D Player, tracked hand/controller markers, a dark floor, reference grid, lighting, depth, and trap cracks. The Canvas 2D preview continues rendering the authoritative world while immersive XR is active.
 
 ## Testing
 
@@ -112,3 +112,10 @@ The immersive presentation uses the authoritative Player position as the origin 
 
 ## Current XR startup state
 The Player spawns at the center of the authoritative arena. Immersive startup presents a fixed XR-space diagnostic probe and selectable start button before simulation advances. Runtime diagnostics distinguish rendering/session/input problems from authoritative simulation failures.
+
+
+## Rendering architecture
+The immersive renderer uses Three.js r186 WebGLRenderer with WebXR enabled and renderer.setAnimationLoop(). Three.js owns the XR stereo camera and presentation lifecycle. The project no longer uses the previous hand-written raw WebGL XR framebuffer/render loop.
+
+## Hosting
+The repository is published through GitHub Pages. Vercel is not the deployment target.
