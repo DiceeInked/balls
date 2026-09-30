@@ -192,7 +192,7 @@
       this.timerEvents.length=0;
       this.droppedSimulationTime=0;
       this.nextEntityId=1;
-      this.player={id:this.allocateEntityId(),type:"player",x:0,y:0,z:0,vx:0,vy:0,vz:0,heading:0,xp:16,radius:Math.min(this.bounds.width,this.bounds.height)*PROTOTYPE_RADIUS_RATIO,captured:false,timer100:0,movementInput:{x:0,y:0,z:0},head:{pitch:0,yaw:0,roll:0},leftHand:{x:0,y:0,z:0,active:false},rightHand:{x:0,y:0,z:0,active:false},gazeAtLeftHand:false,menuOpen:false,trap:null};
+      this.player={id:this.allocateEntityId(),type:"player",x:this.bounds.width*.5,y:this.bounds.height*.5,z:0,vx:0,vy:0,vz:0,heading:0,xp:16,radius:Math.min(this.bounds.width,this.bounds.height)*PROTOTYPE_RADIUS_RATIO,captured:false,timer100:0,movementInput:{x:0,y:0,z:0},head:{pitch:0,yaw:0,roll:0},leftHand:{x:0,y:0,z:0,active:false},rightHand:{x:0,y:0,z:0,active:false},gazeAtLeftHand:false,menuOpen:false,trap:null};
       this.entities.set(this.player.id,this.player);
       this.persistence.majorDirty=false;
       return this.resetPrototypeEntities();
