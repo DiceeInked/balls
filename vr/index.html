@@ -335,6 +335,16 @@ import "./renderer.js";
       );
     }
 
+    const debug = world.getDebugSnapshot ? world.getDebugSnapshot() : null;
+    if (debug) {
+      lines.push(
+        "DEBUG • contacts " + debug.contactTimers.length +
+        " • pending timers " + debug.timerEvents.length +
+        " • events " + debug.events.length +
+        " • dropped " + debug.droppedSimulationTime.toFixed(3) + "s"
+      );
+    }
+
     const errors = summarizeErrors();
     if (errors.length === 0) {
       lines.push("ERRORS NONE");
@@ -355,6 +365,12 @@ import "./renderer.js";
   };
 
   renderer.onStartRequested=startVRSimulation;
+
+  window.VRDebug = {
+    getSnapshot: () => world.getDebugSnapshot ? world.getDebugSnapshot() : null,
+    getSimulationDiagnostics: () => world.getDiagnostics ? world.getDiagnostics() : null,
+    getRendererDiagnostics: () => renderer.getDiagnostics ? renderer.getDiagnostics() : null
+  };
 
   const resetSimulation = () => {
     const storage = getStorage();
