@@ -56,6 +56,7 @@ import "./renderer.js";
   const world = window.VRWorld;
   const renderer = new window.VRRenderer(xrCanvas, world);
   const colors = window.VRWorldColors;
+  const testMode = new URLSearchParams(window.location.search).get("test") === "1";
 
   let lastTime = performance.now();
   let initialized = false;
@@ -372,6 +373,26 @@ import "./renderer.js";
     getRendererDiagnostics: () => renderer.getDiagnostics ? renderer.getDiagnostics() : null
   };
 
+  const runAuthoritativeTests = async () => {
+    if (!testMode) return;
+    try {
+      await import("./tests.js");
+      const report = window.VRTestRunner.run();
+      const failed = report.results.filter(result => result.status === "FAIL");
+      status.textContent =
+        "TEST MODE • " + report.passed + "/" + report.total + " PASS" +
+        (report.failed ? " • " + report.failed + " FAIL" : "") +
+        (failed.length ? "\n" + failed.map(result =>
+          "FAIL " + result.name + " • " + result.message
+        ).join("\n") : "\nALL AUTHORITATIVE TESTS PASSED");
+      console.info("VR authoritative test report:", report);
+    } catch (error) {
+      status.textContent = "TEST MODE FAILED TO START • " +
+        String(error && error.message || error);
+      console.error("VR test harness failure:", error);
+    }
+  };
+
   const resetSimulation = () => {
     const storage = getStorage();
 
@@ -497,6 +518,7 @@ import "./renderer.js";
   initialize();
   resizeXRCanvas();
   updateWebXRStatus();
+  runAuthoritativeTests();
   updateDiagnostics(performance.now());
   requestAnimationFrame(loop);
 })();
