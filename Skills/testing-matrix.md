@@ -171,3 +171,9 @@ Verify that:
 
 ## Three.js immersive rendering verification
 Verify that the immersive scene is composed of genuine 3D meshes, that head movement changes the XR camera view without changing authoritative world coordinates, that both eye views render through Three.js XR presentation, and that controller target rays can intersect the 3D start button. Verify that no manual XRWebGLLayer frame loop or hand-written shader attribute setup remains in the immersive renderer.
+
+
+## Step 13 automated verification
+The authoritative simulation harness in `vr/tests.js` currently passes 19/19 tests. It covers prototype reset, XP/vertex mapping, immediate and timed contact drains, contact reset, Glitch steering/removal, Spike splitting/destruction, Glitch Spike consumption, Metaball reproduction, 100-second timers, Player movement/capture, trap release, persistence round trips and malformed snapshots, fixed-step throttling, debug snapshot isolation, bounded event history, and the wall-split regression.
+
+Run the browser test mode at `vr/index.html?test=1`. This mode instantiates isolated `VRWorldState` instances and does not replace the normal simulation owner. A green automated result does not substitute for target-device WebXR, iPhone Safari, mobile fallback, or Quest-class performance verification.
