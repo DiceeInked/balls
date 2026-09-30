@@ -33,6 +33,7 @@ function run(){
     const w=world(),m=w.metaballs[0],s=w.spikes[0];
     m.x=s.x;m.y=s.y;
     const before=m.xp;
+    w.activeEntities=[m,s];
     w.processInteractionContacts(1/60);
     assert(m.xp===before-1&&s.xp===17,"Immediate drain is wrong.");
     w.processInteractionContacts(1);
@@ -58,6 +59,7 @@ function run(){
   test("Glitch zero XP removal",function(){
     const w=world(),g=w.glitches[0],m=w.metaballs[0];
     g.x=m.x;g.y=m.y;g.xp=1;m.xp=16;
+    w.activeEntities=[m,g];
     w.processInteractionContacts(1/60);w.finalizeRemovedEntities();
     assert(!w.glitches.includes(g),"Zero-XP Glitch survived.");
     assert(m.xp===17,"Glitch XP did not transfer.");
@@ -69,7 +71,7 @@ function run(){
     const children=w.spikes.filter(function(x){return x!==s;});
     assert(s.remove,"Parent Spike was not removed.");
     assert(children.length===2,"Split did not create two children.");
-    assert(children.every(function(x){return x.radius===27.5;}),"Child radius is not 55 percent.");
+    assert(children.every(function(x){return near(x.radius,27.5);}),"Child radius is not 55 percent.");
     assert(children.every(function(x){return x.collisionCooldown===8;}),"Child cooldown is wrong.");
     assert(children[0].xp+children[1].xp===40,"Child XP was not preserved.");
     assert(children[0].x!==children[1].x,"Children were not separated.");
