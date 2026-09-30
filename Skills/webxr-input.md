@@ -27,3 +27,9 @@ The existing authoritative left/right hand position state is also the input boun
 Controller grip/target poses are queried relative to the same XR reference space used for the viewer. Their physical positions are converted into the authoritative Player coordinate system using the same X/Y/Z mapping as world rendering. Visual controller markers remain in XR reference-space coordinates so they stay physically attached to the user's hands while virtual Player locomotion moves the game world around them.
 
 XR input failures are retained with structured diagnostic codes and do not stop the XR presentation loop or redefine authoritative Player state.
+
+
+## Start gate input
+The immersive scene begins with a selectable central start button. A controller or other XR input source must generate a primary select action whose target ray intersects the button. The event handler obtains the target-ray pose from the event's XRFrame, which is the WebXR-supported method for hit testing at the input event's time. citeturn999353search0turn999353search3
+
+Input diagnostics now expose both input-source count and successfully tracked-pose count, along with select/squeeze event counts. This makes missing controllers, temporarily unavailable poses, and a functioning input source with no current gameplay effect distinguishable.
