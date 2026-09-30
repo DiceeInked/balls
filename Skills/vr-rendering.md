@@ -84,3 +84,16 @@ These diagnostics are for separating simulation problems from presentation probl
 Source-level rendering architecture is implemented. Actual headset verification is still required for device-specific behavior, including browser-specific WebXR support, controller/hand tracking, visual brightness, comfort, and performance.
 
 The desktop Canvas 2D preview remains a lightweight view of the same authoritative simulation. It is not the immersive renderer and is not used as a substitute for the 3D VR scene.
+
+
+## Deferred visual redesign
+Do not implement this section until the user explicitly asks to resume the visual redesign. The current working renderer should remain untouched while this is only a design note.
+
+When resumed:
+- Make the gameplay balls, including Metaballs and other ball-like entities, semi-transparent while retaining clear color identity and strong enough contrast to remain visible in immersive VR.
+- Keep the Metaball size approximately at its current scale. Do not enlarge the Metaballs as part of this redesign.
+- Reduce the Player's visible 3D body size substantially. The Player currently reads as oversized compared with the surrounding gameplay objects, so the next visual pass should make the Player noticeably smaller without changing the authoritative Player collision radius or movement mechanics.
+- Remove the current solid ground/floor appearance from the gameplay presentation.
+- Replace the visible ground with a gray dotted grid: evenly spaced gray points lying on the virtual floor plane, extending through the playable area and providing spatial orientation without appearing as a solid floor.
+- The dotted grid is a visual reference only. It must not become a collision surface or alter simulation coordinates, Player movement, or world bounds.
+- Preserve the successful Three.js/WebXR rendering architecture. This is a styling pass, not a renderer-architecture rewrite.
