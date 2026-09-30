@@ -30,13 +30,13 @@ COMPLETED for the authoritative simulation layer. The Player now owns XP, 3D pos
 COMPLETED for the authoritative simulation and current 2D preview. Spike capture, blackened world, glowing crack generation, crack points and center, point dragging, repair detection, and player release are implemented. Detailed WebXR presentation remains part of Step 10.
 
 10. VR rendering
-Add WebXR support, headset tracking, hand tracking, stereoscopic rendering, and optimized VR visuals.
+IMPLEMENTED for the current prototype. WebXR session startup, stereoscopic views, XR framebuffer rendering, headset pose diagnostics, controller/hand input plumbing, the fixed XR diagnostic probe, and the immersive start gate are implemented. Actual device verification remains pending.
 
 11. Simulation/render separation
-Ensure the simulation remains authoritative and recoverable regardless of renderer state, WebGL state, WebXR state, or tab visibility.
+PARTIALLY IMPLEMENTED. The desktop simulation clock remains authoritative, XR presentation uses the same world state, and simulation exceptions are contained. Final architecture cleanup remains later work.
 
 12. Debugging
-Build diagnostic tools exposing authoritative world state, contacts, XP, timers, events, WebXR state, WebGL errors, and persistence state.
+PARTIALLY IMPLEMENTED. Runtime diagnostics now expose simulation health, entity counts, XR frames/views/input/tracking, pose movement, framebuffer size, render counts, retained XR/WebGL error codes, and start-gate input events. Deeper authoritative contact/event inspection remains later work.
 
 13. Testing
 Test every interaction individually and in combinations, including high-speed collisions, simultaneous contacts, entity destruction order, long-running timers, reproduction, Spike splitting, Glitch spreading, pickup collection, player capture, persistence, tab throttling, and mobile rendering fallback.
