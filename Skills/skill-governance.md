@@ -20,3 +20,5 @@ Do not treat old code, old commits, old documentation, or old skill files as aut
 If a new mechanic affects multiple systems, document it in each relevant skill rather than hiding the rule in only one file.
 
 Every future code change in this project must be evaluated against the complete Skills folder.
+
+The current deployment target for DiceeInked/balls is GitHub Pages. Do not treat Vercel as the hosting or deployment system for this repository.
