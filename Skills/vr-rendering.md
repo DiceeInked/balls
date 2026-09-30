@@ -2,7 +2,7 @@
 
 The VR version uses WebXR for immersive VR when supported. Step 10 has a dedicated `vr/renderer.js` WebGL/WebXR renderer, while `vr/index.html` always provides an independent Canvas 2D desktop preview. WebXR availability must not prevent the desktop preview from initializing.
 
-The VR entry flow should:
+The VR entry flow now:
 - Detect whether immersive VR is supported.
 - Request an immersive VR session.
 - Use the headset's view and input poses.
@@ -26,10 +26,10 @@ WebXR and WebGL failures should surface useful diagnostics instead of silently d
 
 ## Current 2D preview behavior
 
-The current `vr/index.html` page is still a 2D simulation preview, not a completed immersive WebXR scene. Its animation loop separates simulation updates from drawing. If WebGL context creation fails, it attempts to use a Canvas 2D fallback; if the shader program is unavailable, it draws the fallback on the existing overlay canvas. This is intended to prevent a blank preview, including on mobile browsers, but still requires testing on the actual device.
+The current `vr/index.html` page provides the 2D preview and launches immersive WebXR. Its animation loop separates simulation updates from drawing, and the immersive renderer has an independent start gate. If WebGL context creation fails, it attempts to use a Canvas 2D fallback; if the shader program is unavailable, it draws the fallback on the existing overlay canvas. This is intended to prevent a blank preview, including on mobile browsers, but still requires testing on the actual device.
 
 ## Minimal preview
-The current VR page intentionally uses Canvas 2D instead of WebGL/WebXR. It renders a square field with three circular hitboxes: yellow Metaball, red Spike, and cyan/blue Glitch. Their positions are read from the authoritative simulation. The preview measures the stage element for its logical world size and tolerates an initially zero-sized mobile layout before creating the entities. This is a temporary visualization foundation before detailed VR rendering is rebuilt.
+The current VR page intentionally keeps Canvas 2D as the desktop fallback while the immersive path uses WebGL/WebXR. It renders a square field with three circular hitboxes: yellow Metaball, red Spike, and cyan/blue Glitch. Their positions are read from the authoritative simulation. The preview measures the stage element for its logical world size and tolerates an initially zero-sized mobile layout before creating the entities. This remains a simple prototype visualization while detailed final VR rendering is developed.
 The minimal 2D preview renders every entity in each authoritative Metaball, Spike, and Glitch collection. Glitches use the exact prototype RGBA color `#00FFC8FF`. The preview normalizes configured 8-digit RGBA hex colors to `rgba(...)` strings at Canvas draw time so the exact configured colors remain reliable on browsers with incomplete 8-digit-hex Canvas support. The page does not create, move, reset, or otherwise own gameplay entities.
 ## Immersive coordinate and environment rules
 
@@ -44,7 +44,7 @@ The immersive background uses a large world-locked sky sphere. The sphere is cen
 The renderer creates its WebGL shaders and buffers only after `makeXRCompatible()` resolves. That call may reconfigure the backing graphics context, so resources created before it can become invalid. Context-loss/restoration events mark the resources unavailable so they are rebuilt before rendering resumes.
 
 ## Recent XR hardening
-The immersive renderer now keeps the XR WebGL canvas full-size with an explicit backing resolution instead of using a 1×1 hidden canvas. The WebGL context requests XR compatibility at creation and also calls `makeXRCompatible()`; all shaders/buffers are built after XR compatibility resolves. The XR layer uses a minimal configuration without depth or antialiasing to reduce device-specific framebuffer complexity. The XR frame loop schedules its next callback before rendering, binds the current session base layer, renders each XR view using its returned viewport, and isolates input/simulation failures from presentation.
+The immersive renderer now keeps the XR WebGL canvas full-size with an explicit backing resolution instead of using a 1×1 hidden canvas. The WebGL context requests XR compatibility at creation and also calls `makeXRCompatible()`; all shaders/buffers are built after XR compatibility resolves. The XR layer requests a depth buffer without antialiasing to keep 3D occlusion deterministic while remaining conservative for target hardware. The XR frame loop schedules its next callback before rendering, binds the current session base layer, renders each XR view using its returned viewport, and isolates input/simulation failures from presentation.
 
 
 ## Recent coordinate and depth correction
