@@ -52,7 +52,7 @@ Debugging should expose whether the Player is captured, the trap source Spike ID
 The immersive renderer retains the most recent XR startup or frame error after session end. It also validates that the XR layer supplied a framebuffer with a nonzero size and reports a WebGL error code when a rendered XR frame leaves the context in an error state. The live XR frame count and pose timestamp can be used to distinguish an advancing WebXR session from a stalled presentation, while the 2D preview remains a separate visible view of the same authoritative simulation.
 
 ## Recent XR hardening
-The immersive renderer now preserves separate diagnostics for XR-frame setup, XR input/simulation, XR rendering, and WebGL errors. The desktop page exposes the most recent retained VR renderer error after leaving immersive mode. XR framebuffer existence and eye viewport dimensions are validated each frame.
+The immersive renderer now preserves separate diagnostics for XR-frame setup, XR input/simulation, XR rendering, and WebGL errors. XR input and diagnostic failures are caught independently from the final render path, so the renderer can continue displaying the last valid authoritative state. The desktop page exposes the most recent retained VR renderer error after leaving immersive mode. XR framebuffer existence and eye viewport dimensions are validated each frame.
 
 
 ## Diagnostic codes and failure containment
