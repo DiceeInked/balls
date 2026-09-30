@@ -1,979 +1,1113 @@
-(() => {
-  const WORLD_SCALE = 0.01;
-  const GRID_SPACING = 0.5;
-  const GRID_RADIUS = 10;
-  const FLOOR_Y = 0;
-  const PLAYER_VISUAL_Y = 1.0;
+import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.186.0/build/three.module.js";
 
-  const COLORS = {
-    metaball: [1, 0.929, 0, 1],
-    spike: [1, 0, 0.329, 1],
-    glitch: [0, 1, 0.784, 1],
-    player: [0.231, 0.51, 0.965, 1],
-    handLeft: [0, 1, 0.784, 1],
-    handRight: [0.231, 0.51, 0.965, 1],
-    white: [1, 1, 1, 1],
-    black: [0, 0, 0, 1],
-    floor: [0.035, 0.035, 0.045, 1],
-    diagnostic: [0.98, 0.98, 1, 1],
-    diagnosticAccent: [0, 1, 0.784, 1]
-  };
+/*
+ * Balls VR renderer
+ *
+ * Rendering architecture:
+ * - Three.js WebGLRenderer owns WebXR presentation, stereo cameras, view
+ *   transforms, and the XR render loop.
+ * - VRWorld remains authoritative. This module only turns simulation state
+ *   into 3D scene objects and sends headset/controller input back through
+ *   VRWorld.setPlayerInput().
+ * - The simulation plane is displayed as a genuine 3D world: X -> world X,
+ *   simulation Z -> world Y, simulation Y -> world -Z.
+ */
 
-  const VERTEX_SHADER = [
-    "attribute vec3 aPosition;",
-    "uniform mat4 uProjection;",
-    "uniform mat4 uView;",
-    "uniform mat4 uModel;",
-    "uniform float uPointSize;",
-    "void main(){",
-    "  gl_Position=uProjection*uView*uModel*vec4(aPosition,1.0);",
-    "  gl_PointSize=uPointSize;",
-    "}"
-  ].join("");
+const WORLD_SCALE = 0.01;
+const FLOOR_SIZE = 32;
+const GRID_SIZE = 32;
+const GRID_DIVISIONS = 32;
 
-  const FRAGMENT_SHADER = [
-    "precision mediump float;",
-    "uniform vec4 uColor;",
-    "uniform float uGlow;",
-    "void main(){",
-    "  vec3 rgb=min(uColor.rgb*(1.0+uGlow),vec3(1.0));",
-    "  gl_FragColor=vec4(rgb,uColor.a);",
-    "}"
-  ].join("");
+const COLORS = {
+  metaball: 0xffed00,
+  spike: 0xff0055,
+  glitch: 0x00ffc8,
+  player: 0x3b82f6,
+  white: 0xffffff,
+  black: 0x050505,
+  floor: 0x101217,
+  grid: 0x30353d,
+  gridCenter: 0x48515c,
+  start: 0x00ffc8,
+  startAccent: 0xffed00
+};
 
-  const SKY_VERTEX_SHADER = [
-    "attribute vec3 aPosition;",
-    "uniform mat4 uProjection;",
-    "uniform mat4 uView;",
-    "uniform mat4 uModel;",
-    "varying float vHeight;",
-    "void main(){",
-    "  vHeight=aPosition.y;",
-    "  gl_Position=uProjection*uView*uModel*vec4(aPosition,1.0);",
-    "}"
-  ].join("");
+function finiteOr(value, fallback = 0) {
+  return Number.isFinite(value) ? value : fallback;
+}
 
-  const SKY_FRAGMENT_SHADER = [
-    "precision mediump float;",
-    "varying float vHeight;",
-    "void main(){",
-    "  float h=clamp(vHeight*0.5+0.5,0.0,1.0);",
-    "  vec3 below=vec3(0.035,0.035,0.04);",
-    "  vec3 horizon=vec3(0.52,0.52,0.54);",
-    "  vec3 above=vec3(0.72,0.72,0.74);",
-    "  vec3 color;",
-    "  if(h<0.5){",
-    "    color=mix(below,horizon,h*2.0);",
-    "  }else{",
-    "    color=mix(horizon,above,(h-0.5)*2.0);",
-    "  }",
-    "  gl_FragColor=vec4(color,1.0);",
-    "}"
-  ].join("");
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
 
-  function createShader(gl, type, source) {
-    const shader = gl.createShader(type);
-    if (!shader) throw new Error("Unable to create WebGL shader.");
-    gl.shaderSource(shader, source);
-    gl.compileShader(shader);
-    if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-      const log = gl.getShaderInfoLog(shader) || "Unknown shader error.";
-      gl.deleteShader(shader);
-      throw new Error(log);
-    }
-    return shader;
-  }
-
-  function createProgram(gl, vertexSource, fragmentSource) {
-    const program = gl.createProgram();
-    if (!program) throw new Error("Unable to create WebGL program.");
-
-    const vertex = createShader(gl, gl.VERTEX_SHADER, vertexSource);
-    const fragment = createShader(gl, gl.FRAGMENT_SHADER, fragmentSource);
-
-    gl.attachShader(program, vertex);
-    gl.attachShader(program, fragment);
-    gl.bindAttribLocation(program, 0, "aPosition");
-    gl.linkProgram(program);
-
-    gl.deleteShader(vertex);
-    gl.deleteShader(fragment);
-
-    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
-      const log = gl.getProgramInfoLog(program) || "Unknown program link error.";
-      gl.deleteProgram(program);
-      throw new Error(log);
-    }
-
-    return program;
-  }
-
-  function createMesh(gl, vertices, mode) {
-    const buffer = gl.createBuffer();
-    if (!buffer) throw new Error("Unable to create WebGL buffer.");
-    gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
-    return { buffer, count: vertices.length / 3, mode };
-  }
-
-  function createOctahedron(gl) {
-    return createMesh(gl, [
-       0,1,0,-1,0,0,0,0,1, 0,1,0,0,0,1,1,0,0,
-       0,1,0,1,0,0,0,0,-1, 0,1,0,0,0,-1,-1,0,0,
-       0,-1,0,0,0,1,-1,0,0, 0,-1,0,1,0,0,0,0,1,
-       0,-1,0,0,0,-1,1,0,0, 0,-1,0,-1,0,0,0,0,-1,
-       0,0,1,1,0,0,0,1,0, 0,0,1,0,1,0,-1,0,0,
-       0,0,-1,-1,0,0,0,1,0, 0,0,-1,0,-1,0,1,0,0
-    ], gl.TRIANGLES);
-  }
-
-  function createSphere(gl) {
-    const vertices = [];
-    const latBands = 8;
-    const lonBands = 12;
-
-    for (let lat = 0; lat < latBands; lat += 1) {
-      const p0 = Math.PI * lat / latBands - Math.PI / 2;
-      const p1 = Math.PI * (lat + 1) / latBands - Math.PI / 2;
-
-      for (let lon = 0; lon < lonBands; lon += 1) {
-        const a0 = Math.PI * 2 * lon / lonBands;
-        const a1 = Math.PI * 2 * (lon + 1) / lonBands;
-        const point = (p, a) => [Math.cos(p) * Math.cos(a), Math.sin(p), Math.cos(p) * Math.sin(a)];
-        const a = point(p0, a0);
-        const b = point(p1, a0);
-        const c = point(p1, a1);
-        const d = point(p0, a1);
-        vertices.push(...a, ...b, ...c, ...a, ...c, ...d);
+function disposeObject(object) {
+  if (!object) return;
+  object.traverse(child => {
+    if (child.geometry) child.geometry.dispose();
+    if (child.material) {
+      const materials = Array.isArray(child.material) ? child.material : [child.material];
+      for (const material of materials) {
+        if (material.map) material.map.dispose();
+        material.dispose();
       }
     }
+  });
+}
 
-    return createMesh(gl, vertices, gl.TRIANGLES);
+class VRRenderer {
+  constructor(canvas, world) {
+    this.canvas = canvas;
+    this.world = world;
+
+    this.renderer = null;
+    this.scene = null;
+    this.camera = null;
+    this.worldRoot = null;
+    this.floor = null;
+    this.grid = null;
+    this.startGate = null;
+    this.startButton = null;
+    this.startLabel = null;
+    this.trapGroup = null;
+    this.playerGroup = null;
+
+    this.entityObjects = new Map();
+    this.entityGeometryCache = new Map();
+    this.entityMaterialCache = new Map();
+
+    this.controllers = [];
+    this.controllerGrips = [];
+    this.hands = [];
+    this.controllerRays = [];
+    this.inputMeshes = [];
+
+    this.raycaster = new THREE.Raycaster();
+    this.tempVec3 = new THREE.Vector3();
+    this.tempVec3b = new THREE.Vector3();
+    this.tempQuat = new THREE.Quaternion();
+    this.tempEuler = new THREE.Euler(0, 0, 0, "YXZ");
+    this.lastViewerPosition = new THREE.Vector3();
+    this.lastViewerQuaternion = new THREE.Quaternion();
+    this.viewerPositionInitialized = false;
+    this.viewerQuaternionInitialized = false;
+
+    this.running = false;
+    this.startGateActive = false;
+    this.onStartRequested = null;
+
+    this.diagnostics = {
+      lastError: null,
+      errorCount: 0,
+      errors: [],
+      lastStage: "idle",
+      inputSourceCount: 0,
+      trackedInputCount: 0,
+      viewCount: 0,
+      referenceSpace: "local-floor",
+      framebufferWidth: 0,
+      framebufferHeight: 0,
+      poseMotion: 0,
+      poseRotation: 0,
+      posePosition: null,
+      poseOrientation: null,
+      selectCount: 0,
+      squeezeCount: 0,
+      inputSourceEvents: 0,
+      renderedObjects: 0
+    };
+
+    this.contextEventsAttached = false;
+    this._boundSetSize = () => this.resize();
   }
 
-  function createGridDots(gl, radius, spacing) {
-    const vertices = [];
-    for (let x = -radius; x <= radius; x += spacing) {
-      for (let z = -radius; z <= radius; z += spacing) {
-        vertices.push(x, 0, z);
-      }
-    }
-    return createMesh(gl, vertices, gl.POINTS);
+  get isActive() {
+    return this.running && !!this.renderer && this.renderer.xr.isPresenting;
   }
 
-  function createPlane(gl, size) {
-    return createMesh(gl, [
-      -size,0,-size, size,0,-size, size,0,size,
-      -size,0,-size, size,0,size, -size,0,size
-    ], gl.TRIANGLES);
+  get isSupported() {
+    return typeof navigator !== "undefined" &&
+      !!navigator.xr &&
+      typeof navigator.xr.isSessionSupported === "function";
   }
 
-  function modelMatrix(x, y, z, sx, sy, sz) {
-    return new Float32Array([
-      sx,0,0,0,
-      0,sy,0,0,
-      0,0,sz,0,
-      x,y,z,1
-    ]);
+  setStartGateActive(active) {
+    this.startGateActive = active === true;
+    if (this.startGate) this.startGate.visible = this.startGateActive;
   }
 
-  function removeViewTranslation(matrix) {
-    const result = new Float32Array(matrix);
-    result[12] = 0;
-    result[13] = 0;
-    result[14] = 0;
-    return result;
+  recordError(code, message, stage) {
+    const entry = {
+      code: String(code || "XR-UNKNOWN-001"),
+      message: String(message || "Unknown renderer error."),
+      stage: String(stage || "unknown"),
+      frame: this.renderer ? this.renderer.info.render.calls : 0,
+      time: performance.now()
+    };
+
+    this.diagnostics.lastError = entry;
+    this.diagnostics.errorCount += 1;
+    this.diagnostics.lastStage = entry.stage;
+    this.diagnostics.errors.unshift(entry);
+    if (this.diagnostics.errors.length > 12) {
+      this.diagnostics.errors.length = 12;
+    }
   }
 
-  class VRRenderer {
-    constructor(canvas, world) {
-      this.canvas = canvas;
-      this.world = world;
-      this.gl = null;
-      this.program = null;
-      this.skyProgram = null;
-      this.session = null;
-      this.referenceSpace = null;
-      this.layer = null;
-      this.frameTime = 0;
-      this.error = null;
-      this.locations = null;
-      this.skyLocations = null;
-      this.octahedron = null;
-      this.sphere = null;
-      this.floor = null;
-      this.gridDots = null;
-      this.vertexBuffer = null;
-      this.skySphere = null;
-      this.running = false;
-      this.currentFrame = null;
-      this.resourcesReady = false;
-      this.contextEventsAttached = false;
-      this.xrFrameCount = 0;
-      this.xrLastPoseTime = 0;
-      this.diagnostics={lastError:null,errorCount:0,errors:[],lastStage:"idle",inputSourceCount:0,trackedInputCount:0,viewCount:0,referenceSpace:"none",framebufferWidth:0,framebufferHeight:0,poseMotion:0,poseRotation:0,posePosition:null,poseOrientation:null,selectCount:0,squeezeCount:0,inputSourceEvents:0,renderedObjects:0};
-      this.startGateActive=false;
-      this.onStartRequested=null;
-    }
+  getDiagnostics() {
+    return {
+      active: this.isActive,
+      supported: this.isSupported,
+      frameCount: this.diagnostics.frameCount || 0,
+      lastPoseTime: this.diagnostics.lastPoseTime || 0,
+      inputSourceCount: this.diagnostics.inputSourceCount,
+      trackedInputCount: this.diagnostics.trackedInputCount,
+      viewCount: this.diagnostics.viewCount,
+      lastStage: this.diagnostics.lastStage,
+      referenceSpace: this.diagnostics.referenceSpace,
+      framebufferWidth: this.diagnostics.framebufferWidth,
+      framebufferHeight: this.diagnostics.framebufferHeight,
+      poseMotion: this.diagnostics.poseMotion,
+      poseRotation: this.diagnostics.poseRotation,
+      posePosition: this.diagnostics.posePosition,
+      poseOrientation: this.diagnostics.poseOrientation,
+      selectCount: this.diagnostics.selectCount,
+      squeezeCount: this.diagnostics.squeezeCount,
+      inputSourceEvents: this.diagnostics.inputSourceEvents,
+      renderedObjects: this.diagnostics.renderedObjects,
+      errorCount: this.diagnostics.errorCount,
+      lastError: this.diagnostics.lastError,
+      errors: this.diagnostics.errors.slice(0, 8)
+    };
+  }
 
-    setStartGateActive(active){this.startGateActive=active===true;}
+  ensureRenderer() {
+    if (this.renderer) return;
 
-    isStartButtonHit(inputSource,frame){
-      if(!this.startGateActive||!inputSource||!frame||!this.referenceSpace)return false;
-      const space=inputSource.targetRaySpace||inputSource.gripSpace;
-      if(!space)return false;
-      const pose=frame.getPose(space,this.referenceSpace);
-      if(!pose)return false;
-      const p=pose.transform.position;
-      const q=pose.transform.orientation;
-      const forward=[-2*(q.x*q.z+q.w*q.y),-2*(q.y*q.z-q.w*q.x),-1+2*(q.x*q.x+q.y*q.y)];
-      if(Math.abs(forward[2])<0.000001)return false;
-      const t=(-1.6-p.z)/forward[2];
-      if(t<0)return false;
-      const x=p.x+forward[0]*t;
-      const y=p.y+forward[1]*t;
-      return Math.abs(x)<=0.65&&Math.abs(y-0.65)<=0.24;
-    }
+    try {
+      this.renderer = new THREE.WebGLRenderer({
+        canvas: this.canvas,
+        antialias: true,
+        alpha: false,
+        depth: true,
+        stencil: false,
+        powerPreference: "high-performance"
+      });
 
-    checkGlError(code,operation){
-      const gl=this.gl;
-      if(!gl)return false;
-      const error=gl.getError();
-      if(error===gl.NO_ERROR)return true;
-      const hex=error.toString(16);
-      const message=operation+" produced WebGL error 0x"+hex+".";
-      this.recordError(code+"-"+hex,message,"webgl-"+operation);
-      this.error=message;
-      return false;
-    }
+      this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+      this.renderer.setSize(window.innerWidth, window.innerHeight, false);
+      this.renderer.setClearColor(0x08090d, 1);
+      this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+      this.renderer.xr.enabled = true;
+      this.renderer.xr.setReferenceSpaceType("local-floor");
+      this.renderer.debug.checkShaderErrors = true;
 
-    assertAttributeLocation(name,location){
-      if(location===null||location===undefined||location<0){
-        const message="Shader attribute '"+name+"' has invalid location "+location+".";
-        this.recordError("GL-ATTR-001",message,"shader-attributes");
-        throw new Error(message);
-      }
-    }
+      this.renderer.xr.addEventListener("sessionstart", () => {
+        this.running = true;
+        this.setStartGateActive(true);
+        this.diagnostics.lastStage = "session-active";
+        this.viewerPositionInitialized = false;
+        this.viewerQuaternionInitialized = false;
+      });
 
-    recordError(code,message,stage){
-      const entry={code:String(code||"XR-UNKNOWN-001"),message:String(message||"Unknown renderer error."),stage:String(stage||"unknown"),frame:this.xrFrameCount,time:this.xrLastPoseTime||0};
-      this.diagnostics.lastError=entry;
-      this.diagnostics.errorCount+=1;
-      this.diagnostics.lastStage=entry.stage;
-      this.diagnostics.errors.unshift(entry);
-      if(this.diagnostics.errors.length>12)this.diagnostics.errors.length=12;
-    }
+      this.renderer.xr.addEventListener("sessionend", () => {
+        this.running = false;
+        this.setStartGateActive(false);
+        this.diagnostics.lastStage = "session-ended";
+      });
 
-    getDiagnostics(){return{active:this.isActive,supported:this.isSupported,frameCount:this.xrFrameCount,lastPoseTime:this.xrLastPoseTime,inputSourceCount:this.diagnostics.inputSourceCount,trackedInputCount:this.diagnostics.trackedInputCount,viewCount:this.diagnostics.viewCount,lastStage:this.diagnostics.lastStage,referenceSpace:this.diagnostics.referenceSpace,framebufferWidth:this.diagnostics.framebufferWidth,framebufferHeight:this.diagnostics.framebufferHeight,poseMotion:this.diagnostics.poseMotion,poseRotation:this.diagnostics.poseRotation,posePosition:this.diagnostics.posePosition,poseOrientation:this.diagnostics.poseOrientation,selectCount:this.diagnostics.selectCount,squeezeCount:this.diagnostics.squeezeCount,inputSourceEvents:this.diagnostics.inputSourceEvents,renderedObjects:this.diagnostics.renderedObjects,errorCount:this.diagnostics.errorCount,lastError:this.diagnostics.lastError,errors:this.diagnostics.errors.slice(0,8)};}
+      if (!this.contextEventsAttached) {
+        this.contextEventsAttached = true;
 
-    get isActive() {
-      return this.running && !!this.session;
-    }
-
-    get isSupported() {
-      return typeof navigator !== "undefined" &&
-        !!navigator.xr &&
-        typeof navigator.xr.isSessionSupported === "function";
-    }
-
-    initializeWebGL() {
-      if (this.gl) return true;
-
-      try {
-        // Do not build shaders/buffers here. makeXRCompatible() can reconfigure
-        // the context, so all WebGL resources are created only after XR
-        // compatibility has been established.
-        const gl = this.canvas.getContext("webgl", {
-          alpha: false,
-          antialias: false,
-          depth: true,
-          stencil: false,
-          xrCompatible: true,
-          premultipliedAlpha: true
+        this.canvas.addEventListener("webglcontextlost", event => {
+          event.preventDefault();
+          this.recordError(
+            "GL-CONTEXT-001",
+            "Three.js WebGL context was lost.",
+            "webgl-context"
+          );
         });
 
-        if (!gl) throw new Error("WebGL is unavailable in this browser.");
+        this.canvas.addEventListener("webglcontextrestored", () => {
+          this.recordError(
+            "GL-CONTEXT-002",
+            "Three.js WebGL context was restored.",
+            "webgl-context"
+          );
+        });
+      }
 
-        this.gl = gl;
-        this.resourcesReady = false;
+      this.buildScene();
+      this.renderer.setAnimationLoop((time, frame) => this.render(time, frame));
+      window.addEventListener("resize", this._boundSetSize);
+    } catch (error) {
+      const message = String(error && error.message || error);
+      this.recordError("GL-INIT-001", message, "webgl-init");
+      throw error;
+    }
+  }
 
-        if (!this.contextEventsAttached) {
-          this.contextEventsAttached = true;
+  buildScene() {
+    this.scene = new THREE.Scene();
+    this.scene.background = new THREE.Color(0x0c0d12);
+    this.scene.fog = new THREE.Fog(0x0c0d12, 5, 24);
 
-          this.canvas.addEventListener("webglcontextlost", event => {
-            event.preventDefault();
-            this.resourcesReady = false;
-            this.recordError("GL-CONTEXT-001","WebGL context was lost while entering or running VR.","webgl-context");
-            this.error = "WebGL context was lost while entering or running VR.";
-          });
+    this.camera = new THREE.PerspectiveCamera(70, window.innerWidth / Math.max(1, window.innerHeight), 0.01, 100);
+    this.camera.position.set(0, 1.6, 0);
 
-          this.canvas.addEventListener("webglcontextrestored", () => {
-            this.resourcesReady = false;
-            this.recordError("GL-CONTEXT-002","WebGL context restored; rebuilding XR rendering resources.","webgl-context");
-            this.error = "WebGL context restored; rebuilding XR rendering resources.";
-          });
-        }
+    this.worldRoot = new THREE.Group();
+    this.scene.add(this.worldRoot);
 
-        return true;
-      } catch (error) {
-        const message=String(error&&error.message||error);
-        this.recordError("GL-INIT-001",message,"webgl-init");
-        this.error=message;
-        return false;
+    const ambient = new THREE.HemisphereLight(0xd9dde7, 0x161922, 1.75);
+    this.scene.add(ambient);
+
+    const key = new THREE.DirectionalLight(0xffffff, 2.2);
+    key.position.set(4, 7, 2);
+    this.scene.add(key);
+
+    const rim = new THREE.DirectionalLight(0x9bb6ff, 1.2);
+    rim.position.set(-4, 3, -5);
+    this.scene.add(rim);
+
+    this.buildEnvironment();
+    this.buildPlayerVisual();
+    this.buildControllers();
+    this.buildStartGate();
+    this.buildTrap();
+
+    this.diagnostics.lastStage = "scene-built";
+  }
+
+  buildEnvironment() {
+    const floorGeometry = new THREE.PlaneGeometry(FLOOR_SIZE, FLOOR_SIZE);
+    const floorMaterial = new THREE.MeshStandardMaterial({
+      color: COLORS.floor,
+      roughness: 0.94,
+      metalness: 0.02
+    });
+
+    this.floor = new THREE.Mesh(floorGeometry, floorMaterial);
+    this.floor.rotation.x = -Math.PI / 2;
+    this.floor.position.y = 0;
+    this.floor.receiveShadow = false;
+    this.scene.add(this.floor);
+
+    this.grid = new THREE.GridHelper(
+      GRID_SIZE,
+      GRID_DIVISIONS,
+      COLORS.gridCenter,
+      COLORS.grid
+    );
+    this.grid.position.y = 0.012;
+    this.grid.material.transparent = true;
+    this.grid.material.opacity = 0.36;
+    this.scene.add(this.grid);
+
+    const horizonRing = new THREE.Mesh(
+      new THREE.TorusGeometry(9.5, 0.018, 6, 96),
+      new THREE.MeshBasicMaterial({
+        color: 0x252b34,
+        transparent: true,
+        opacity: 0.6
+      })
+    );
+    horizonRing.rotation.x = Math.PI / 2;
+    horizonRing.position.y = 0.025;
+    this.scene.add(horizonRing);
+  }
+
+  makeEmissiveMaterial(color, intensity, roughness = 0.45) {
+    const material = new THREE.MeshStandardMaterial({
+      color,
+      roughness,
+      metalness: 0.04,
+      emissive: color,
+      emissiveIntensity: intensity
+    });
+    return material;
+  }
+
+  makeGlowMaterial(color, opacity) {
+    return new THREE.MeshBasicMaterial({
+      color,
+      transparent: true,
+      opacity,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false
+    });
+  }
+
+  buildPlayerVisual() {
+    this.playerGroup = new THREE.Group();
+
+    const body = new THREE.Mesh(
+      new THREE.OctahedronGeometry(0.22, 0),
+      this.makeEmissiveMaterial(COLORS.player, 1.8, 0.28)
+    );
+    body.scale.set(1, 1.1, 1);
+    body.position.set(0, 1.48, 0);
+    this.playerGroup.add(body);
+
+    const left = new THREE.Mesh(
+      new THREE.OctahedronGeometry(0.12, 0),
+      this.makeEmissiveMaterial(COLORS.glitch, 1.7, 0.26)
+    );
+    left.position.set(-0.4, 1.18, -0.18);
+
+    const right = new THREE.Mesh(
+      new THREE.OctahedronGeometry(0.12, 0),
+      this.makeEmissiveMaterial(COLORS.player, 1.7, 0.26)
+    );
+    right.position.set(0.4, 1.18, -0.18);
+
+    this.playerGroup.add(left, right);
+
+    const xpPlate = new THREE.Mesh(
+      new THREE.RingGeometry(0.08, 0.105, 20),
+      new THREE.MeshBasicMaterial({
+        color: COLORS.white,
+        transparent: true,
+        opacity: 0.85,
+        side: THREE.DoubleSide
+      })
+    );
+    xpPlate.rotation.x = -Math.PI / 2;
+    xpPlate.position.set(-0.4, 1.12, -0.18);
+    this.playerGroup.add(xpPlate);
+
+    this.scene.add(this.playerGroup);
+  }
+
+  buildControllers() {
+    for (let i = 0; i < 2; i += 1) {
+      const controller = this.renderer.xr.getController(i);
+      controller.userData.controllerIndex = i;
+
+      const rayGeometry = new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(0, 0, 0),
+        new THREE.Vector3(0, 0, -1.2)
+      ]);
+      const rayMaterial = new THREE.LineBasicMaterial({
+        color: i === 0 ? COLORS.glitch : COLORS.player,
+        transparent: true,
+        opacity: 0.55
+      });
+      const ray = new THREE.Line(rayGeometry, rayMaterial);
+      ray.visible = false;
+      controller.add(ray);
+
+      controller.addEventListener("connected", event => {
+        controller.userData.inputSource = event.data;
+        ray.visible = true;
+      });
+      controller.addEventListener("disconnected", () => {
+        controller.userData.inputSource = null;
+        ray.visible = false;
+      });
+      controller.addEventListener("selectstart", () => {
+        this.diagnostics.selectCount += 1;
+        this.handleXRAction(controller);
+      });
+      controller.addEventListener("squeezestart", () => {
+        this.diagnostics.squeezeCount += 1;
+        this.handleXRAction(controller);
+      });
+
+      this.scene.add(controller);
+      this.controllers.push(controller);
+      this.controllerRays.push(ray);
+
+      const grip = this.renderer.xr.getControllerGrip(i);
+      const marker = new THREE.Mesh(
+        new THREE.OctahedronGeometry(0.075, 0),
+        this.makeEmissiveMaterial(i === 0 ? COLORS.glitch : COLORS.player, 1.6, 0.3)
+      );
+      grip.add(marker);
+      this.scene.add(grip);
+      this.controllerGrips.push(grip);
+
+      const hand = this.renderer.xr.getHand(i);
+      const handMarker = new THREE.Mesh(
+        new THREE.IcosahedronGeometry(0.055, 0),
+        this.makeEmissiveMaterial(i === 0 ? COLORS.glitch : COLORS.player, 1.5, 0.35)
+      );
+      hand.add(handMarker);
+      handMarker.visible = false;
+      hand.addEventListener("connected", () => {
+        handMarker.visible = true;
+      });
+      hand.addEventListener("disconnected", () => {
+        handMarker.visible = false;
+      });
+      this.scene.add(hand);
+      this.hands.push(hand);
+    }
+  }
+
+  makeLabelTexture(text, foreground, background) {
+    const canvas = document.createElement("canvas");
+    canvas.width = 512;
+    canvas.height = 192;
+    const context = canvas.getContext("2d");
+    context.fillStyle = background;
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.strokeStyle = foreground;
+    context.lineWidth = 8;
+    context.strokeRect(8, 8, canvas.width - 16, canvas.height - 16);
+    context.fillStyle = foreground;
+    context.font = "900 72px monospace";
+    context.textAlign = "center";
+    context.textBaseline = "middle";
+    context.fillText(text, canvas.width / 2, canvas.height / 2 + 3);
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    return texture;
+  }
+
+  buildStartGate() {
+    this.startGate = new THREE.Group();
+
+    const plate = new THREE.Mesh(
+      new THREE.BoxGeometry(1.35, 0.28, 0.58),
+      this.makeEmissiveMaterial(COLORS.start, 2.2, 0.22)
+    );
+    plate.position.set(0, 1.35, -2.4);
+    plate.userData.startButton = true;
+    this.startButton = plate;
+
+    const ring = new THREE.Mesh(
+      new THREE.TorusGeometry(0.82, 0.035, 8, 64),
+      new THREE.MeshBasicMaterial({
+        color: COLORS.startAccent,
+        transparent: true,
+        opacity: 0.9
+      })
+    );
+    ring.position.set(0, 1.35, -2.4);
+
+    const label = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.96, 0.36),
+      new THREE.MeshBasicMaterial({
+        map: this.makeLabelTexture("START", "#02130e", "#00ffc8"),
+        transparent: false
+      })
+    );
+    label.position.set(0, 1.355, -2.7);
+    label.rotation.x = 0;
+    this.startLabel = label;
+
+    const probe = new THREE.Mesh(
+      new THREE.IcosahedronGeometry(0.15, 1),
+      this.makeEmissiveMaterial(COLORS.startAccent, 2.1, 0.22)
+    );
+    probe.position.set(0, 2.65, -2.4);
+
+    const guide = new THREE.Mesh(
+      new THREE.TorusGeometry(0.32, 0.018, 6, 48),
+      new THREE.MeshBasicMaterial({
+        color: COLORS.start,
+        transparent: true,
+        opacity: 0.78
+      })
+    );
+    guide.position.set(0, 2.65, -2.4);
+
+    this.startGate.add(plate, ring, label, probe, guide);
+    this.scene.add(this.startGate);
+    this.startGate.visible = false;
+  }
+
+  buildTrap() {
+    this.trapGroup = new THREE.Group();
+    this.trapGroup.visible = false;
+    this.scene.add(this.trapGroup);
+  }
+
+  handleXRAction(controller) {
+    if (!this.startGateActive || !this.startButton) return;
+
+    this.raycaster.setFromXRController(controller);
+    const hits = this.raycaster.intersectObject(this.startButton, false);
+    if (hits.length > 0 && typeof this.onStartRequested === "function") {
+      this.onStartRequested();
+    }
+  }
+
+  rebuildSpikeGeometry(pointCount) {
+    const count = clamp(Math.floor(pointCount), 3, 32);
+    const cacheKey = String(count);
+    if (this.entityGeometryCache.has(cacheKey)) {
+      return this.entityGeometryCache.get(cacheKey);
+    }
+
+    const shape = new THREE.Shape();
+    for (let i = 0; i < count; i += 1) {
+      const angle = -Math.PI / 2 + Math.PI * 2 * i / count;
+      const radius = i % 2 === 0 ? 1 : 0.56;
+      const x = Math.cos(angle) * radius;
+      const y = Math.sin(angle) * radius;
+      if (i === 0) shape.moveTo(x, y);
+      else shape.lineTo(x, y);
+    }
+    shape.closePath();
+
+    const geometry = new THREE.ExtrudeGeometry(shape, {
+      depth: 0.15,
+      bevelEnabled: true,
+      bevelSegments: 2,
+      bevelSize: 0.025,
+      bevelThickness: 0.018,
+      steps: 1
+    });
+    geometry.computeVertexNormals();
+    geometry.rotateX(-Math.PI / 2);
+
+    this.entityGeometryCache.set(cacheKey, geometry);
+    return geometry;
+  }
+
+  createEntityObject(entity) {
+    if (entity.type === "metaball") {
+      const group = new THREE.Group();
+
+      const outer = new THREE.Mesh(
+        new THREE.SphereGeometry(1, 20, 14),
+        this.makeEmissiveMaterial(COLORS.metaball, 1.9, 0.23)
+      );
+
+      const glow = new THREE.Mesh(
+        new THREE.SphereGeometry(1.12, 16, 12),
+        this.makeGlowMaterial(COLORS.white, 0.18)
+      );
+
+      const pickup = new THREE.Mesh(
+        new THREE.SphereGeometry(0.3, 14, 10),
+        new THREE.MeshStandardMaterial({
+          color: COLORS.black,
+          roughness: 0.2,
+          metalness: 0.05,
+          emissive: 0x000000,
+          emissiveIntensity: 0
+        })
+      );
+      pickup.visible = false;
+
+      group.add(outer, glow, pickup);
+      group.userData.kind = "metaball";
+      group.userData.outer = outer;
+      group.userData.glow = glow;
+      group.userData.pickup = pickup;
+      this.worldRoot.add(group);
+      return group;
+    }
+
+    if (entity.type === "spike") {
+      const count = this.world.spikePointCount(entity);
+      const mesh = new THREE.Mesh(
+        this.rebuildSpikeGeometry(count),
+        this.makeEmissiveMaterial(COLORS.spike, 1.8, 0.3)
+      );
+      mesh.userData.kind = "spike";
+      mesh.userData.pointCount = count;
+      this.worldRoot.add(mesh);
+      return mesh;
+    }
+
+    if (entity.type === "glitch") {
+      const group = new THREE.Group();
+
+      const core = new THREE.Mesh(
+        new THREE.IcosahedronGeometry(1, 1),
+        this.makeEmissiveMaterial(COLORS.glitch, 2.0, 0.22)
+      );
+      core.scale.set(1, 0.82, 1.12);
+
+      const shell = new THREE.Mesh(
+        new THREE.IcosahedronGeometry(1.16, 1),
+        this.makeGlowMaterial(COLORS.glitch, 0.12)
+      );
+
+      group.add(core, shell);
+      group.userData.kind = "glitch";
+      group.userData.core = core;
+      group.userData.shell = shell;
+      this.worldRoot.add(group);
+      return group;
+    }
+
+    return null;
+  }
+
+  updateEntityObject(entity, object) {
+    const player = this.world.player;
+    const scaleX = (finiteOr(entity.x) - finiteOr(player.x)) * WORLD_SCALE;
+    const scaleY = (finiteOr(entity.z) - finiteOr(player.z)) * WORLD_SCALE;
+    const scaleZ = -(finiteOr(entity.y) - finiteOr(player.y)) * WORLD_SCALE;
+
+    const radius = Math.max(0.02, finiteOr(entity.radius) * WORLD_SCALE);
+    object.position.set(scaleX, scaleY + radius, scaleZ);
+
+    if (entity.type === "metaball") {
+      const radiusScale = radius / 0.35;
+      object.userData.outer.scale.setScalar(radiusScale);
+      object.userData.glow.scale.setScalar(radiusScale);
+
+      const stored = entity.pickup && finiteOr(entity.pickup.storedXp) > 0;
+      object.userData.pickup.visible = stored;
+      object.userData.pickup.scale.setScalar(Math.max(0.18, radiusScale * 0.34));
+    } else if (entity.type === "spike") {
+      const pointCount = this.world.spikePointCount(entity);
+      if (object.userData.pointCount !== pointCount) {
+        const oldGeometry = object.geometry;
+        object.geometry = this.rebuildSpikeGeometry(pointCount);
+        object.userData.pointCount = pointCount;
+        if (!this.entityGeometryCacheHasGeometry(oldGeometry)) oldGeometry.dispose();
+      }
+
+      object.scale.setScalar(radius);
+      const direction = finiteOr(entity.direction);
+      object.rotation.set(0, direction, 0);
+    } else if (entity.type === "glitch") {
+      const coreScale = radius / 0.35;
+      object.userData.core.scale.set(coreScale, coreScale * 0.82, coreScale * 1.12);
+      object.userData.shell.scale.setScalar(coreScale * 1.05);
+      object.rotation.y += 0.01;
+      object.rotation.x += 0.006;
+    }
+  }
+
+  entityGeometryCacheHasGeometry(geometry) {
+    for (const cached of this.entityGeometryCache.values()) {
+      if (cached === geometry) return true;
+    }
+    return false;
+  }
+
+  syncEntities() {
+    const liveIds = new Set();
+
+    const all = [
+      ...this.world.metaballs,
+      ...this.world.spikes,
+      ...this.world.glitches
+    ];
+
+    for (const entity of all) {
+      if (!entity || entity.remove || !Number.isFinite(entity.id)) continue;
+      liveIds.add(entity.id);
+
+      let object = this.entityObjects.get(entity.id);
+      if (!object) {
+        object = this.createEntityObject(entity);
+        if (!object) continue;
+        this.entityObjects.set(entity.id, object);
+      }
+
+      this.updateEntityObject(entity, object);
+    }
+
+    for (const [id, object] of this.entityObjects) {
+      if (liveIds.has(id)) continue;
+      this.worldRoot.remove(object);
+      disposeObject(object);
+      this.entityObjects.delete(id);
+    }
+  }
+
+  updatePlayerVisual() {
+    const player = this.world.player;
+    if (!playerGroupSafe(this.playerGroup)) return;
+
+    this.playerGroup.visible = !player.captured;
+    const leftHandVisible = player.leftHand && player.leftHand.active;
+    const rightHandVisible = player.rightHand && player.rightHand.active;
+
+    this.playerGroup.children[1].visible = !leftHandVisible;
+    this.playerGroup.children[2].visible = !rightHandVisible;
+    this.playerGroup.children[3].visible = !leftHandVisible && player.xp > 0;
+  }
+
+  updateTrapVisual() {
+    const player = this.world.player;
+    if (!player.captured || !player.trap) {
+      this.trapGroup.visible = false;
+      return;
+    }
+
+    this.trapGroup.visible = true;
+    this.trapGroup.clear();
+
+    const center = this.simToView(player.trap.center);
+    const centerMarker = new THREE.Mesh(
+      new THREE.SphereGeometry(0.07, 12, 8),
+      this.makeEmissiveMaterial(COLORS.white, 3.2, 0.2)
+    );
+    centerMarker.position.copy(center);
+    this.trapGroup.add(centerMarker);
+
+    const crackMaterial = new THREE.LineBasicMaterial({
+      color: COLORS.white,
+      transparent: true,
+      opacity: 0.95
+    });
+
+    for (const point of player.trap.points) {
+      const viewPoint = this.simToView(point);
+      const geometry = new THREE.BufferGeometry().setFromPoints([
+        center,
+        viewPoint
+      ]);
+      this.trapGroup.add(new THREE.Line(geometry, crackMaterial));
+
+      const dot = new THREE.Mesh(
+        new THREE.SphereGeometry(point.sealed ? 0.055 : 0.04, 10, 8),
+        this.makeEmissiveMaterial(COLORS.white, point.sealed ? 2.8 : 1.7, 0.25)
+      );
+      dot.position.copy(viewPoint);
+      this.trapGroup.add(dot);
+    }
+  }
+
+  simToView(point) {
+    const player = this.world.player;
+    return new THREE.Vector3(
+      (finiteOr(point.x) - finiteOr(player.x)) * WORLD_SCALE,
+      (finiteOr(point.z) - finiteOr(player.z)) * WORLD_SCALE + 1.35,
+      -(finiteOr(point.y) - finiteOr(player.y)) * WORLD_SCALE - 0.8
+    );
+  }
+
+  updateWorldRoot() {
+    const player = this.world.player;
+    this.worldRoot.position.set(
+      -finiteOr(player.x) * WORLD_SCALE,
+      -finiteOr(player.z) * WORLD_SCALE,
+      finiteOr(player.y) * WORLD_SCALE
+    );
+  }
+
+  updateInput(frame) {
+    if (!this.renderer || !this.renderer.xr.isPresenting) return;
+
+    const session = this.renderer.xr.getSession();
+    const referenceSpace = this.renderer.xr.getReferenceSpace();
+    if (!session || !referenceSpace) return;
+
+    const player = this.world.player;
+    let thrustX = 0;
+    let thrustY = 0;
+    let thrustZ = 0;
+    let leftHand = null;
+    let rightHand = null;
+
+    this.diagnostics.inputSourceCount = session.inputSources.length;
+    this.diagnostics.trackedInputCount = 0;
+
+    for (const source of session.inputSources) {
+      const inputSpace = source.gripSpace || source.targetRaySpace;
+      if (!inputSpace) continue;
+
+      const pose = frame && frame.getPose
+        ? frame.getPose(inputSpace, referenceSpace)
+        : null;
+
+      if (!pose) continue;
+      this.diagnostics.trackedInputCount += 1;
+
+      const p = pose.transform.position;
+      const hand = {
+        x: player.x + p.x / WORLD_SCALE,
+        y: player.y - p.z / WORLD_SCALE,
+        z: player.z + p.y / WORLD_SCALE,
+        active: true
+      };
+
+      if (source.handedness === "left") leftHand = hand;
+      if (source.handedness === "right") rightHand = hand;
+
+      const axes = source.gamepad && source.gamepad.axes ? source.gamepad.axes : [];
+      const axisX = finiteOr(axes[0]);
+      const axisY = finiteOr(axes[1]);
+
+      if (source.handedness === "left") {
+        thrustX += axisX;
+        thrustY -= axisY;
+      } else if (source.handedness === "right") {
+        thrustZ += axisX;
+        thrustY -= axisY;
       }
     }
 
-    buildResources() {
-      const gl = this.gl;
-      if (!gl) throw new Error("WebGL context is unavailable.");
-
-      this.program = createProgram(gl, VERTEX_SHADER, FRAGMENT_SHADER);
-      this.skyProgram = createProgram(gl, SKY_VERTEX_SHADER, SKY_FRAGMENT_SHADER);
-
-      this.locations = {
-        position: 0,
-        projection: gl.getUniformLocation(this.program, "uProjection"),
-        view: gl.getUniformLocation(this.program, "uView"),
-        model: gl.getUniformLocation(this.program, "uModel"),
-        color: gl.getUniformLocation(this.program, "uColor"),
-        glow: gl.getUniformLocation(this.program, "uGlow"),
-        pointSize: gl.getUniformLocation(this.program, "uPointSize")
-      };
-
-      this.skyLocations = {
-        position: 0,
-        projection: gl.getUniformLocation(this.skyProgram, "uProjection"),
-        view: gl.getUniformLocation(this.skyProgram, "uView"),
-        model: gl.getUniformLocation(this.skyProgram, "uModel")
-      };
-
-      this.assertAttributeLocation("aPosition",this.locations.position);
-      this.assertAttributeLocation("sky.aPosition",this.skyLocations.position);
-
-      this.octahedron = createOctahedron(gl);
-      this.sphere = createSphere(gl);
-      this.skySphere = createSphere(gl);
-      this.floor = createPlane(gl, GRID_RADIUS + 2);
-      this.gridDots = createGridDots(gl, GRID_RADIUS, GRID_SPACING);
-
-      this.vertexBuffer = gl.createBuffer();
-      if (!this.vertexBuffer) throw new Error("Unable to create dynamic line buffer.");
-      gl.bindBuffer(gl.ARRAY_BUFFER, this.vertexBuffer);
-      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(6), gl.DYNAMIC_DRAW);
-
-      gl.disable(gl.DEPTH_TEST);
-      gl.disable(gl.CULL_FACE);
-      gl.disable(gl.BLEND);
-      gl.disable(gl.SCISSOR_TEST);
-
-      this.resourcesReady = true;
+    const magnitude = Math.hypot(thrustX, thrustY, thrustZ);
+    if (magnitude > 1) {
+      thrustX /= magnitude;
+      thrustY /= magnitude;
+      thrustZ /= magnitude;
     }
-    async start() {
-      if (this.isActive) return true;
-      if (!this.isSupported) {
-        const message="WebXR is not available in this browser.";
-        this.recordError("XR-SUPPORT-001",message,"support-check");
-        throw new Error(message);
+
+    const xrCamera = this.renderer.xr.getCamera();
+    const firstCamera = xrCamera && xrCamera.cameras && xrCamera.cameras[0]
+      ? xrCamera.cameras[0]
+      : xrCamera;
+
+    let pitch = 0;
+    let yaw = 0;
+    let roll = 0;
+
+    if (firstCamera) {
+      this.tempEuler.setFromQuaternion(firstCamera.quaternion, "YXZ");
+      pitch = this.tempEuler.x;
+      yaw = this.tempEuler.y;
+      roll = this.tempEuler.z;
+    }
+
+    let gazeAtLeftHand = false;
+    if (leftHand && firstCamera) {
+      const handWorld = new THREE.Vector3(
+        (leftHand.x - player.x) * WORLD_SCALE,
+        (leftHand.z - player.z) * WORLD_SCALE,
+        -(leftHand.y - player.y) * WORLD_SCALE
+      );
+
+      const cameraPosition = new THREE.Vector3();
+      const cameraDirection = new THREE.Vector3();
+      firstCamera.getWorldPosition(cameraPosition);
+      firstCamera.getWorldDirection(cameraDirection);
+
+      const distance = handWorld.length();
+      if (distance > 0.0001) {
+        const handDirection = handWorld.normalize();
+        gazeAtLeftHand = cameraDirection.dot(handDirection) > 0.82;
+      }
+    }
+
+    this.world.setPlayerInput({
+      thrust: {
+        x: thrustX,
+        y: thrustY,
+        z: thrustZ
+      },
+      head: {
+        pitch,
+        yaw,
+        roll
+      },
+      leftHand: leftHand || {
+        x: player.x,
+        y: player.y,
+        z: player.z,
+        active: false
+      },
+      rightHand: rightHand || {
+        x: player.x,
+        y: player.y,
+        z: player.z,
+        active: false
+      },
+      gazeAtLeftHand
+    });
+
+    this.diagnostics.lastStage = "input";
+  }
+
+  updatePoseDiagnostics() {
+    if (!this.renderer || !this.renderer.xr.isPresenting) return;
+
+    const xrCamera = this.renderer.xr.getCamera();
+    if (!xrCamera) return;
+
+    const position = new THREE.Vector3();
+    const quaternion = new THREE.Quaternion();
+    xrCamera.getWorldPosition(position);
+    xrCamera.getWorldQuaternion(quaternion);
+
+    if (this.viewerPositionInitialized) {
+      this.diagnostics.poseMotion = position.distanceTo(this.lastViewerPosition);
+    } else {
+      this.diagnostics.poseMotion = 0;
+      this.viewerPositionInitialized = true;
+    }
+
+    if (this.viewerQuaternionInitialized) {
+      const dot = Math.abs(quaternion.dot(this.lastViewerQuaternion));
+      this.diagnostics.poseRotation = 2 * Math.acos(clamp(dot, 0, 1));
+    } else {
+      this.diagnostics.poseRotation = 0;
+      this.viewerQuaternionInitialized = true;
+    }
+
+    this.lastViewerPosition.copy(position);
+    this.lastViewerQuaternion.copy(quaternion);
+
+    this.diagnostics.posePosition = {
+      x: position.x,
+      y: position.y,
+      z: position.z
+    };
+
+    this.diagnostics.poseOrientation = {
+      x: quaternion.x,
+      y: quaternion.y,
+      z: quaternion.z,
+      w: quaternion.w
+    };
+  }
+
+  updateFramebufferDiagnostics() {
+    if (!this.renderer) return;
+
+    const size = new THREE.Vector2();
+    this.renderer.getDrawingBufferSize(size);
+    this.diagnostics.framebufferWidth = Math.round(size.x);
+    this.diagnostics.framebufferHeight = Math.round(size.y);
+
+    const xrCamera = this.renderer.xr.getCamera();
+    this.diagnostics.viewCount = xrCamera && xrCamera.cameras
+      ? xrCamera.cameras.length
+      : 0;
+  }
+
+  render(time, frame) {
+    if (!this.renderer || !this.scene || !this.camera) return;
+
+    try {
+      this.diagnostics.lastPoseTime = finiteOr(time);
+      this.diagnostics.lastStage = "frame";
+
+      if (this.renderer.xr.isPresenting) {
+        this.updateInput(frame);
+        this.updatePoseDiagnostics();
+        this.updateFramebufferDiagnostics();
       }
 
-      if (!this.initializeWebGL()) {
-        const message=this.error || "WebGL initialization failed.";
-        this.recordError("GL-INIT-002",message,"webgl-init");
-        throw new Error(message);
+      this.updateWorldRoot();
+      this.syncEntities();
+      this.updatePlayerVisual();
+
+      const captured = !!(this.world.player && this.world.player.captured);
+      this.scene.background.setHex(captured ? 0x000000 : 0x0c0d12);
+      if (this.grid) this.grid.visible = !captured && !this.startGateActive;
+      if (this.floor) this.floor.visible = !captured && !this.startGateActive;
+      if (this.playerGroup) this.playerGroup.visible = !captured && !this.startGateActive;
+
+      if (this.startGateActive) {
+        this.startGate.rotation.y = Math.sin(time * 0.001) * 0.035;
+        this.startGate.position.y = Math.sin(time * 0.0014) * 0.035;
       }
 
-      let session;
+      if (captured) {
+        this.updateTrapVisual();
+      } else {
+        this.trapGroup.visible = false;
+      }
 
+      this.renderedObjectsCount();
+
+      this.renderer.render(this.scene, this.camera);
+      this.diagnostics.lastStage = "rendered";
+    } catch (error) {
+      const message = String(error && error.message || error);
+      this.recordError("XR-RENDER-001", message, "render");
+      console.error("VR render error:", error);
+    }
+  }
+
+  renderedObjectsCount() {
+    this.diagnostics.renderedObjects =
+      this.entityObjects.size +
+      (this.startGateActive ? 2 : 0) +
+      (this.world.player && !this.world.player.captured ? 1 : 0);
+  }
+
+  resize() {
+    if (!this.renderer) return;
+    if (this.renderer.xr.isPresenting) return;
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    this.renderer.setSize(window.innerWidth, window.innerHeight, false);
+    if (this.camera) {
+      this.camera.aspect = window.innerWidth / Math.max(1, window.innerHeight);
+      this.camera.updateProjectionMatrix();
+    }
+  }
+
+  async start() {
+    this.ensureRenderer();
+
+    if (!this.isSupported) {
+      const message = "WebXR is not available in this browser.";
+      this.recordError("XR-SUPPORT-001", message, "support-check");
+      throw new Error(message);
+    }
+
+    let session = null;
+    let referenceType = "local-floor";
+
+    try {
       try {
         session = await navigator.xr.requestSession("immersive-vr", {
-          optionalFeatures: ["local-floor", "hand-tracking"]
+          requiredFeatures: ["local-floor"],
+          optionalFeatures: ["hand-tracking"]
         });
-      } catch (error) {
-        const message=this.describeXRError(error);
-        this.recordError("XR-SESSION-001",message,"session-request");
-        throw new Error(message);
+      } catch (firstError) {
+        referenceType = "local";
+        session = await navigator.xr.requestSession("immersive-vr", {
+          optionalFeatures: ["hand-tracking"]
+        });
+        this.renderer.xr.setReferenceSpaceType("local");
+        this.diagnostics.referenceSpace = "local";
       }
 
-      try {
-        await this.gl.makeXRCompatible();
+      if (!session) {
+        throw new Error("XR session creation returned no session.");
+      }
 
-        // makeXRCompatible() may reconfigure the backing graphics context.
-        // Rebuild every shader/buffer after it resolves, never before.
-        if (!this.resourcesReady) this.buildResources();
+      this.diagnostics.referenceSpace = referenceType;
+      await this.renderer.xr.setSession(session);
+      this.setStartGateActive(true);
+      this.running = true;
+      this.diagnostics.lastStage = "session-ready";
+      return true;
+    } catch (error) {
+      const message = String(error && error.message || error);
+      this.recordError("XR-START-001", message, "session-start");
 
-        const layer = new XRWebGLLayer(session, this.gl, {
-          alpha: false,
-          antialias: false,
-          depth: true,
-          stencil: false,
-          framebufferScaleFactor: 1,
-          ignoreDepthValues: false
-        });
-
-        if (!layer.framebuffer) {
-          throw new Error("XRWebGLLayer did not provide a framebuffer.");
-        }
-        if (layer.framebufferWidth < 1 || layer.framebufferHeight < 1) {
-          throw new Error("XR framebuffer has an invalid size.");
-        }
-
-        session.updateRenderState({
-          baseLayer: layer,
-          depthNear: 0.01,
-          depthFar: 100
-        });
-
-        let referenceSpace;
-        let referenceSpaceType="local-floor";
-
-        try {
-          referenceSpace = await session.requestReferenceSpace("local-floor");
-        } catch {
-          referenceSpaceType="local";
-          referenceSpace = await session.requestReferenceSpace("local");
-        }
-
-        this.session = session;
-        this.layer = layer;
-        this.referenceSpace = referenceSpace;
-        this.running = true;
-        this.startGateActive=true;
-        this.diagnostics.lastStage="session-active";
-        this.diagnostics.inputSourceCount=session.inputSources.length;
-        this.diagnostics.trackedInputCount=0;
-        this.diagnostics.viewCount=0;
-        this.diagnostics.poseMotion=0;
-        this.diagnostics.poseRotation=0;
-        this.diagnostics.posePosition=null;
-        this.diagnostics.poseOrientation=null;
-        this.diagnostics.referenceSpace=referenceSpaceType;
-        this.frameTime = 0;
-        this.error = null;
-
-        session.addEventListener("end", () => this.handleSessionEnd(), { once: true });
-        session.addEventListener("inputsourceschange", () => {
-          this.diagnostics.inputSourceCount=session.inputSources.length;
-          this.diagnostics.inputSourceEvents++;
-        });
-        session.addEventListener("selectstart", event => {
-          this.diagnostics.selectCount++;
-          if(this.isStartButtonHit(event.inputSource,event.frame)&&typeof this.onStartRequested==="function")this.onStartRequested();
-        });
-        session.addEventListener("squeezestart", event => {
-          this.diagnostics.squeezeCount++;
-          if(this.isStartButtonHit(event.inputSource,event.frame)&&typeof this.onStartRequested==="function")this.onStartRequested();
-        });
-        session.requestAnimationFrame((time, frame) => this.frame(time, frame));
-
-        return true;
-      } catch (error) {
-        const message = String(error && error.message || error);
-        this.recordError("XR-START-001",message,"session-start");
-        this.error = message;
+      if (session) {
         try {
           await session.end();
         } catch {}
-        throw new Error(message);
-      }
-    }
-
-    async stop() {
-      if (!this.session) return;
-      try {
-        await this.session.end();
-      } catch {
-        this.handleSessionEnd();
-      }
-    }
-
-    handleSessionEnd() {
-      this.running = false;
-      this.startGateActive=false;
-      this.diagnostics.lastStage="session-ended";
-      this.session = null;
-      this.referenceSpace = null;
-      this.layer = null;
-      this.frameTime = 0;
-      this.currentFrame = null;
-    }
-
-    describeXRError(error) {
-      if (!error) return "Unknown WebXR error.";
-      const name = error.name ? String(error.name) : "";
-      const message = error.message ? String(error.message) : "";
-      if (name === "SecurityError") return "WebXR permission or secure-context policy rejected the session.";
-      if (name === "NotSupportedError") return "This browser or connected headset does not support immersive VR.";
-      if (name === "InvalidStateError") return "Another immersive VR session is already active.";
-      return message ? name + ": " + message : name || "Unable to start WebXR.";
-    }
-
-    worldPosition(entity) {
-      // WebXR looks down -Z. The simulation's Y axis is the second
-      // horizontal gameplay axis, so positive simulation Y maps toward
-      // negative XR Z rather than behind the viewer.
-      const player = this.world.player;
-      return [
-        (entity.x - player.x) * WORLD_SCALE,
-        (entity.z - player.z) * WORLD_SCALE,
-        -(entity.y - player.y) * WORLD_SCALE
-      ];
-    }
-
-    handPosition(pose) {
-      const player = this.world.player;
-      const p = pose.transform.position;
-      return [
-        p.x,
-        p.y,
-        p.z
-      ];
-    }
-
-    drawMesh(view, mesh, position, scale, color, glow = 0) {
-      const gl = this.gl;
-      gl.useProgram(this.program);
-      gl.bindBuffer(gl.ARRAY_BUFFER, mesh.buffer);
-      gl.vertexAttribPointer(this.locations.position, 3, gl.FLOAT, false, 0, 0);
-      if(!this.checkGlError("GL-ATTR-002","vertexAttribPointer"))return;
-      gl.enableVertexAttribArray(this.locations.position);
-      if(!this.checkGlError("GL-ATTR-003","enableVertexAttribArray"))return;
-      gl.uniformMatrix4fv(this.locations.projection, false, view.projectionMatrix);
-      gl.uniformMatrix4fv(this.locations.view, false, view.viewMatrix);
-      gl.uniformMatrix4fv(
-        this.locations.model,
-        false,
-        modelMatrix(position[0], position[1], position[2], scale[0], scale[1], scale[2])
-      );
-      gl.uniform4fv(this.locations.color, color);
-      gl.uniform1f(this.locations.glow, glow);
-      gl.uniform1f(this.locations.pointSize, 1);
-      gl.drawArrays(mesh.mode, 0, mesh.count);
-      this.checkGlError("GL-DRAW-001","drawArrays");
-    }
-
-    drawLine(view, start, end, color, glow = 0) {
-      const gl = this.gl;
-
-      gl.bindBuffer(gl.ARRAY_BUFFER, this.vertexBuffer);
-      gl.bufferSubData(gl.ARRAY_BUFFER, 0, new Float32Array([
-        start[0], start[1], start[2],
-        end[0], end[1], end[2]
-      ]));
-
-      this.drawMesh(
-        view,
-        { buffer: this.vertexBuffer, count: 2, mode: gl.LINES },
-        [0,0,0],
-        [1,1,1],
-        color,
-        glow
-      );
-    }
-
-    drawSky(view) {
-      const gl = this.gl;
-      gl.disable(gl.DEPTH_TEST);
-      gl.depthMask(false);
-      gl.useProgram(this.skyProgram);
-      gl.bindBuffer(gl.ARRAY_BUFFER, this.skySphere.buffer);
-      gl.vertexAttribPointer(this.skyLocations.position, 3, gl.FLOAT, false, 0, 0);
-      gl.enableVertexAttribArray(this.skyLocations.position);
-      gl.uniformMatrix4fv(this.skyLocations.projection, false, view.projectionMatrix);
-      gl.uniformMatrix4fv(
-        this.skyLocations.view,
-        false,
-        removeViewTranslation(view.viewMatrix)
-      );
-      gl.uniformMatrix4fv(
-        this.skyLocations.model,
-        false,
-        modelMatrix(0, 0, 0, 45, 45, 45)
-      );
-      gl.drawArrays(this.skySphere.mode, 0, this.skySphere.count);
-      gl.depthMask(true);
-      gl.enable(gl.DEPTH_TEST);
-    }
-
-    drawFloor(view) {
-      const gl = this.gl;
-      const player=this.world.player;
-      const floorY=(FLOOR_Y-player.z)*WORLD_SCALE;
-      const floorX=-player.x*WORLD_SCALE;
-      const floorZ=player.y*WORLD_SCALE;
-      this.drawMesh(view,this.floor,[floorX,floorY,floorZ],[1,1,1],COLORS.floor);
-
-      gl.useProgram(this.program);
-      gl.bindBuffer(gl.ARRAY_BUFFER, this.gridDots.buffer);
-      gl.vertexAttribPointer(this.locations.position, 3, gl.FLOAT, false, 0, 0);
-      gl.enableVertexAttribArray(this.locations.position);
-      gl.uniformMatrix4fv(this.locations.projection, false, view.projectionMatrix);
-      gl.uniformMatrix4fv(this.locations.view, false, view.viewMatrix);
-      gl.uniformMatrix4fv(this.locations.model, false, modelMatrix(floorX, floorY + 0.006, floorZ, 1, 1, 1));
-      gl.uniform4fv(this.locations.color, COLORS.white);
-      gl.uniform1f(this.locations.glow, 0.2);
-      gl.uniform1f(this.locations.pointSize, 3);
-      gl.drawArrays(this.gl.POINTS, 0, this.gridDots.count);
-    }
-
-    drawEntity(view, entity) {
-      const position = this.worldPosition(entity);
-
-      if (entity.type === "metaball") {
-        const scale = Math.max(0.025, entity.radius * WORLD_SCALE);
-        this.drawMesh(view, this.sphere, position, [scale,scale,scale], COLORS.metaball, 0.05);
-        return;
       }
 
-      if (entity.type === "glitch") {
-        const scale = Math.max(0.025, entity.radius * WORLD_SCALE);
-        this.drawMesh(view, this.sphere, position, [scale,scale,scale], COLORS.glitch, 0.08);
-        return;
-      }
-
-      const count = Math.min(32, Math.max(3, this.world.spikePointCount(entity)));
-      const scale = Math.max(0.025, entity.radius * WORLD_SCALE);
-      const direction = Number.isFinite(entity.direction) ? entity.direction : 0;
-
-      for (let i = 0; i < count; i += 1) {
-        const a = direction + Math.PI * 2 * i / count;
-        const b = direction + Math.PI * 2 * (i + 1) / count;
-
-        this.drawLine(
-          view,
-          [position[0] + Math.cos(a) * scale, position[1], position[2] + Math.sin(a) * scale],
-          [position[0] + Math.cos(b) * scale, position[1], position[2] + Math.sin(b) * scale],
-          COLORS.spike
-        );
-      }
-    }
-
-    updateInput(frame, pose) {
-      const player = this.world.player;
-      let thrustX = 0;
-      let thrustY = 0;
-      let thrustZ = 0;
-      let leftHand = null;
-      let rightHand = null;
-
-      for (const source of this.session.inputSources) {
-        const inputSpace = source.gripSpace || source.targetRaySpace;
-        if (!inputSpace) continue;
-
-        const gripPose = frame.getPose(inputSpace, this.referenceSpace);
-        if (!gripPose) continue;
-
-        this.diagnostics.trackedInputCount++;
-        const p = gripPose.transform.position;
-        const hand = {
-          x: player.x + p.x / WORLD_SCALE,
-          y: player.y - p.z / WORLD_SCALE,
-          z: player.z + p.y / WORLD_SCALE,
-          active: true
-        };
-
-        if (source.handedness === "left") leftHand = hand;
-        if (source.handedness === "right") rightHand = hand;
-
-        const axes = source.gamepad && source.gamepad.axes ? source.gamepad.axes : [];
-        const x = Number.isFinite(axes[0]) ? axes[0] : 0;
-        const y = Number.isFinite(axes[1]) ? axes[1] : 0;
-
-        if (source.handedness === "left") {
-          thrustX += x;
-          thrustY -= y;
-        } else if (source.handedness === "right") {
-          thrustZ += x;
-          thrustY -= y;
-        }
-      }
-
-      const length = Math.hypot(thrustX, thrustY, thrustZ);
-      if (length > 1) {
-        thrustX /= length;
-        thrustY /= length;
-        thrustZ /= length;
-      }
-
-      const firstView = pose.views[0];
-      let gazeAtLeftHand = false;
-
-      if (leftHand && firstView) {
-        const viewer = firstView.transform;
-        const q = viewer.orientation;
-        const forward = [
-          -2 * (q.x * q.z + q.w * q.y),
-          -2 * (q.y * q.z - q.w * q.x),
-          -1 + 2 * (q.x * q.x + q.y * q.y)
-        ];
-
-        const handX = (leftHand.x - player.x) * WORLD_SCALE;
-        const handY = (leftHand.z - player.z) * WORLD_SCALE;
-        const handZ = (leftHand.y - player.y) * WORLD_SCALE;
-        const distance = Math.hypot(handX, handY, handZ);
-
-        if (distance > 0.0001) {
-          gazeAtLeftHand =
-            (forward[0] * handX + forward[1] * handZ + forward[2] * handY) / distance > 0.82;
-        }
-      }
-
-      this.diagnostics.inputSourceCount=this.session.inputSources.length;
-      this.diagnostics.lastStage="input";
-      this.world.setPlayerInput({
-        thrust: { x: thrustX, y: thrustY, z: thrustZ },
-        head: this.eulerFromQuaternion(firstView && firstView.transform.orientation),
-        leftHand: leftHand || { x: player.x, y: player.y, z: player.z, active: false },
-        rightHand: rightHand || { x: player.x, y: player.y, z: player.z, active: false },
-        gazeAtLeftHand
-      });
-    }
-
-    eulerFromQuaternion(q) {
-      if (!q) return { pitch:0, yaw:0, roll:0 };
-
-      const sinPitch = 2 * (q.w * q.x + q.y * q.z);
-      const cosPitch = 1 - 2 * (q.x * q.x + q.y * q.y);
-      const sinYaw = 2 * (q.w * q.y - q.z * q.x);
-      const sinRoll = 2 * (q.w * q.z + q.x * q.y);
-      const cosRoll = 1 - 2 * (q.y * q.y + q.z * q.z);
-
-      return {
-        pitch: Math.atan2(sinPitch, cosPitch),
-        yaw: Math.abs(sinYaw) >= 1 ? Math.PI / 2 * Math.sign(sinYaw) : Math.asin(sinYaw),
-        roll: Math.atan2(sinRoll, cosRoll)
-      };
-    }
-
-    drawHands(view) {
-      for (const source of this.session.inputSources) {
-        const inputSpace = source.gripSpace || source.targetRaySpace;
-        if (!inputSpace) continue;
-
-        const pose = this.currentFrame.getPose(inputSpace, this.referenceSpace);
-        if (!pose) continue;
-
-        const position = this.handPosition(pose);
-        const color = source.handedness === "left" ? COLORS.handLeft : COLORS.handRight;
-
-        this.drawMesh(
-          view,
-          this.octahedron,
-          position,
-          [0.07,0.07,0.07],
-          color,
-          0.12
-        );
-
-        if (source.handedness === "left") {
-          const xp = Math.min(16, Math.max(0, this.world.player.xp));
-
-          for (let i = 0; i < xp; i += 1) {
-            const a = i * Math.PI * 2 / Math.max(1, xp);
-            this.drawMesh(
-              view,
-              this.sphere,
-              [
-                position[0] + Math.cos(a) * 0.1,
-                position[1] + Math.sin(a) * 0.1,
-                position[2] - 0.08
-              ],
-              [0.009,0.009,0.009],
-              COLORS.white,
-              1
-            );
-          }
-        }
-      }
-    }
-
-    drawTrap(view) {
-      const trap = this.world.player.trap;
-      if (!trap || !trap.active) return;
-
-      const center = this.worldPosition(trap.center);
-
-      for (const point of trap.points) {
-        this.drawLine(view, this.worldPosition(point), center, COLORS.white, 1);
-      }
-    }
-
-    drawDiagnosticProbe(view){
-      const probe=[0,1.35,-1.6];
-      this.drawMesh(view,this.octahedron,probe,[0.16,0.16,0.16],COLORS.diagnosticAccent,0.35);
-      this.drawLine(view,[probe[0]-0.3,probe[1],probe[2]],[probe[0]+0.3,probe[1],probe[2]],COLORS.diagnostic,0.25);
-      this.drawLine(view,[probe[0],probe[1]-0.3,probe[2]],[probe[0],probe[1]+0.3,probe[2]],COLORS.diagnostic,0.25);
-      this.drawLine(view,[probe[0],probe[1],probe[2]-0.3],[probe[0],probe[1],probe[2]+0.3],COLORS.diagnostic,0.25);
-    }
-
-    drawStartGate(view){
-      this.drawDiagnosticProbe(view);
-      const button=[0,0.65,-1.6];
-      this.drawMesh(view,this.octahedron,button,[0.32,0.12,0.32],COLORS.diagnosticAccent,0.45);
-      this.drawLine(view,[-0.65,0.65,-1.6],[0.65,0.65,-1.6],COLORS.diagnostic,0.2);
-      this.drawLine(view,[0,0.41,-1.6],[0,0.89,-1.6],COLORS.diagnostic,0.2);
-    }
-
-    drawWorld(view) {
-      this.drawSky(view);
-      this.drawFloor(view);
-
-      const player = this.world.player;
-      this.diagnostics.renderedObjects=0;
-
-      if (this.startGateActive) {
-        this.drawStartGate(view);
-        this.diagnostics.renderedObjects=2;
-      } else if (player.captured && player.trap) {
-        this.drawTrap(view);
-      } else {
-        for (const entity of this.world.metaballs) { this.drawEntity(view, entity); this.diagnostics.renderedObjects++; }
-        for (const entity of this.world.spikes) { this.drawEntity(view, entity); this.diagnostics.renderedObjects++; }
-        for (const entity of this.world.glitches) { this.drawEntity(view, entity); this.diagnostics.renderedObjects++; }
-
-        // Put the Player at the XR reference-space origin. The headset's
-        // height and position are handled by the XR view transform.
-        this.drawMesh(
-          view,
-          this.octahedron,
-          [0, PLAYER_VISUAL_Y, 0],
-          [0.18,0.18,0.18],
-          COLORS.player,
-          0.08
-        );
-      }
-
-      this.drawHands(view);
-      this.diagnostics.lastStage="rendered";
-    }
-
-    frame(time, frame) {
-      if (!this.isActive) return;
-
-      const session = frame.session;
-      this.diagnostics.lastStage="frame";
-      session.requestAnimationFrame((nextTime, nextFrame) => {
-        this.frame(nextTime, nextFrame);
-      });
-
-      this.currentFrame = frame;
-      this.xrFrameCount += 1;
-      this.xrLastPoseTime = time;
-
-      try {
-        const pose = frame.getViewerPose(this.referenceSpace);
-        if (!pose || pose.views.length === 0) {
-          this.recordError("XR-POSE-001","WebXR returned no viewer views for the current frame.","pose");
-          return;
-        }
-
-        const gl = this.gl;
-        const layer = session.renderState.baseLayer;
-        this.diagnostics.viewCount=pose.views.length;
-        this.diagnostics.framebufferWidth=layer && layer.framebufferWidth || 0;
-        this.diagnostics.framebufferHeight=layer && layer.framebufferHeight || 0;
-        const viewerPosition=pose.transform.position;
-        const viewerOrientation=pose.transform.orientation;
-        if(this.diagnostics.posePosition){
-          const previous=this.diagnostics.posePosition;
-          this.diagnostics.poseMotion=Math.hypot(viewerPosition.x-previous.x,viewerPosition.y-previous.y,viewerPosition.z-previous.z);
-        }
-        if(this.diagnostics.poseOrientation){
-          const previous=this.diagnostics.poseOrientation;
-          const dot=Math.abs(viewerOrientation.x*previous.x+viewerOrientation.y*previous.y+viewerOrientation.z*previous.z+viewerOrientation.w*previous.w);
-          this.diagnostics.poseRotation=2*Math.acos(Math.min(1,dot));
-        }
-        this.diagnostics.posePosition={x:viewerPosition.x,y:viewerPosition.y,z:viewerPosition.z};
-        this.diagnostics.poseOrientation={x:viewerOrientation.x,y:viewerOrientation.y,z:viewerOrientation.z,w:viewerOrientation.w};
-
-        if (!layer || !layer.framebuffer) {
-          const message="XR frame has no active base-layer framebuffer.";
-          this.recordError("XR-FRAMEBUFFER-001",message,"framebuffer");
-          throw new Error(message);
-        }
-
-        if (!this.resourcesReady) {
-          try {
-            this.buildResources();
-          } catch (error) {
-            const message=String(error&&error.message||error);
-            this.recordError("GL-RESOURCE-001",message,"resource-build");
-            throw error;
-          }
-        }
-
-        gl.bindFramebuffer(gl.FRAMEBUFFER, layer.framebuffer);
-        gl.disable(gl.SCISSOR_TEST);
-        gl.disable(gl.BLEND);
-        gl.enable(gl.DEPTH_TEST);
-        gl.depthMask(true);
-
-        gl.clearColor(0.12, 0.12, 0.14, 1);
-        gl.clearDepth(1);
-        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-
-        try {
-          this.updateInput(frame, pose);
-        } catch (inputError) {
-          const message=String(inputError&&inputError.message||inputError);
-          this.recordError("XR-INPUT-001",message,"input");
-          this.error=message;
-        }
-
-        for (const view of pose.views) {
-          const viewport = layer.getViewport(view);
-          if (!viewport || viewport.width < 1 || viewport.height < 1) {
-            const message="XR returned an invalid eye viewport.";
-            this.recordError("XR-VIEWPORT-001",message,"viewport");
-            throw new Error(message);
-          }
-
-          const maxViewport=gl.getParameter(gl.MAX_VIEWPORT_DIMS);
-          if(
-            !Number.isFinite(viewport.x)||!Number.isFinite(viewport.y)||
-            !Number.isFinite(viewport.width)||!Number.isFinite(viewport.height)||
-            viewport.x<0||viewport.y<0||viewport.width<1||viewport.height<1||
-            viewport.x+viewport.width>layer.framebufferWidth||
-            viewport.y+viewport.height>layer.framebufferHeight||
-            viewport.width>maxViewport[0]||viewport.height>maxViewport[1]
-          ){
-            const message="XR viewport invalid: x="+viewport.x+" y="+viewport.y+" w="+viewport.width+" h="+viewport.height+" framebuffer="+layer.framebufferWidth+"x"+layer.framebufferHeight+" max="+maxViewport[0]+"x"+maxViewport[1]+".";
-            this.recordError("XR-VIEWPORT-002",message,"viewport");
-            throw new Error(message);
-          }
-          gl.viewport(
-            viewport.x,
-            viewport.y,
-            viewport.width,
-            viewport.height
-          );
-          if(!this.checkGlError("GL-VIEWPORT-001","viewport"))throw new Error("WebGL viewport call failed.");
-
-          try {
-            this.drawWorld(view);
-          } catch (renderError) {
-            this.error = "XR render: " +
-              String(renderError && renderError.message || renderError);
-          }
-        }
-
-        gl.depthMask(true);
-        gl.flush();
-
-        const glError = gl.getError();
-        if (glError !== gl.NO_ERROR) {
-          const hex=glError.toString(16);
-          const message="WebGL XR frame error 0x"+hex+".";
-          this.recordError("GL-ERROR-"+hex,message,"webgl");
-          this.error=message;
-        }
-      } catch (error) {
-        this.error = "XR frame: " +
-          String(error && error.message || error);
-      } finally {
-        this.currentFrame = null;
-      }
+      throw new Error(message);
     }
   }
 
-  window.VRRenderer = VRRenderer;
-})();
+  async stop() {
+    if (!this.renderer) return;
+
+    const session = this.renderer.xr.getSession();
+    if (!session) {
+      this.running = false;
+      return;
+    }
+
+    try {
+      await session.end();
+    } catch (error) {
+      this.recordError(
+        "XR-STOP-001",
+        String(error && error.message || error),
+        "session-end"
+      );
+      this.running = false;
+    }
+  }
+}
+
+function playerGroupSafe(group) {
+  return !!group && group.children && group.children.length >= 4;
+}
+
+window.VRRenderer = VRRenderer;
+window.VRWorldThree = THREE;
+
+export { VRRenderer };
