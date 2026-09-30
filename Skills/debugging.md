@@ -59,3 +59,11 @@ The immersive renderer now preserves separate diagnostics for XR-frame setup, XR
 The page keeps a rolling diagnostic history rather than only one free-form error string. Simulation failures use the `SIM-*` family; page-loop failures use `PAGE-LOOP-*`; XR failures use `XR-*`; and WebGL failures use `GL-*`. Each entry records its stage, and XR entries also retain the frame/time context available to the renderer. The status panel shows the most recent errors so a black or frozen headset view can be separated into startup, pose, framebuffer, rendering, input, simulation, or WebGL categories.
 
 A fixed-step simulation exception is caught at the simulation boundary, the simulation is halted, and the current state is left available for inspection. The page animation loop itself is also protected from an unexpected runtime exception.
+
+
+## XR scene-probe diagnostics
+The immersive renderer includes a fixed diagnostic probe and start gate that are not derived from simulation entities. If these visible markers render, the WebXR framebuffer, camera matrices, shader pipeline, and basic world-space geometry path are functioning even when the gameplay scene is empty. The diagnostics panel also reports the number of rendered gameplay objects.
+
+XR input diagnostics distinguish `inputSourceCount` from `trackedInputCount`. A zero source count produces the warning `XR-INPUT-EMPTY-001`; sources with no usable pose produce `XR-INPUT-POSE-EMPTY-001`. Viewer translation and rotation are tracked independently so a session can be identified as frame-advancing but pose-static.
+
+The start gate uses the event frame supplied by `XRInputSourceEvent` to obtain the target-ray pose and perform an actual button hit check. This follows the WebXR input event model documented by MDN. citeturn999353search0turn999353search3
