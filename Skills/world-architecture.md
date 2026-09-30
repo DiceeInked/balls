@@ -47,3 +47,7 @@ The Step 11 separation work has been advanced in the XR frame path: XR framebuff
 The immersive renderer now uses a single Player-relative world transform for all gameplay geometry, with `local-floor` Y=0 as the virtual floor and simulation Z as vertical world position. The floor, grid, entities, and Player visual therefore share one spatial model.
 
 The renderer uses an XR depth buffer for deterministic 3D occlusion. Runtime failures are diagnostic events only: simulation state is not reset because of a renderer error, and a simulation exception is contained at the fixed-step boundary for later inspection.
+
+
+## XR startup isolation
+Immersive session startup now has a presentation-only start gate. The authoritative simulation does not advance while the gate is active. A fixed diagnostic probe is rendered independently of authoritative entities, allowing XR rendering to be tested before gameplay state is allowed to change. Selecting the gate changes only the page's startup state; gameplay remains owned by `VRWorld`.
