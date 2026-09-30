@@ -64,6 +64,7 @@ button{font:700 18px monospace}
   let nextPeriodicSave = 5;
   let vrStarting = false;
   let nextStatusUpdate = 0;
+  let vrSimulationStarted = false;
 
   const normalizeColor = color => {
     const match = /^#([0-9a-f]{8})$/i.exec(color || "");
@@ -310,8 +311,21 @@ button{font:700 18px monospace}
         "XR ACTIVE • frames " + xr.frameCount +
         " • views " + xr.viewCount +
         " • inputs " + xr.inputSourceCount +
+        " • tracked " + xr.trackedInputCount +
         " • stage " + xr.lastStage
       );
+      lines.push(
+        "POSE " + (xr.poseMotion > 0.00005 ? "MOVING" : "STATIC") +
+        " • pos " + (xr.posePosition ? xr.posePosition.x.toFixed(2)+","+xr.posePosition.y.toFixed(2)+","+xr.posePosition.z.toFixed(2) : "none") +
+        " • FB " + xr.framebufferWidth + "x" + xr.framebufferHeight +
+        " • rendered " + xr.renderedObjects +
+        " • select/squeeze " + xr.selectCount + "/" + xr.squeezeCount
+      );
+      if (xr.inputSourceCount === 0) lines.push("WARN XR-INPUT-EMPTY-001 • no XR input sources reported");
+      else if (xr.trackedInputCount === 0) lines.push("WARN XR-INPUT-POSE-EMPTY-001 • sources exist but no tracked pose is available");
+      if (xr.viewCount === 0) lines.push("WARN XR-VIEWS-EMPTY-001 • no eye views reported");
+      if (xr.framebufferWidth < 1 || xr.framebufferHeight < 1) lines.push("WARN XR-FB-SIZE-001 • invalid XR framebuffer size");
+      if (!vrSimulationStarted) lines.push("START GATE • point at the center button and use select or squeeze");
     } else {
       lines.push(
         "XR INACTIVE • supported " +
@@ -332,6 +346,14 @@ button{font:700 18px monospace}
 
     status.textContent = lines.join("\n");
   };
+
+  const startVRSimulation = () => {
+    vrSimulationStarted=true;
+    renderer.setStartGateActive(false);
+    status.textContent="VR simulation started.";
+  };
+
+  renderer.onStartRequested=startVRSimulation;
 
   const resetSimulation = () => {
     const storage = getStorage();
@@ -390,6 +412,8 @@ button{font:700 18px monospace}
 
     if (renderer.isActive) {
       await renderer.stop();
+      vrSimulationStarted=false;
+      renderer.setStartGateActive(false);
       vrButton.textContent = "VR";
       status.textContent = "Returned to desktop preview.";
       return;
@@ -400,7 +424,11 @@ button{font:700 18px monospace}
     status.textContent = "Starting WebXR...";
 
     try {
+      vrSimulationStarted=false;
+      renderer.setStartGateActive(true);
       await renderer.start();
+      renderer.onStartRequested=startVRSimulation;
+      renderer.setStartGateActive(true);
       vrButton.textContent = "EXIT VR";
       status.textContent = "WebXR active. Exit VR from the headset or press EXIT VR.";
     } catch (error) {
@@ -419,7 +447,7 @@ button{font:700 18px monospace}
       const delta = Math.max(0, (now - lastTime) / 1000);
       lastTime = now;
 
-      if (initialized) {
+      if (initialized && (!renderer.isActive || vrSimulationStarted)) {
         world.step(delta);
 
         if (world.persistence.majorDirty || world.worldTime >= nextPeriodicSave) {
