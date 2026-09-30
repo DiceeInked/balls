@@ -30,7 +30,7 @@ COMPLETED for the authoritative simulation layer. The Player now owns XP, 3D pos
 COMPLETED for the authoritative simulation and current 2D preview. Spike capture, blackened world, glowing crack generation, crack points and center, point dragging, repair detection, and player release are implemented. Detailed WebXR presentation remains part of Step 10.
 
 10. VR rendering
-IMPLEMENTED for the current prototype. WebXR session startup, stereoscopic views, XR framebuffer rendering, headset pose diagnostics, controller/hand input plumbing, the fixed XR diagnostic probe, and the immersive start gate are implemented. Actual device verification remains pending.
+IMPLEMENTED with a real Three.js 3D/WebXR pipeline. Three.js owns XR presentation, the stereo camera, the XR render loop, and the underlying framebuffer path. The scene contains genuine 3D meshes, materials, lighting, floor/grid geometry, controller/hand visuals, a fixed start gate, and trap rendering. Actual device verification remains pending.
 
 11. Simulation/render separation
 PARTIALLY IMPLEMENTED. The desktop simulation clock remains authoritative, XR presentation uses the same world state, and simulation exceptions are contained. Final architecture cleanup remains later work.
@@ -64,3 +64,7 @@ The renderer/simulation boundary now contains runtime failures instead of allowi
 
 ## Step 12 diagnostic hardening update
 The current VR preview has structured runtime diagnostics, a fixed XR scene probe, an immersive start gate, explicit no-input warnings, pose translation/rotation reporting, framebuffer reporting, and simulation exception containment. Step 11 remains the architectural goal of keeping simulation ownership independent from rendering, with the current page's XR start gate enforcing that separation at startup.
+
+
+## Hosting
+The project is deployed through GitHub Pages. Deployment state must be checked through GitHub Pages/GitHub rather than Vercel.
