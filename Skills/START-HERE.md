@@ -88,3 +88,11 @@ Before every project change:
 The immersive renderer now treats `local-floor` Y=0 as the game floor and converts simulation X/Y/Z into one consistent XR coordinate system, including Player-relative vertical movement. The XR floor and dotted grid follow the authoritative Player position instead of using a fixed hidden offset.
 
 Runtime diagnostics now keep structured error codes for simulation, XR startup/session, XR pose/input/rendering, WebGL context loss, and WebGL error states. The bottom status panel displays simulation health, entity counts, XR frame/view/input counts, and the most recent retained errors. A simulation exception is contained and marks the authoritative simulation halted instead of killing the page animation loop.
+
+
+## Recent XR black-screen hardening
+The immersive frame path now declares and validates the XR base layer before reading its framebuffer dimensions. This avoids a frame-level reference error that could prevent any world rendering while leaving the session itself apparently active.
+
+The Player now starts at the center of the authoritative arena. Immersive VR opens with a visible start gate and a fixed diagnostic probe independent of simulation entities. The simulation remains paused until the start button is selected with an XR primary action or squeeze action. The gate is targeted through the XR input ray rather than accepting arbitrary button presses.
+
+Diagnostics now distinguish no input sources from input sources with no tracked pose, report viewer translation and rotation motion, report framebuffer dimensions, count rendered objects, and count selection/squeeze events.
