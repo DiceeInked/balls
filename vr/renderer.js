@@ -14,7 +14,9 @@
     handRight: [0.231, 0.51, 0.965, 1],
     white: [1, 1, 1, 1],
     black: [0, 0, 0, 1],
-    floor: [0.012, 0.012, 0.015, 1]
+    floor: [0.035, 0.035, 0.045, 1],
+    diagnostic: [0.98, 0.98, 1, 1],
+    diagnosticAccent: [0, 1, 0.784, 1]
   };
 
   const VERTEX_SHADER = [
@@ -208,7 +210,28 @@
       this.contextEventsAttached = false;
       this.xrFrameCount = 0;
       this.xrLastPoseTime = 0;
-      this.diagnostics={lastError:null,errorCount:0,errors:[],lastStage:"idle",inputSourceCount:0,viewCount:0,referenceSpace:"none",framebufferWidth:0,framebufferHeight:0};
+      this.diagnostics={lastError:null,errorCount:0,errors:[],lastStage:"idle",inputSourceCount:0,trackedInputCount:0,viewCount:0,referenceSpace:"none",framebufferWidth:0,framebufferHeight:0,poseMotion:0,posePosition:null,poseOrientation:null,selectCount:0,squeezeCount:0,inputSourceEvents:0,renderedObjects:0};
+      this.startGateActive=false;
+      this.onStartRequested=null;
+    }
+
+    setStartGateActive(active){this.startGateActive=active===true;}
+
+    isStartButtonHit(inputSource,frame){
+      if(!this.startGateActive||!inputSource||!frame||!this.referenceSpace)return false;
+      const space=inputSource.targetRaySpace||inputSource.gripSpace;
+      if(!space)return false;
+      const pose=frame.getPose(space,this.referenceSpace);
+      if(!pose)return false;
+      const p=pose.transform.position;
+      const q=pose.transform.orientation;
+      const forward=[2*(q.x*q.z+q.w*q.y),2*(q.y*q.z-q.w*q.x),1-2*(q.x*q.x+q.y*q.y)];
+      if(Math.abs(forward[2])<0.000001)return false;
+      const t=(-1.6-p.z)/forward[2];
+      if(t<0)return false;
+      const x=p.x+forward[0]*t;
+      const y=p.y+forward[1]*t;
+      return Math.abs(x)<=0.65&&Math.abs(y-0.65)<=0.24;
     }
 
     recordError(code,message,stage){
@@ -220,7 +243,7 @@
       if(this.diagnostics.errors.length>12)this.diagnostics.errors.length=12;
     }
 
-    getDiagnostics(){return{active:this.isActive,supported:this.isSupported,frameCount:this.xrFrameCount,lastPoseTime:this.xrLastPoseTime,inputSourceCount:this.diagnostics.inputSourceCount,viewCount:this.diagnostics.viewCount,lastStage:this.diagnostics.lastStage,referenceSpace:this.diagnostics.referenceSpace,framebufferWidth:this.diagnostics.framebufferWidth,framebufferHeight:this.diagnostics.framebufferHeight,errorCount:this.diagnostics.errorCount,lastError:this.diagnostics.lastError,errors:this.diagnostics.errors.slice(0,8)};}
+    getDiagnostics(){return{active:this.isActive,supported:this.isSupported,frameCount:this.xrFrameCount,lastPoseTime:this.xrLastPoseTime,inputSourceCount:this.diagnostics.inputSourceCount,trackedInputCount:this.diagnostics.trackedInputCount,viewCount:this.diagnostics.viewCount,lastStage:this.diagnostics.lastStage,referenceSpace:this.diagnostics.referenceSpace,framebufferWidth:this.diagnostics.framebufferWidth,framebufferHeight:this.diagnostics.framebufferHeight,poseMotion:this.diagnostics.poseMotion,posePosition:this.diagnostics.posePosition,poseOrientation:this.diagnostics.poseOrientation,selectCount:this.diagnostics.selectCount,squeezeCount:this.diagnostics.squeezeCount,inputSourceEvents:this.diagnostics.inputSourceEvents,renderedObjects:this.diagnostics.renderedObjects,errorCount:this.diagnostics.errorCount,lastError:this.diagnostics.lastError,errors:this.diagnostics.errors.slice(0,8)};}
 
     get isActive() {
       return this.running && !!this.session;
@@ -380,14 +403,31 @@
         this.layer = layer;
         this.referenceSpace = referenceSpace;
         this.running = true;
+        this.startGateActive=true;
         this.diagnostics.lastStage="session-active";
-        this.diagnostics.inputSourceCount=0;
+        this.diagnostics.inputSourceCount=session.inputSources.length;
+        this.diagnostics.trackedInputCount=0;
         this.diagnostics.viewCount=0;
+        this.diagnostics.poseMotion=0;
+        this.diagnostics.posePosition=null;
+        this.diagnostics.poseOrientation=null;
         this.diagnostics.referenceSpace=referenceSpaceType;
         this.frameTime = 0;
         this.error = null;
 
         session.addEventListener("end", () => this.handleSessionEnd(), { once: true });
+        session.addEventListener("inputsourceschange", () => {
+          this.diagnostics.inputSourceCount=session.inputSources.length;
+          this.diagnostics.inputSourceEvents++;
+        });
+        session.addEventListener("selectstart", event => {
+          this.diagnostics.selectCount++;
+          if(this.isStartButtonHit(event.inputSource,event.frame)&&typeof this.onStartRequested==="function")this.onStartRequested();
+        });
+        session.addEventListener("squeezestart", event => {
+          this.diagnostics.squeezeCount++;
+          if(this.isStartButtonHit(event.inputSource,event.frame)&&typeof this.onStartRequested==="function")this.onStartRequested();
+        });
         session.requestAnimationFrame((time, frame) => this.frame(time, frame));
 
         return true;
@@ -412,6 +452,7 @@
 
     handleSessionEnd() {
       this.running = false;
+      this.startGateActive=false;
       this.diagnostics.lastStage="session-ended";
       this.session = null;
       this.referenceSpace = null;
@@ -582,6 +623,7 @@
         const gripPose = frame.getPose(inputSpace, this.referenceSpace);
         if (!gripPose) continue;
 
+        this.diagnostics.trackedInputCount++;
         const p = gripPose.transform.position;
         const hand = {
           x: player.x + p.x / WORLD_SCALE,
@@ -716,13 +758,33 @@
       }
     }
 
+    drawDiagnosticProbe(view){
+      const probe=[0,1.35,-1.6];
+      this.drawMesh(view,this.octahedron,probe,[0.16,0.16,0.16],COLORS.diagnosticAccent,0.35);
+      this.drawLine(view,[probe[0]-0.3,probe[1],probe[2]],[probe[0]+0.3,probe[1],probe[2]],COLORS.diagnostic,0.25);
+      this.drawLine(view,[probe[0],probe[1]-0.3,probe[2]],[probe[0],probe[1]+0.3,probe[2]],COLORS.diagnostic,0.25);
+      this.drawLine(view,[probe[0],probe[1],probe[2]-0.3],[probe[0],probe[1],probe[2]+0.3],COLORS.diagnostic,0.25);
+    }
+
+    drawStartGate(view){
+      this.drawDiagnosticProbe(view);
+      const button=[0,0.65,-1.6];
+      this.drawMesh(view,this.octahedron,button,[0.32,0.12,0.32],COLORS.diagnosticAccent,0.45);
+      this.drawLine(view,[-0.65,0.65,-1.6],[0.65,0.65,-1.6],COLORS.diagnostic,0.2);
+      this.drawLine(view,[0,0.41,-1.6],[0,0.89,-1.6],COLORS.diagnostic,0.2);
+    }
+
     drawWorld(view) {
       this.drawSky(view);
       this.drawFloor(view);
 
       const player = this.world.player;
+      this.diagnostics.renderedObjects=0;
 
-      if (player.captured && player.trap) {
+      if (this.startGateActive) {
+        this.drawStartGate(view);
+        this.diagnostics.renderedObjects=2;
+      } else if (player.captured && player.trap) {
         this.drawTrap(view);
       } else {
         for (const entity of this.world.metaballs) this.drawEntity(view, entity);
@@ -764,12 +826,20 @@
           this.recordError("XR-POSE-001","WebXR returned no viewer views for the current frame.","pose");
           return;
         }
-        this.diagnostics.viewCount=pose.views.length;
-        this.diagnostics.framebufferWidth=layer && layer.framebufferWidth || 0;
-        this.diagnostics.framebufferHeight=layer && layer.framebufferHeight || 0;
 
         const gl = this.gl;
         const layer = session.renderState.baseLayer;
+        this.diagnostics.viewCount=pose.views.length;
+        this.diagnostics.framebufferWidth=layer && layer.framebufferWidth || 0;
+        this.diagnostics.framebufferHeight=layer && layer.framebufferHeight || 0;
+        const viewerPosition=pose.transform.position;
+        const viewerOrientation=pose.transform.orientation;
+        if(this.diagnostics.posePosition){
+          const previous=this.diagnostics.posePosition;
+          this.diagnostics.poseMotion=Math.hypot(viewerPosition.x-previous.x,viewerPosition.y-previous.y,viewerPosition.z-previous.z);
+        }
+        this.diagnostics.posePosition={x:viewerPosition.x,y:viewerPosition.y,z:viewerPosition.z};
+        this.diagnostics.poseOrientation={x:viewerOrientation.x,y:viewerOrientation.y,z:viewerOrientation.z,w:viewerOrientation.w};
 
         if (!layer || !layer.framebuffer) {
           const message="XR frame has no active base-layer framebuffer.";
