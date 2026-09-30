@@ -73,7 +73,7 @@ Spike consumption and random child spawning have been tested.
 Spike removal/finalization and persistence round trips have been tested.
 The VR Spike split now follows the working original prototype's smaller 55%-radius children, perpendicular separation, ±0.24 directional fan-out, and 8-frame collision cooldown. The split regression was checked against the updated rules.
 Player Trap capture, 12-point crack creation, trap persistence, repair/release, captured movement lock, and malformed snapshot rejection have been smoke-tested.
-The current VR simulation, desktop preview, legacy state bridge, and Step 10 renderer are source-level complete. The desktop preview no longer depends on WebXR availability, remains live while immersive XR is active, the immersive environment uses a world-locked sky gradient, the VR button remains usable for diagnostics on ordinary computers, and actual immersive WebXR device verification remains pending.
+The current VR simulation, desktop preview, legacy state bridge, and Step 10 renderer are source-level complete. The desktop preview no longer depends on WebXR availability, remains live while immersive XR is active, the immersive environment follows the deferred visual specification in Skills/vr-rendering.md, the VR button remains usable for diagnostics on ordinary computers, and actual immersive WebXR device verification remains pending.
 
 ## Change workflow
 Before every project change:
@@ -86,7 +86,7 @@ Before every project change:
 
 
 ## Recent XR coordinate and diagnostics hardening
-The immersive renderer now treats `local-floor` Y=0 as the game floor and converts simulation X/Y/Z into one consistent XR coordinate system, including Player-relative vertical movement. The XR floor and dotted grid follow the authoritative Player position instead of using a fixed hidden offset.
+The immersive renderer now treats `local-floor` Y=0 as the game floor and converts simulation X/Y/Z into one consistent XR coordinate system, including Player-relative vertical movement. The current XR reference floor and preview grid follow the authoritative Player position instead of using a fixed hidden offset; future visual-floor requirements are documented separately in Skills/vr-rendering.md.
 
 Runtime diagnostics now keep structured error codes for simulation, XR startup/session, XR pose/input/rendering, WebGL context loss, and WebGL error states. The bottom status panel displays simulation health, entity counts, XR frame/view/input counts, and the most recent retained errors. A simulation exception is contained and marks the authoritative simulation halted instead of killing the page animation loop.
 
@@ -103,4 +103,4 @@ Diagnostics now distinguish no input sources from input sources with no tracked 
 The live project is served through GitHub Pages. Vercel is not the deployment target for DiceeInked/balls and should not be used to judge whether a change has reached the live site.
 
 ## Rendering architecture reset
-The immersive renderer was replaced with a clean Three.js-based 3D pipeline. Three.js WebGLRenderer owns WebXR presentation, stereoscopic cameras, XR frame timing, and the XR framebuffer path. The game still keeps vr/simulation.js authoritative, but immersive rendering is no longer built from the previous hand-written raw WebGL shader/framebuffer system.
+The immersive renderer was replaced with a clean Three.js-based 3D pipeline. Three.js WebGLRenderer owns WebXR presentation, stereoscopic cameras, XR frame timing, and the XR framebuffer path. The game still keeps vr/simulation.js authoritative, but immersive rendering is no longer built from the previous hand-written raw WebGL shader/framebuffer system. Detailed future visual requirements are recorded in Skills/vr-rendering.md and are not yet implemented.
