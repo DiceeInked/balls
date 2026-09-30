@@ -60,3 +60,7 @@ Before every future project change:
 
 ## Current Step 11/12 hardening
 The renderer/simulation boundary now contains runtime failures instead of allowing a fixed-step or page-loop exception to kill diagnostics. The immersive renderer records structured XR/WebGL error codes and exposes live frame, view, input, reference-space, and framebuffer diagnostics. Coordinate mapping has been normalized around the Player and `local-floor` where available.
+
+
+## Step 12 diagnostic hardening update
+The current VR preview has structured runtime diagnostics, a fixed XR scene probe, an immersive start gate, explicit no-input warnings, pose translation/rotation reporting, framebuffer reporting, and simulation exception containment. Step 11 remains the architectural goal of keeping simulation ownership independent from rendering, with the current page's XR start gate enforcing that separation at startup.
