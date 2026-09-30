@@ -30,8 +30,9 @@ button{font:700 18px monospace}
 <div id="status" aria-live="polite"></div>
 
 <script src="simulation.js"></script>
-<script src="renderer.js"></script>
-<script>
+<script type="module">
+import "./renderer.js";
+
 (() => {
   "use strict";
 
