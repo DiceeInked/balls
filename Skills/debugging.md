@@ -66,4 +66,4 @@ The immersive renderer includes a fixed diagnostic probe and start gate that are
 
 XR input diagnostics distinguish `inputSourceCount` from `trackedInputCount`. A zero source count produces the warning `XR-INPUT-EMPTY-001`; sources with no usable pose produce `XR-INPUT-POSE-EMPTY-001`. Viewer translation and rotation are tracked independently so a session can be identified as frame-advancing but pose-static.
 
-The start gate uses the event frame supplied by `XRInputSourceEvent` to obtain the target-ray pose and perform an actual button hit check. This follows the WebXR input event model documented by MDN. citeturn999353search0turn999353search3
+The start gate uses the event frame supplied by `XRInputSourceEvent` to obtain the target-ray pose and perform an actual button hit check. This follows the WebXR input event model documented by MDN.
