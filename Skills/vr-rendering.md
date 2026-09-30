@@ -1,72 +1,86 @@
 # VR Rendering
 
-The VR version uses WebXR for immersive VR when supported. Step 10 has a dedicated `vr/renderer.js` WebGL/WebXR renderer, while `vr/index.html` always provides an independent Canvas 2D desktop preview. WebXR availability must not prevent the desktop preview from initializing.
+The immersive VR version uses a real 3D scene rendered by Three.js WebGLRenderer with WebXR enabled. The current library target is Three.js r186, pinned in the module URL so a later CDN update cannot silently change the renderer.
 
-The VR entry flow now:
-- Detect whether immersive VR is supported.
-- Request an immersive VR session.
-- Use the headset's view and input poses.
-- Track the player's hands/controllers.
-- Render the world stereoscopically through the XR rendering loop.
+The renderer is intentionally separated from the authoritative simulation:
+- vr/simulation.js owns entities, movement, collisions, XP, timers, capture, and persistence.
+- vr/renderer.js turns authoritative state into Three.js Scene, Mesh, Group, Camera, and material objects.
+- WebXR presentation is delegated to Three.js WebGLRenderer.xr.
+- The page's simulation loop remains independent from the renderer loop.
 
-Rendering colors:
+## Why this pipeline
+
+The previous renderer manually drove XRWebGLLayer, raw shader programs, attribute locations, per-eye viewports, and framebuffer binding. That path produced the reported 0x501 / INVALID_VALUE failures and was difficult to make portable.
+
+Three.js provides the standard WebXR application flow: enable renderer.xr, choose the XR reference-space type, inject the XR session with renderer.xr.setSession(), and let renderer.setAnimationLoop() drive rendering. Three.js also maintains the XR camera as an ArrayCamera with one camera per eye. This keeps projection, stereo view transforms, and XR framebuffer handling inside the rendering library.
+
+The current code uses Three.js r186 from a pinned jsDelivr module URL. The official Three.js VR guide recommends WebGLRenderer XR enablement together with setAnimationLoop, and the current API exposes setSession, getCamera, getController, getHand, and setReferenceSpaceType.
+
+## 3D world model
+
+The immersive world is genuinely 3D rather than a 2D canvas projected into VR.
+
+- Metaballs are full 3D spheres with emissive materials and a separate physical-looking pickup core.
+- Spikes are extruded 3D polygonal meshes. Their polygon detail is still derived from authoritative XP, with 3 to 32 points.
+- Glitches are irregular 3D icosahedron meshes with emissive cyan material and a translucent outer shell.
+- The Player uses a 3D octahedron body with separate 3D hand markers.
+- The floor is a real PlaneGeometry, and the reference grid is a real GridHelper.
+- Lighting comes from a hemisphere light plus directional lights, so object depth and surface orientation are visible.
+- Depth testing is handled by Three.js rather than direct raw WebGL calls.
+- Headset and eye cameras are controlled by WebXR through Three.js.
+
+Simulation X maps to 3D X, simulation Y maps to 3D negative Z, and simulation Z maps to 3D Y. Gameplay entities are positioned relative to the authoritative Player position so virtual locomotion moves the world around the player's physical XR space.
+
+## WebXR session lifecycle
+
+The VR button requests an immersive-vr session from navigator.xr using local-floor when available and falls back to local when necessary. The session is then passed to renderer.xr.setSession().
+
+Three.js owns the actual XR presentation loop. The renderer does not manually bind an XRWebGLLayer framebuffer or manually iterate over XRView objects.
+
+Three.js WebXRManager supplies target-ray, grip, hand, and XR-camera objects. The current renderer adds lightweight 3D markers for these spaces.
+
+## Start gate
+
+Immersive startup presents a selectable 3D start button before gameplay begins.
+
+The start button is an actual BoxGeometry mesh with a glowing torus and a textured 3D label. Controller selection is tested with Three.js Raycaster.setFromXRController, so the action succeeds only when the controller target ray intersects the button.
+
+The fixed diagnostic probe is also a real 3D mesh in the XR scene. Its purpose is to distinguish presentation problems from simulation problems, but it no longer uses a separate raw WebGL rendering path.
+
+## Environment and trap
+
+Normal immersive rendering uses a dark neutral 3D environment with a large floor, a player-centered reference grid, atmospheric fog, and strong but conservative lighting.
+
+When the Player is captured, the scene background becomes black, normal environment geometry is hidden, and the authoritative crack points and center are rendered as luminous 3D lines and markers. Trap state remains entirely owned by the simulation.
+
+## Color and visibility
+
+The authoritative prototype colors remain:
 - Metaballs: yellow
 - Spikes: red
-- Glitches: blue
+- Glitches: cyan #00FFC8FF
 - Player: blue
-- XP pickup orb: black
-- Metaball glow: bright white
-- Player trap cracks: glowing
+- XP pickup: black
+- Trap cracks: bright white
 
-The renderer must not own authoritative gameplay state.
+Materials deliberately use emissive output so gameplay objects remain clearly visible in a dark VR environment without relying on fragile per-object lights.
 
-WebGL code should avoid fragile assumptions about device uniform limits, shader capacity, or GPU features. Quest-class hardware is a target, so rendering should favor predictable GPU usage.
+## Performance
 
-WebXR and WebGL failures should surface useful diagnostics instead of silently destroying or resetting simulation state.
+Quest-class VR hardware remains the target.
 
-## Current 2D preview behavior
+The renderer reuses Three.js geometries and materials where practical. Spike geometries are cached by vertex count, and entity meshes are kept in an ID-to-object map so normal frames update transforms instead of rebuilding the scene.
 
-The current `vr/index.html` page provides the 2D preview and launches immersive WebXR. Its animation loop separates simulation updates from drawing, and the immersive renderer has an independent start gate. If WebGL context creation fails, it attempts to use a Canvas 2D fallback; if the shader program is unavailable, it draws the fallback on the existing overlay canvas. This is intended to prevent a blank preview, including on mobile browsers, but still requires testing on the actual device.
-
-## Minimal preview
-The current VR page intentionally keeps Canvas 2D as the desktop fallback while the immersive path uses WebGL/WebXR. It renders a square field with three circular hitboxes: yellow Metaball, red Spike, and cyan/blue Glitch. Their positions are read from the authoritative simulation. The preview measures the stage element for its logical world size and tolerates an initially zero-sized mobile layout before creating the entities. This remains a simple prototype visualization while detailed final VR rendering is developed.
-The minimal 2D preview renders every entity in each authoritative Metaball, Spike, and Glitch collection. Glitches use the exact prototype RGBA color `#00FFC8FF`. The preview normalizes configured 8-digit RGBA hex colors to `rgba(...)` strings at Canvas draw time so the exact configured colors remain reliable on browsers with incomplete 8-digit-hex Canvas support. The page does not create, move, reset, or otherwise own gameplay entities.
-## Immersive coordinate and environment rules
-
-The authoritative simulation remains a flat X/Y gameplay plane, but immersive VR maps that plane onto horizontal X/Z space. The authoritative Z coordinate is vertical in VR. Controller/headset Y is mapped to Player Z, while controller/headset Z is mapped to the simulation's Y axis.
-
-The immersive scene has a light-gray-to-dark-gray sky gradient, a dark floor beneath the player, and a player-centered dotted grid. The grid is rendered as a single point mesh rather than one WebGL draw call per dot. XR views always use the projection and view matrices supplied by WebXR and render into each XR viewport. The flat simulation's positive Y direction maps toward WebXR negative Z, because negative Z is forward in the XR world.
-
-## XR environment
-The immersive background uses a large world-locked sky sphere. The sphere is centered on the viewer for position-only purposes, while its translation is removed from the XR view matrix, so its light-gray-above, medium-gray-horizon, and dark-gray-below gradient stays aligned with world up instead of following the headset's screen. The XR clear color is also dark gray so a rendering failure is distinguishable from the intended environment. Controller rendering and input accept `gripSpace` with `targetRaySpace` as a fallback when a browser does not expose a grip pose.
-
-## XR WebGL resource lifecycle
-The renderer creates its WebGL shaders and buffers only after `makeXRCompatible()` resolves. That call may reconfigure the backing graphics context, so resources created before it can become invalid. Context-loss/restoration events mark the resources unavailable so they are rebuilt before rendering resumes.
-
-## Recent XR hardening
-The immersive renderer now keeps the XR WebGL canvas full-size with an explicit backing resolution instead of using a 1×1 hidden canvas. The WebGL context requests XR compatibility at creation and also calls `makeXRCompatible()`; all shaders/buffers are built after XR compatibility resolves. The XR layer requests a depth buffer without antialiasing to keep 3D occlusion deterministic while remaining conservative for target hardware. The XR frame loop schedules its next callback before rendering, binds the current session base layer, renders each XR view using its returned viewport, and isolates input/simulation failures from presentation.
-
-
-## Recent coordinate and depth correction
-The immersive renderer requests `local-floor` when available, so XR floor level is Y=0. The game floor is therefore rendered at authoritative world Z=0 relative to the Player rather than at a separate -1.55 meter offset. The visible Player body is drawn above that floor, while headset eye height remains controlled by the XR view transform.
-
-Simulation X/Y map to XR horizontal X/-Z, and simulation Z maps to XR Y. All entity and trap positions subtract the authoritative Player position on every axis before scaling to meters. Controller and hand poses remain in the XR reference space and are used as the physical input/hand representation.
-
-The XR layer now requests a depth buffer and the scene clears and uses depth testing after rendering the sky. This makes 3D occlusion deterministic rather than relying on draw order.
+No post-processing stack is currently required. The initial 3D scene favors predictable geometry, standard materials, a small light count, and bounded visual effects.
 
 ## Diagnostics
-The renderer retains structured XR/WebGL error entries with codes, stage, frame count, pose timestamp, reference-space type, XR view count, input-source count, and framebuffer dimensions. Failures are recorded without silently resetting the authoritative simulation.
 
+The renderer still exposes structured diagnostics for XR session state, frame count, view count, input-source count, tracked input count, reference-space type, framebuffer/drawing-buffer dimensions, viewer translation and rotation, rendered object count, selection/squeeze events, and retained WebGL context or renderer errors.
 
-## Start gate and black-screen isolation
-Immersive VR now starts with a fixed in-world diagnostic probe and a large central start button. These objects use direct XR reference-space coordinates and are rendered before the authoritative simulation begins, providing a known-good visibility target. The simulation is paused while the start gate is active.
+These diagnostics are for separating simulation problems from presentation problems. They do not own gameplay state.
 
-The start button is activated through a WebXR primary select or squeeze action whose target ray intersects the button. The event frame is used to query the target-ray pose in the same reference space. WebXR defines these input events and provides the event frame specifically for obtaining the input source pose.
+## Current verification status
 
-The renderer treats a missing framebuffer, missing pose, invalid viewport, resource failure, input failure, and WebGL error as separately diagnosable conditions. A current frame must bind the `XRWebGLLayer` framebuffer before drawing and use the viewport returned for each eye.
+Source-level rendering architecture is implemented. Actual headset verification is still required for device-specific behavior, including browser-specific WebXR support, controller/hand tracking, visual brightness, comfort, and performance.
 
-
-## WebGL attribute stability
-The position attribute is explicitly bound to WebGL attribute location 0 before shader linking in both scene programs. This prevents a malformed or unavailable dynamically assigned attribute index from reaching `enableVertexAttribArray` or `vertexAttribPointer`.
-
-The renderer also validates XR viewport coordinates against the framebuffer dimensions and implementation viewport limit before calling `gl.viewport`.
+The desktop Canvas 2D preview remains a lightweight view of the same authoritative simulation. It is not the immersive renderer and is not used as a substitute for the 3D VR scene.
