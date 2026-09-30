@@ -108,3 +108,7 @@ Rendering architecture note: immersive XR presentation is isolated from the auth
 
 ## Recent XR hardening
 The immersive presentation uses the authoritative Player position as the origin for gameplay geometry, with simulation Z as vertical position and `local-floor` Y=0 as the game floor. The XR renderer keeps retained error codes and runtime counters visible through the preview diagnostics panel. These diagnostics do not own gameplay state.
+
+
+## Current XR startup state
+The Player spawns at the center of the authoritative arena. Immersive startup presents a fixed XR-space diagnostic probe and selectable start button before simulation advances. Runtime diagnostics distinguish rendering/session/input problems from authoritative simulation failures.
