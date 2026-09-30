@@ -41,7 +41,7 @@ COMPLETED for the current architecture. The simulation remains authoritative and
 COMPLETED for the current prototype. `vr/simulation.js` exposes a read-only authoritative debug snapshot with entity state, contact timers, timer events, Player/trap state, persistence state, retained errors, and a bounded gameplay event trace. `vr/index.html` exposes the snapshot through `window.VRDebug` and reports live debug counts without taking ownership of gameplay state.
 
 ## 13. Testing
-Test every interaction individually and in combinations.
+IN PROGRESS. `vr/tests.js` provides a deterministic authoritative simulation suite with 19/19 passing tests. `vr/index.html?test=1` runs the suite in the browser without changing normal gameplay mode. Actual WebXR headset/browser, mobile Safari, fallback, and performance checks still require target-device verification.
 
 ## 14. Polish
 Tune visuals, audio if later added, VR comfort, hand controls, effects, performance, and UI without changing the underlying gameplay rules.
