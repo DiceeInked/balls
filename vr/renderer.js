@@ -93,6 +93,7 @@
 
     gl.attachShader(program, vertex);
     gl.attachShader(program, fragment);
+    gl.bindAttribLocation(program, 0, "aPosition");
     gl.linkProgram(program);
 
     gl.deleteShader(vertex);
@@ -330,7 +331,7 @@
       this.skyProgram = createProgram(gl, SKY_VERTEX_SHADER, SKY_FRAGMENT_SHADER);
 
       this.locations = {
-        position: gl.getAttribLocation(this.program, "aPosition"),
+        position: 0,
         projection: gl.getUniformLocation(this.program, "uProjection"),
         view: gl.getUniformLocation(this.program, "uView"),
         model: gl.getUniformLocation(this.program, "uModel"),
@@ -340,7 +341,7 @@
       };
 
       this.skyLocations = {
-        position: gl.getAttribLocation(this.skyProgram, "aPosition"),
+        position: 0,
         projection: gl.getUniformLocation(this.skyProgram, "uProjection"),
         view: gl.getUniformLocation(this.skyProgram, "uView"),
         model: gl.getUniformLocation(this.skyProgram, "uModel")
