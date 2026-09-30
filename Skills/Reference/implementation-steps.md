@@ -35,7 +35,7 @@ COMPLETED for the authoritative simulation and current 2D preview. Spike capture
 IMPLEMENTED with a Three.js r186 3D/WebXR renderer. `vr/renderer.js` uses a real Three.js scene graph, WebGLRenderer XR camera, genuine 3D entity meshes, lighting, floor/grid geometry, controller/hand visuals, a 3D start gate, and trap crack rendering. Actual headset/browser verification remains required before marking device-specific testing complete.
 
 ## 11. Simulation/render separation
-Ensure the simulation remains authoritative and recoverable regardless of renderer state, WebGL state, WebXR state, or tab visibility.
+COMPLETED for the current architecture. The simulation remains authoritative and recoverable regardless of renderer state, WebGL state, WebXR state, or tab visibility. XR input and diagnostics are isolated from the rendering path so a per-frame input/diagnostic failure cannot prevent the last valid world state from being rendered.
 
 ## 12. Debugging
 Build diagnostic tools exposing authoritative world state, contacts, XP, timers, events, WebXR state, WebGL errors, and persistence state.
