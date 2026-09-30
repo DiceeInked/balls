@@ -67,3 +67,7 @@ The immersive renderer includes a fixed diagnostic probe and start gate that are
 XR input diagnostics distinguish `inputSourceCount` from `trackedInputCount`. A zero source count produces the warning `XR-INPUT-EMPTY-001`; sources with no usable pose produce `XR-INPUT-POSE-EMPTY-001`. Viewer translation and rotation are tracked independently so a session can be identified as frame-advancing but pose-static.
 
 The start gate uses the event frame supplied by `XRInputSourceEvent` to obtain the target-ray pose and perform an actual button hit check. This follows the WebXR input event model documented by MDN.
+
+
+## WebGL invalid-value tracing
+The renderer pins the `aPosition` vertex attribute to location 0 before program linking, eliminating device-dependent attribute-location assignment for the only vertex attribute. WebGL calls for attribute setup, viewport setup, and drawing are instrumented so `0x501` can be associated with the exact operation rather than reported only as a raw hexadecimal error.
