@@ -64,3 +64,9 @@ Immersive VR now starts with a fixed in-world diagnostic probe and a large centr
 The start button is activated through a WebXR primary select or squeeze action whose target ray intersects the button. The event frame is used to query the target-ray pose in the same reference space. WebXR defines these input events and provides the event frame specifically for obtaining the input source pose.
 
 The renderer treats a missing framebuffer, missing pose, invalid viewport, resource failure, input failure, and WebGL error as separately diagnosable conditions. A current frame must bind the `XRWebGLLayer` framebuffer before drawing and use the viewport returned for each eye.
+
+
+## WebGL attribute stability
+The position attribute is explicitly bound to WebGL attribute location 0 before shader linking in both scene programs. This prevents a malformed or unavailable dynamically assigned attribute index from reaching `enableVertexAttribArray` or `vertexAttribPointer`.
+
+The renderer also validates XR viewport coordinates against the framebuffer dimensions and implementation viewport limit before calling `gl.viewport`.
