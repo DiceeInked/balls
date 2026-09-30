@@ -33,7 +33,7 @@ COMPLETED for the authoritative simulation and current 2D preview. Spike capture
 IMPLEMENTED with a real Three.js 3D/WebXR pipeline. Three.js owns XR presentation, the stereo camera, the XR render loop, and the underlying framebuffer path. The scene contains genuine 3D meshes, materials, lighting, floor/grid geometry, controller/hand visuals, a fixed start gate, and trap rendering. Actual device verification remains pending.
 
 11. Simulation/render separation
-PARTIALLY IMPLEMENTED. The desktop simulation clock remains authoritative, XR presentation uses the same world state, and simulation exceptions are contained. Final architecture cleanup remains later work.
+COMPLETED for the current architecture. The simulation remains authoritative and advances independently of rendering. XR input is an explicit input boundary, while XR pose/diagnostic failures are isolated from rendering so the last valid authoritative state can still be displayed.
 
 12. Debugging
 PARTIALLY IMPLEMENTED. Runtime diagnostics now expose simulation health, entity counts, XR frames/views/input/tracking, pose movement, framebuffer size, render counts, retained XR/WebGL error codes, and start-gate input events. Deeper authoritative contact/event inspection remains later work.
