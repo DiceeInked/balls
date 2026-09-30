@@ -22,7 +22,7 @@ Current preview: vr/index.html
 9. Player trap: COMPLETED
 10. VR rendering: IMPLEMENTED with a real Three.js 3D/WebXR scene, device verification pending
 11. Simulation/render separation: COMPLETED
-12. Debugging
+12. Debugging: COMPLETED for the current prototype
 13. Testing
 14. Polish
 15. Final architecture review
