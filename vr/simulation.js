@@ -425,6 +425,7 @@
       const separationAngle=baseAngle+Math.PI*0.5;
       const childRadius=Math.max((s.radius||0)*SPIKE_CHILD_RADIUS_SCALE,2.8);
       const separationDistance=Math.max(childRadius*1.15,2);
+      const childIds=[];
       for(const sign of [-1,1]){
         const offset=sign*separationDistance;
         const x=s.x+Math.cos(separationAngle)*offset;
@@ -440,11 +441,14 @@
           xp:sign<0?a:b,
           collisionCooldown:SPIKE_COLLISION_COOLDOWN
         },"spike");
-        if(child)this.clampEntityToBounds(child);
+        if(child){
+          childIds.push(child.id);
+          this.clampEntityToBounds(child);
+        }
       }
       s.remove=true;
       this.persistence.majorDirty=true;
-      this.recordEvent("spike-split",{parentId:s.id,childIds:this.spikes.filter(child=>child!==s&&child.collisionCooldown===SPIKE_COLLISION_COOLDOWN).map(child=>child.id).slice(-2)});
+      this.recordEvent("spike-split",{parentId:s.id,childIds});
     }
 
     drainContact(source,destination,a,b,dt){if(!source||!destination||source.remove||destination.remove)return 0;const timer=this.beginContact(a,b);timer.elapsed+=dt;let moved=0;if(timer.transfers===0){moved=this.transferAndDirty(source,destination,1);timer.transfers=moved>0?1:0;}const intervals=Math.floor((timer.elapsed+TIMER_EPSILON)/CONTACT_INTERVAL);const extra=Math.max(0,intervals-Math.max(0,timer.transfers-1));if(extra>0){const n=this.transferAndDirty(source,destination,extra);timer.transfers+=n;moved+=n;}return moved;}
