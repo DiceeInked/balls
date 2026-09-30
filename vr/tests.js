@@ -74,7 +74,7 @@ function run(){
     assert(children.every(function(x){return near(x.radius,27.5);}),"Child radius is not 55 percent.");
     assert(children.every(function(x){return x.collisionCooldown===8;}),"Child cooldown is wrong.");
     assert(children[0].xp+children[1].xp===40,"Child XP was not preserved.");
-    assert(children[0].x!==children[1].x,"Children were not separated.");
+    assert(children[0].y!==children[1].y,"Children were not separated along the perpendicular axis.");
   });
   test("minimum Spike destruction",function(){
     const w=world(),s=w.spikes[0];s.xp=0;w.splitEntity(s);
