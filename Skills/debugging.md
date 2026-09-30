@@ -69,5 +69,12 @@ XR input diagnostics distinguish `inputSourceCount` from `trackedInputCount`. A 
 The start gate uses the event frame supplied by `XRInputSourceEvent` to obtain the target-ray pose and perform an actual button hit check. This follows the WebXR input event model documented by MDN.
 
 
+## Step 12 authoritative debug snapshot
+The simulation now provides a read-only `getDebugSnapshot()` view for debugging. It contains world time, accumulator and dropped simulation time, bounds, complete entity summaries with IDs/types/positions/velocities/directions/XP/radii/timers/removal state, Player movement/head/hand/menu/capture/trap state, active contact timers, pending 100-second timer events, persistence state, retained simulation errors, and the rolling gameplay event trace. The snapshot is derived from authoritative state and never owns gameplay state.
+
+The event trace records entity creation/destruction, XP transfers, wall-bounce XP gain, Metaball reproduction, pickup generation, Player passive XP drain, Spike splitting/destruction, Spike consumption by Glitches, Player capture, and Player release. It is bounded to the most recent 64 events so diagnostics cannot grow without limit.
+
+The VR page exposes the read-only inspection surface as `window.VRDebug.getSnapshot()`, along with separate simulation and renderer diagnostic accessors. The visible status panel reports active contact-timer, pending-timer, and event counts.
+
 ## WebGL invalid-value tracing
 The renderer pins the `aPosition` vertex attribute to location 0 before program linking, eliminating device-dependent attribute-location assignment for the only vertex attribute. WebGL calls for attribute setup, viewport setup, and drawing are instrumented so `0x501` can be associated with the exact operation rather than reported only as a raw hexadecimal error.
