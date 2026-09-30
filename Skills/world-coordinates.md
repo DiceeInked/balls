@@ -30,7 +30,7 @@ The Step 1/2 foundation stores persistent world bounds and authoritative entity 
 The preview entities now have authoritative world-space `x`, `y`, `vx`, `vy`, `direction`, `speed`, and `radius` values. Their positions are advanced from elapsed simulation time inside the simulation, independent of rendering coordinates. Resizing the display updates world bounds and clamps entities instead of resetting their world positions.
 
 ## XR mapping
-The immersive renderer uses one explicit mapping: simulation X → XR X, simulation Y → XR -Z, and simulation Z → XR Y. Entity positions are converted relative to the authoritative Player position before applying the meter scale. The game floor is authoritative world Z=0, so its XR height is derived from Player Z rather than from a hard-coded camera-height offset.
+The immersive renderer uses one explicit 3D mapping: simulation X maps to scene X, simulation Y maps to scene negative Z, and simulation Z maps to scene Y. Entity positions are kept in authoritative world coordinates, then the Player-relative world root applies the virtual locomotion offset before the meter scale is displayed. The game floor is authoritative world Z=0, so its XR height is derived from Player Z rather than from a hard-coded camera-height offset.
 
 The XR reference space controls headset height/orientation, not the game's world origin. Looking around therefore changes only the supplied XR view matrices; it does not redefine simulation coordinates.
 
