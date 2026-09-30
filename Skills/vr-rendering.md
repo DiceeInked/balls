@@ -87,13 +87,39 @@ The desktop Canvas 2D preview remains a lightweight view of the same authoritati
 
 
 ## Deferred visual redesign
-Do not implement this section until the user explicitly asks to resume the visual redesign. The current working renderer should remain untouched while this is only a design note.
 
-When resumed:
-- Make the gameplay balls, including Metaballs and other ball-like entities, semi-transparent while retaining clear color identity and strong enough contrast to remain visible in immersive VR.
-- Keep the Metaball size approximately at its current scale. Do not enlarge the Metaballs as part of this redesign.
-- Reduce the Player's visible 3D body size substantially. The Player currently reads as oversized compared with the surrounding gameplay objects, so the next visual pass should make the Player noticeably smaller without changing the authoritative Player collision radius or movement mechanics.
-- Remove the current solid ground/floor appearance from the gameplay presentation.
-- Replace the visible ground with a gray dotted grid: evenly spaced gray points lying on the virtual floor plane, extending through the playable area and providing spatial orientation without appearing as a solid floor.
-- The dotted grid is a visual reference only. It must not become a collision surface or alter simulation coordinates, Player movement, or world bounds.
-- Preserve the successful Three.js/WebXR rendering architecture. This is a styling pass, not a renderer-architecture rewrite.
+Do not implement this section until the user explicitly asks to resume the visual redesign. This is a visual target only. The current working renderer must remain untouched while this is a design note, and the implementation technique is left to the renderer.
+
+### Floor and background
+- The gameplay floor must be completely invisible. It may exist internally for technical XR purposes, but it must not appear as a solid surface.
+- The visible floor reference is a conceptual dotted grid: imagine evenly spaced grid lines, but show only a dot at every line intersection. The grid lines themselves are invisible.
+- This dotted reference is visual only. It must not affect collisions, coordinates, movement, bounds, or simulation.
+- The background fades from white-gray overhead, through dark gray around the horizon, to darker gray below. Looking straight down, the center of the view fades to pitch black. Because the floor is invisible, that black region remains visible.
+- Choose any rendering method that produces this appearance. Do not treat this description as a shader or skybox requirement.
+
+### Metaballs
+- From outside, Metaballs are completely opaque. The player cannot see through their outer surface.
+- From inside one, it should feel like being inside a giant bubble, with the interior visible.
+- The black center dot is visible when it exists. If no black dot has been generated, show the glowy white center effect instead.
+- Keep Metaballs approximately their current size. Do not enlarge them.
+- Do not change their authoritative collision radius just to achieve the visual effect.
+
+### Spikes
+- Spikes must look like substantial 3D polygonal figures with visible depth and volume.
+- They must not read as thin flat plates sliding over the ground.
+- Preserve the visual connection between their polygon detail and authoritative XP. The exact 3D rendering technique is implementation-defined.
+
+### Glitches
+- Keep the authoritative Glitch hitbox as the current circular shape. Do not render that circle.
+- Instead, show rapidly changing red and blue rectangular/box-like fragments around the real hitbox.
+- Fragments are randomly sized, rapidly repositioned, and approximately 50% transparent.
+- The fragments are billboard-like 2D visual elements that continually face the viewer. Another technique is fine if it produces the same always-facing result.
+- These visual fragments never replace or modify the circular hitbox.
+
+### Player
+- Make the Player's visible 3D body substantially smaller because the current body reads as oversized.
+- This is visual only. Do not change the authoritative Player collision radius, movement, capture, or other simulation mechanics.
+
+### Placeholder textures
+- Existing textures/assets are placeholders. Do not spend time redesigning or replacing them as part of this pass.
+- The target is the final visible behavior and composition; texture work can happen later.
