@@ -492,7 +492,7 @@ class VRRenderer {
         transparent: false
       })
     );
-    label.position.set(0, 1.355, -2.7);
+    label.position.set(0, 1.355, -2.105);
     label.rotation.x = 0;
     this.startLabel = label;
 
@@ -914,12 +914,15 @@ class VRRenderer {
     if (!this.renderer || !this.renderer.xr.isPresenting) return;
 
     const xrCamera = this.renderer.xr.getCamera();
-    if (!xrCamera) return;
+    const viewCamera = xrCamera && xrCamera.cameras && xrCamera.cameras.length
+      ? xrCamera.cameras[0]
+      : xrCamera;
+    if (!viewCamera) return;
 
     const position = new THREE.Vector3();
     const quaternion = new THREE.Quaternion();
-    xrCamera.getWorldPosition(position);
-    xrCamera.getWorldQuaternion(quaternion);
+    viewCamera.getWorldPosition(position);
+    viewCamera.getWorldQuaternion(quaternion);
 
     if (this.viewerPositionInitialized) {
       this.diagnostics.poseMotion = position.distanceTo(this.lastViewerPosition);
