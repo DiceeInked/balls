@@ -210,7 +210,7 @@
       this.contextEventsAttached = false;
       this.xrFrameCount = 0;
       this.xrLastPoseTime = 0;
-      this.diagnostics={lastError:null,errorCount:0,errors:[],lastStage:"idle",inputSourceCount:0,trackedInputCount:0,viewCount:0,referenceSpace:"none",framebufferWidth:0,framebufferHeight:0,poseMotion:0,posePosition:null,poseOrientation:null,selectCount:0,squeezeCount:0,inputSourceEvents:0,renderedObjects:0};
+      this.diagnostics={lastError:null,errorCount:0,errors:[],lastStage:"idle",inputSourceCount:0,trackedInputCount:0,viewCount:0,referenceSpace:"none",framebufferWidth:0,framebufferHeight:0,poseMotion:0,poseRotation:0,posePosition:null,poseOrientation:null,selectCount:0,squeezeCount:0,inputSourceEvents:0,renderedObjects:0};
       this.startGateActive=false;
       this.onStartRequested=null;
     }
@@ -243,7 +243,7 @@
       if(this.diagnostics.errors.length>12)this.diagnostics.errors.length=12;
     }
 
-    getDiagnostics(){return{active:this.isActive,supported:this.isSupported,frameCount:this.xrFrameCount,lastPoseTime:this.xrLastPoseTime,inputSourceCount:this.diagnostics.inputSourceCount,trackedInputCount:this.diagnostics.trackedInputCount,viewCount:this.diagnostics.viewCount,lastStage:this.diagnostics.lastStage,referenceSpace:this.diagnostics.referenceSpace,framebufferWidth:this.diagnostics.framebufferWidth,framebufferHeight:this.diagnostics.framebufferHeight,poseMotion:this.diagnostics.poseMotion,posePosition:this.diagnostics.posePosition,poseOrientation:this.diagnostics.poseOrientation,selectCount:this.diagnostics.selectCount,squeezeCount:this.diagnostics.squeezeCount,inputSourceEvents:this.diagnostics.inputSourceEvents,renderedObjects:this.diagnostics.renderedObjects,errorCount:this.diagnostics.errorCount,lastError:this.diagnostics.lastError,errors:this.diagnostics.errors.slice(0,8)};}
+    getDiagnostics(){return{active:this.isActive,supported:this.isSupported,frameCount:this.xrFrameCount,lastPoseTime:this.xrLastPoseTime,inputSourceCount:this.diagnostics.inputSourceCount,trackedInputCount:this.diagnostics.trackedInputCount,viewCount:this.diagnostics.viewCount,lastStage:this.diagnostics.lastStage,referenceSpace:this.diagnostics.referenceSpace,framebufferWidth:this.diagnostics.framebufferWidth,framebufferHeight:this.diagnostics.framebufferHeight,poseMotion:this.diagnostics.poseMotion,poseRotation:this.diagnostics.poseRotation,posePosition:this.diagnostics.posePosition,poseOrientation:this.diagnostics.poseOrientation,selectCount:this.diagnostics.selectCount,squeezeCount:this.diagnostics.squeezeCount,inputSourceEvents:this.diagnostics.inputSourceEvents,renderedObjects:this.diagnostics.renderedObjects,errorCount:this.diagnostics.errorCount,lastError:this.diagnostics.lastError,errors:this.diagnostics.errors.slice(0,8)};}
 
     get isActive() {
       return this.running && !!this.session;
@@ -409,6 +409,7 @@
         this.diagnostics.trackedInputCount=0;
         this.diagnostics.viewCount=0;
         this.diagnostics.poseMotion=0;
+        this.diagnostics.poseRotation=0;
         this.diagnostics.posePosition=null;
         this.diagnostics.poseOrientation=null;
         this.diagnostics.referenceSpace=referenceSpaceType;
@@ -838,6 +839,11 @@
           const previous=this.diagnostics.posePosition;
           this.diagnostics.poseMotion=Math.hypot(viewerPosition.x-previous.x,viewerPosition.y-previous.y,viewerPosition.z-previous.z);
         }
+        if(this.diagnostics.poseOrientation){
+          const previous=this.diagnostics.poseOrientation;
+          const dot=Math.abs(viewerOrientation.x*previous.x+viewerOrientation.y*previous.y+viewerOrientation.z*previous.z+viewerOrientation.w*previous.w);
+          this.diagnostics.poseRotation=2*Math.acos(Math.min(1,dot));
+        }
         this.diagnostics.posePosition={x:viewerPosition.x,y:viewerPosition.y,z:viewerPosition.z};
         this.diagnostics.poseOrientation={x:viewerOrientation.x,y:viewerOrientation.y,z:viewerOrientation.z,w:viewerOrientation.w};
 
@@ -870,8 +876,9 @@
         try {
           this.updateInput(frame, pose);
         } catch (inputError) {
-          this.error = "XR input: " +
-            String(inputError && inputError.message || inputError);
+          const message=String(inputError&&inputError.message||inputError);
+          this.recordError("XR-INPUT-001",message,"input");
+          this.error=message;
         }
 
         for (const view of pose.views) {
