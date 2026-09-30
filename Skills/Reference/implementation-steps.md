@@ -58,3 +58,7 @@ Step 11 note: the immersive frame loop now separates XR presentation from input/
 
 ## Recent XR hardening
 Immersive rendering now uses a consistent Player-relative mapping: simulation X → XR X, simulation Y → XR -Z, and simulation Z → XR Y. `local-floor` Y=0 is treated as the virtual game floor. The renderer uses an XR depth buffer and records structured diagnostics for framebuffer, pose, viewport, input, resource-build, startup, WebGL, and frame failures. Simulation exceptions are contained at the fixed-step boundary so the diagnostics page remains alive.
+
+
+## Recent XR black-screen hardening
+The immersive frame path validates and binds the XR base layer before using framebuffer dimensions. The Player starts at the center of the authoritative arena, and immersive startup presents a fixed XR-space diagnostic probe plus a selectable start button before gameplay simulation begins. Runtime diagnostics distinguish frame, pose, input-source, tracked-input, framebuffer, rendering, simulation, and WebGL states.
