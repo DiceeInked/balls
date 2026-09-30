@@ -155,3 +155,7 @@ Verify the start button responds only when an XR primary select or squeeze ray i
 
 ## WebGL invalid-value diagnostics
 Verify that the renderer reports the exact WebGL operation when `0x501 / INVALID_VALUE` occurs. Verify that `aPosition` is linked at attribute location 0 and that XR viewport coordinates are non-negative, non-empty, inside the XR framebuffer, and within the implementation's maximum viewport dimensions.
+
+
+## Three.js immersive rendering verification
+Verify that the immersive scene is composed of genuine 3D meshes, that head movement changes the XR camera view without changing authoritative world coordinates, that both eye views render through Three.js XR presentation, and that controller target rays can intersect the 3D start button. Verify that no manual XRWebGLLayer frame loop or hand-written shader attribute setup remains in the immersive renderer.
