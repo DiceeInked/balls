@@ -44,9 +44,9 @@ The Step 11 separation work has been advanced in the XR frame path: XR framebuff
 
 
 ## XR rendering robustness update
-The immersive renderer now uses a single Player-relative world transform for all gameplay geometry, with `local-floor` Y=0 as the virtual floor and simulation Z as vertical world position. The floor, grid, entities, and Player visual therefore share one spatial model.
+The immersive renderer now uses a Three.js scene graph with one Player-relative world transform for gameplay geometry, with local-floor Y=0 as the virtual floor and simulation Z as vertical world position. The floor, grid, entities, and Player visual therefore share one spatial model.
 
-The renderer uses an XR depth buffer for deterministic 3D occlusion. Runtime failures are diagnostic events only: simulation state is not reset because of a renderer error, and a simulation exception is contained at the fixed-step boundary for later inspection.
+Three.js owns the XR camera, stereo rendering, depth handling, and XR framebuffer lifecycle. Runtime failures are diagnostic events only: simulation state is not reset because of a renderer error, and a simulation exception is contained at the fixed-step boundary for later inspection.
 
 
 ## XR startup isolation
