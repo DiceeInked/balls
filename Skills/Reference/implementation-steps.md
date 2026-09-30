@@ -38,7 +38,7 @@ IMPLEMENTED with a Three.js r186 3D/WebXR renderer. `vr/renderer.js` uses a real
 COMPLETED for the current architecture. The simulation remains authoritative and recoverable regardless of renderer state, WebGL state, WebXR state, or tab visibility. XR input and diagnostics are isolated from the rendering path so a per-frame input/diagnostic failure cannot prevent the last valid world state from being rendered.
 
 ## 12. Debugging
-Build diagnostic tools exposing authoritative world state, contacts, XP, timers, events, WebXR state, WebGL errors, and persistence state.
+COMPLETED for the current prototype. `vr/simulation.js` exposes a read-only authoritative debug snapshot with entity state, contact timers, timer events, Player/trap state, persistence state, retained errors, and a bounded gameplay event trace. `vr/index.html` exposes the snapshot through `window.VRDebug` and reports live debug counts without taking ownership of gameplay state.
 
 ## 13. Testing
 Test every interaction individually and in combinations.
