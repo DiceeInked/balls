@@ -39,7 +39,7 @@ COMPLETED for the current architecture. The simulation remains authoritative and
 COMPLETED for the current prototype. The simulation now exposes a read-only authoritative debug snapshot containing entity state, contact timers, pending timer events, Player/trap state, persistence state, diagnostics, and a rolling gameplay event trace. The page also exposes this snapshot through `window.VRDebug` and reports live contact/timer/event counts in the status panel.
 
 13. Testing
-Test every interaction individually and in combinations, including high-speed collisions, simultaneous contacts, entity destruction order, long-running timers, reproduction, Spike splitting, Glitch spreading, pickup collection, player capture, persistence, tab throttling, and mobile rendering fallback.
+IN PROGRESS. The deterministic authoritative simulation harness in `vr/tests.js` passes 19/19 tests covering core mechanics, persistence, timers, Player trap, fixed-step throttling, and debug isolation. A `?test=1` preview mode runs the suite in-browser. Actual WebXR headset/browser, iPhone Safari, mobile fallback, and Quest-class performance checks remain device-dependent and are not claimed complete.
 
 14. Polish
 Tune visuals, audio if later added, VR comfort, hand controls, effects, performance, and UI without changing the underlying rules.
