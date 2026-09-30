@@ -78,3 +78,7 @@ The VR page exposes the read-only inspection surface as `window.VRDebug.getSnaps
 
 ## WebGL invalid-value tracing
 The renderer pins the `aPosition` vertex attribute to location 0 before program linking, eliminating device-dependent attribute-location assignment for the only vertex attribute. WebGL calls for attribute setup, viewport setup, and drawing are instrumented so `0x501` can be associated with the exact operation rather than reported only as a raw hexadecimal error.
+
+
+## Step 13 test mode
+`vr/index.html?test=1` loads the isolated `vr/tests.js` harness and reports the authoritative simulation test results in the page status panel. Test instances are separate `VRWorldState` objects, so the test suite cannot become the live simulation source of truth.
