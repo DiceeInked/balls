@@ -32,7 +32,7 @@ Implement the blue 3D diamond-like head, two diamond-derived thruster/control ha
 COMPLETED for the authoritative simulation and current 2D preview. Spike capture, blackened world, glowing crack generation, crack points and center, point dragging, repair detection, and player release are implemented.
 
 ## 10. VR rendering
-IMPLEMENTED for the initial renderer. `vr/renderer.js` provides immersive-session detection/startup, XR-compatible WebGL rendering, stereoscopic per-view rendering, headset pose input, controller/hand pose input, normalized thumbstick thrust, Player/hand visuals, entity visuals, XP indication, and trap crack rendering. Actual headset/browser verification remains required before marking device-specific testing complete.
+IMPLEMENTED with a Three.js r186 3D/WebXR renderer. `vr/renderer.js` uses a real Three.js scene graph, WebGLRenderer XR camera, genuine 3D entity meshes, lighting, floor/grid geometry, controller/hand visuals, a 3D start gate, and trap crack rendering. Actual headset/browser verification remains required before marking device-specific testing complete.
 
 ## 11. Simulation/render separation
 Ensure the simulation remains authoritative and recoverable regardless of renderer state, WebGL state, WebXR state, or tab visibility.
@@ -62,3 +62,7 @@ Immersive rendering now uses a consistent Player-relative mapping: simulation X 
 
 ## Recent XR black-screen hardening
 The immersive frame path validates and binds the XR base layer before using framebuffer dimensions. The Player starts at the center of the authoritative arena, and immersive startup presents a fixed XR-space diagnostic probe plus a selectable start button before gameplay simulation begins. Runtime diagnostics distinguish frame, pose, input-source, tracked-input, framebuffer, rendering, simulation, and WebGL states.
+
+
+## Hosting
+The project is published through GitHub Pages. Vercel is not the deployment target for this repository.
