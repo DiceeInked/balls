@@ -234,6 +234,26 @@
       return Math.abs(x)<=0.65&&Math.abs(y-0.65)<=0.24;
     }
 
+    checkGlError(code,operation){
+      const gl=this.gl;
+      if(!gl)return false;
+      const error=gl.getError();
+      if(error===gl.NO_ERROR)return true;
+      const hex=error.toString(16);
+      const message=operation+" produced WebGL error 0x"+hex+".";
+      this.recordError(code+"-"+hex,message,"webgl-"+operation);
+      this.error=message;
+      return false;
+    }
+
+    assertAttributeLocation(name,location){
+      if(location===null||location===undefined||location<0){
+        const message="Shader attribute '"+name+"' has invalid location "+location+".";
+        this.recordError("GL-ATTR-001",message,"shader-attributes");
+        throw new Error(message);
+      }
+    }
+
     recordError(code,message,stage){
       const entry={code:String(code||"XR-UNKNOWN-001"),message:String(message||"Unknown renderer error."),stage:String(stage||"unknown"),frame:this.xrFrameCount,time:this.xrLastPoseTime||0};
       this.diagnostics.lastError=entry;
@@ -325,6 +345,9 @@
         view: gl.getUniformLocation(this.skyProgram, "uView"),
         model: gl.getUniformLocation(this.skyProgram, "uModel")
       };
+
+      this.assertAttributeLocation("aPosition",this.locations.position);
+      this.assertAttributeLocation("sky.aPosition",this.skyLocations.position);
 
       this.octahedron = createOctahedron(gl);
       this.sphere = createSphere(gl);
@@ -510,7 +533,9 @@
       gl.useProgram(this.program);
       gl.bindBuffer(gl.ARRAY_BUFFER, mesh.buffer);
       gl.vertexAttribPointer(this.locations.position, 3, gl.FLOAT, false, 0, 0);
+      if(!this.checkGlError("GL-ATTR-002","vertexAttribPointer"))return;
       gl.enableVertexAttribArray(this.locations.position);
+      if(!this.checkGlError("GL-ATTR-003","enableVertexAttribArray"))return;
       gl.uniformMatrix4fv(this.locations.projection, false, view.projectionMatrix);
       gl.uniformMatrix4fv(this.locations.view, false, view.viewMatrix);
       gl.uniformMatrix4fv(
@@ -522,6 +547,7 @@
       gl.uniform1f(this.locations.glow, glow);
       gl.uniform1f(this.locations.pointSize, 1);
       gl.drawArrays(mesh.mode, 0, mesh.count);
+      this.checkGlError("GL-DRAW-001","drawArrays");
     }
 
     drawLine(view, start, end, color, glow = 0) {
@@ -900,12 +926,26 @@
             throw new Error(message);
           }
 
+          const maxViewport=gl.getParameter(gl.MAX_VIEWPORT_DIMS);
+          if(
+            !Number.isFinite(viewport.x)||!Number.isFinite(viewport.y)||
+            !Number.isFinite(viewport.width)||!Number.isFinite(viewport.height)||
+            viewport.x<0||viewport.y<0||viewport.width<1||viewport.height<1||
+            viewport.x+viewport.width>layer.framebufferWidth||
+            viewport.y+viewport.height>layer.framebufferHeight||
+            viewport.width>maxViewport[0]||viewport.height>maxViewport[1]
+          ){
+            const message="XR viewport invalid: x="+viewport.x+" y="+viewport.y+" w="+viewport.width+" h="+viewport.height+" framebuffer="+layer.framebufferWidth+"x"+layer.framebufferHeight+" max="+maxViewport[0]+"x"+maxViewport[1]+".";
+            this.recordError("XR-VIEWPORT-002",message,"viewport");
+            throw new Error(message);
+          }
           gl.viewport(
             viewport.x,
             viewport.y,
             viewport.width,
             viewport.height
           );
+          if(!this.checkGlError("GL-VIEWPORT-001","viewport"))throw new Error("WebGL viewport call failed.");
 
           try {
             this.drawWorld(view);
