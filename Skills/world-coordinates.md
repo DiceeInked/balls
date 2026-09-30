@@ -33,3 +33,7 @@ The preview entities now have authoritative world-space `x`, `y`, `vx`, `vy`, `d
 The immersive renderer uses one explicit mapping: simulation X → XR X, simulation Y → XR -Z, and simulation Z → XR Y. Entity positions are converted relative to the authoritative Player position before applying the meter scale. The game floor is authoritative world Z=0, so its XR height is derived from Player Z rather than from a hard-coded camera-height offset.
 
 The XR reference space controls headset height/orientation, not the game's world origin. Looking around therefore changes only the supplied XR view matrices; it does not redefine simulation coordinates.
+
+
+## XR start-gate coordinate anchor
+The immersive diagnostic probe and start button are fixed in XR reference-space coordinates rather than simulation coordinates. This is intentional: they test the XR camera and GPU path independently of Player-relative gameplay transforms. Gameplay entities continue to use the authoritative Player-relative mapping of simulation X → XR X, simulation Y → XR -Z, and simulation Z → XR Y.
