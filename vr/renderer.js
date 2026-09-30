@@ -979,11 +979,32 @@ class VRRenderer {
       this.diagnostics.lastStage = "frame";
 
       if (this.renderer.xr.isPresenting) {
-        this.updateInput(frame);
-        this.updatePoseDiagnostics();
-        this.updateFramebufferDiagnostics();
+        try {
+          this.updateInput(frame);
+        } catch (error) {
+          this.recordError(
+            "XR-INPUT-001",
+            String(error && error.message || error),
+            "input"
+          );
+          console.error("VR XR input error:", error);
+        }
+
+        try {
+          this.updatePoseDiagnostics();
+          this.updateFramebufferDiagnostics();
+        } catch (error) {
+          this.recordError(
+            "XR-DIAGNOSTIC-001",
+            String(error && error.message || error),
+            "diagnostics"
+          );
+          console.error("VR XR diagnostic error:", error);
+        }
       }
 
+      // Rendering consumes the last valid authoritative state even when
+      // XR input or diagnostics fail for the current frame.
       this.updateWorldRoot();
       this.syncEntities();
       this.updatePlayerVisual();
