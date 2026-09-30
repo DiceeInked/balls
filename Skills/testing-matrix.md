@@ -151,3 +151,7 @@ Verify that:
 Verify that immediately after entering XR, before starting simulation, the diagnostic probe and start button are visible. Verify that the status panel reports XR frame count, eye view count, framebuffer dimensions, and rendered-object count. If the probe is absent while frames advance, inspect the XR framebuffer/view/shader path rather than gameplay coordinates.
 
 Verify the start button responds only when an XR primary select or squeeze ray intersects its hit area. Verify zero input sources and zero tracked poses appear as explicit warnings rather than as an “ERRORS NONE”-only state. Verify head translation and head rotation diagnostics can change independently.
+
+
+## WebGL invalid-value diagnostics
+Verify that the renderer reports the exact WebGL operation when `0x501 / INVALID_VALUE` occurs. Verify that `aPosition` is linked at attribute location 0 and that XR viewport coordinates are non-negative, non-empty, inside the XR framebuffer, and within the implementation's maximum viewport dimensions.
