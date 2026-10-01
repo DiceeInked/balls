@@ -1402,8 +1402,15 @@ class VRRenderer {
       if (source.handedness === "right") rightHand = hand;
 
       const axes = source.gamepad && source.gamepad.axes ? source.gamepad.axes : [];
+      const buttons = source.gamepad && source.gamepad.buttons ? source.gamepad.buttons : [];
       const axisX = finiteOr(axes[0]);
       const axisY = finiteOr(axes[1]);
+      const grab = !!(
+        (buttons[0] && buttons[0].pressed) ||
+        (buttons[1] && buttons[1].pressed)
+      );
+
+      hand.grab = grab;
 
       if (source.handedness === "left") {
         thrustX += axisX;
@@ -1587,6 +1594,7 @@ class VRRenderer {
 
       const captured = !!(this.world.player && this.world.player.captured);
       this.scene.background.setHex(captured ? 0x000000 : 0x0c0d12);
+      if (this.sky) this.sky.visible = !captured;
       if (this.grid) this.grid.visible = !captured && !this.startGateActive;
       if (this.floor) this.floor.visible = !captured && !this.startGateActive;
       if (this.playerGroup) this.playerGroup.visible = !captured && !this.startGateActive;
