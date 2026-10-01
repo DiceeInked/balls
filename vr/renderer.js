@@ -69,6 +69,11 @@ class VRRenderer {
     this.startButton = null;
     this.startLabel = null;
     this.trapGroup = null;
+    this.reconstructGroup = null;
+    this.trapMaterials = null;
+    this.trapVisualSnapshot = null;
+    this.lastTrapActive = false;
+    this.crackReconstructStart = 0;
     this.playerGroup = null;
 
     this.entityObjects = new Map();
@@ -257,10 +262,10 @@ class VRRenderer {
     this.worldRoot = new THREE.Group();
     this.scene.add(this.worldRoot);
 
-    const ambient = new THREE.HemisphereLight(0xd9dde7, 0x161922, 1.75);
+    const ambient = new THREE.HemisphereLight(0xdfe5ef, 0x12151c, 1.95);
     this.scene.add(ambient);
 
-    const key = new THREE.DirectionalLight(0xffffff, 2.2);
+    const key = new THREE.DirectionalLight(0xffffff, 2.5);
     key.position.set(4, 7, 2);
     this.scene.add(key);
 
@@ -340,38 +345,38 @@ class VRRenderer {
     this.playerGroup = new THREE.Group();
 
     const body = new THREE.Mesh(
-      new THREE.OctahedronGeometry(0.22, 0),
-      this.makeEmissiveMaterial(COLORS.player, 1.8, 0.28)
+      new THREE.OctahedronGeometry(0.14, 0),
+      this.makeEmissiveMaterial(COLORS.player, 2.0, 0.25)
     );
-    body.scale.set(1, 1.1, 1);
-    body.position.set(0, 1.48, 0);
+    body.scale.set(1, 1.12, 1);
+    body.position.set(0, 1.43, 0);
     this.playerGroup.add(body);
 
     const left = new THREE.Mesh(
-      new THREE.OctahedronGeometry(0.12, 0),
-      this.makeEmissiveMaterial(COLORS.glitch, 1.7, 0.26)
+      new THREE.OctahedronGeometry(0.07, 0),
+      this.makeEmissiveMaterial(COLORS.glitch, 1.9, 0.24)
     );
-    left.position.set(-0.4, 1.18, -0.18);
+    left.position.set(-0.34, 1.16, -0.16);
 
     const right = new THREE.Mesh(
-      new THREE.OctahedronGeometry(0.12, 0),
-      this.makeEmissiveMaterial(COLORS.player, 1.7, 0.26)
+      new THREE.OctahedronGeometry(0.07, 0),
+      this.makeEmissiveMaterial(COLORS.player, 1.9, 0.24)
     );
-    right.position.set(0.4, 1.18, -0.18);
+    right.position.set(0.34, 1.16, -0.16);
 
     this.playerGroup.add(left, right);
 
     const xpPlate = new THREE.Mesh(
-      new THREE.RingGeometry(0.08, 0.105, 20),
+      new THREE.RingGeometry(0.048, 0.062, 20),
       new THREE.MeshBasicMaterial({
         color: COLORS.white,
         transparent: true,
-        opacity: 0.85,
+        opacity: 0.9,
         side: THREE.DoubleSide
       })
     );
     xpPlate.rotation.x = -Math.PI / 2;
-    xpPlate.position.set(-0.4, 1.12, -0.18);
+    xpPlate.position.set(-0.34, 1.105, -0.16);
     this.playerGroup.add(xpPlate);
 
     this.scene.add(this.playerGroup);
@@ -492,7 +497,7 @@ class VRRenderer {
         transparent: false
       })
     );
-    label.position.set(0, 1.355, -2.105);
+    label.position.set(0, 1.355, -2.705);
     label.rotation.x = 0;
     this.startLabel = label;
 
@@ -521,6 +526,221 @@ class VRRenderer {
     this.trapGroup = new THREE.Group();
     this.trapGroup.visible = false;
     this.scene.add(this.trapGroup);
+
+    this.trapMaterials = {
+      core: new THREE.MeshBasicMaterial({
+        color: COLORS.trap,
+        transparent: true,
+        opacity: 0.98,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
+      }),
+      glow: new THREE.MeshBasicMaterial({
+        color: COLORS.trap,
+        transparent: true,
+        opacity: 0.2,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
+      }),
+      endpoint: this.makeEmissiveMaterial(COLORS.trap, 3.5, 0.18),
+      endpointGlow: this.makeGlowMaterial(COLORS.trap, 0.28),
+      center: this.makeEmissiveMaterial(COLORS.trap, 4.0, 0.16),
+      centerRing: new THREE.MeshBasicMaterial({
+        color: COLORS.trap,
+        transparent: true,
+        opacity: 0.85,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
+      })
+    };
+  }
+
+  clearTrapGeometry(group) {
+    if (!group) return;
+    for (const child of [...group.children]) {
+      child.traverse(node => {
+        if (node.geometry) node.geometry.dispose();
+      });
+      group.remove(child);
+    }
+  }
+
+  makeCrackPath(endPoint, index) {
+    const points = [new THREE.Vector3(0, 0, 0)];
+    const direction = endPoint.clone().normalize();
+    const helper = Math.abs(direction.y) > 0.8
+      ? new THREE.Vector3(1, 0, 0)
+      : new THREE.Vector3(0, 1, 0);
+    const perpendicular = new THREE.Vector3().crossVectors(direction, helper).normalize();
+
+    for (let step = 1; step <= 4; step += 1) {
+      const t = step / 4;
+      const point = endPoint.clone().multiplyScalar(t);
+      const jitter = Math.sin(index * 2.31 + step * 1.87) * 0.065 * Math.sin(Math.PI * t);
+      const depthJitter = Math.cos(index * 1.73 + step * 2.41) * 0.035 * Math.sin(Math.PI * t);
+      point.addScaledVector(perpendicular, jitter);
+      point.z += depthJitter;
+      points.push(point);
+    }
+
+    return points;
+  }
+
+  makeLinearCurve(points) {
+    const curve = new THREE.Curve();
+    curve.getPoint = function(t, target = new THREE.Vector3()) {
+      if (points.length < 2) return target.copy(points[0] || new THREE.Vector3());
+      const scaled = clamp(t, 0, 1) * (points.length - 1);
+      const index = Math.min(points.length - 2, Math.floor(scaled));
+      const localT = scaled - index;
+      return target.lerpVectors(points[index], points[index + 1], localT);
+    };
+    return curve;
+  }
+
+  addCrackBranch(group, pathPoints) {
+    const curve = this.makeLinearCurve(pathPoints);
+    const coreGeometry = new THREE.TubeGeometry(curve, 12, 0.012, 5, false);
+    const glowGeometry = new THREE.TubeGeometry(curve, 12, 0.026, 5, false);
+    group.add(
+      new THREE.Mesh(glowGeometry, this.trapMaterials.glow),
+      new THREE.Mesh(coreGeometry, this.trapMaterials.core)
+    );
+  }
+
+  crackCenterToView() {
+    return new THREE.Vector3(0, 1.52, -1.62);
+  }
+
+  trapPointToLocal(center, point) {
+    return new THREE.Vector3(
+      (finiteOr(point.x) - finiteOr(center.x)) * WORLD_SCALE * 0.72,
+      -(finiteOr(point.y) - finiteOr(center.y)) * WORLD_SCALE * 0.72,
+      (finiteOr(point.z) - finiteOr(center.z)) * WORLD_SCALE * 0.45
+    );
+  }
+
+  updateTrapVisual() {
+    const player = this.world.player;
+    const trap = player && player.trap;
+    if (!player || !player.captured || !trap || !trap.active) {
+      this.trapGroup.visible = false;
+      return;
+    }
+
+    this.trapGroup.visible = true;
+    if (this.reconstructGroup) {
+      this.scene.remove(this.reconstructGroup);
+      this.clearTrapGeometry(this.reconstructGroup);
+      this.reconstructGroup = null;
+    }
+
+    this.clearTrapGeometry(this.trapGroup);
+
+    const center = this.crackCenterToView();
+    this.trapGroup.position.copy(center);
+
+    const centerMarker = new THREE.Mesh(
+      new THREE.SphereGeometry(0.065, 16, 12),
+      this.trapMaterials.center
+    );
+    this.trapGroup.add(centerMarker);
+
+    const centerRing = new THREE.Mesh(
+      new THREE.TorusGeometry(0.105, 0.009, 6, 28),
+      this.trapMaterials.centerRing
+    );
+    this.trapGroup.add(centerRing);
+
+    const snapshot = {
+      center: center.clone(),
+      branches: []
+    };
+
+    for (let i = 0; i < trap.points.length; i += 1) {
+      const point = trap.points[i];
+      const localEnd = this.trapPointToLocal(trap.center, point);
+      snapshot.branches.push({
+        endpoint: localEnd.clone(),
+        sealed: !!point.sealed,
+        index: i
+      });
+
+      const endpointGroup = new THREE.Group();
+      endpointGroup.position.copy(point.sealed ? new THREE.Vector3(0, 0, 0) : localEnd);
+
+      const ball = new THREE.Mesh(
+        new THREE.SphereGeometry(point.sealed ? 0.025 : 0.04, 12, 8),
+        this.trapMaterials.endpoint
+      );
+      endpointGroup.add(ball);
+
+      const glow = new THREE.Mesh(
+        new THREE.SphereGeometry(point.sealed ? 0.055 : 0.09, 10, 8),
+        this.trapMaterials.endpointGlow
+      );
+      endpointGroup.add(glow);
+      this.trapGroup.add(endpointGroup);
+
+      if (point.sealed) continue;
+
+      const branch = this.makeCrackPath(localEnd, i);
+      this.addCrackBranch(this.trapGroup, branch);
+    }
+
+    this.trapVisualSnapshot = snapshot;
+    this.lastTrapActive = true;
+  }
+
+  beginCrackReconstruction(time) {
+    const snapshot = this.trapVisualSnapshot;
+    if (!snapshot || !snapshot.center || !snapshot.branches || snapshot.branches.length === 0) return;
+
+    if (this.reconstructGroup) {
+      this.scene.remove(this.reconstructGroup);
+      this.clearTrapGeometry(this.reconstructGroup);
+    }
+
+    const group = new THREE.Group();
+    group.position.copy(snapshot.center);
+
+    for (const branch of snapshot.branches) {
+      if (branch.sealed) continue;
+      this.addCrackBranch(group, this.makeCrackPath(branch.endpoint, branch.index));
+
+      const endpoint = new THREE.Mesh(
+        new THREE.SphereGeometry(0.04, 12, 8),
+        this.trapMaterials.endpoint
+      );
+      endpoint.position.copy(branch.endpoint);
+      group.add(endpoint);
+    }
+
+    const center = new THREE.Mesh(
+      new THREE.SphereGeometry(0.065, 16, 12),
+      this.trapMaterials.center
+    );
+    group.add(center);
+
+    this.scene.add(group);
+    this.reconstructGroup = group;
+    this.crackReconstructStart = time;
+  }
+
+  updateCrackReconstruction(time) {
+    if (!this.reconstructGroup) return;
+    const elapsed = Math.max(0, time - this.crackReconstructStart);
+    const duration = 650;
+    const t = clamp(elapsed / duration, 0, 1);
+    const ease = 1 - Math.pow(1 - t, 3);
+    const scale = 1 - ease;
+    this.reconstructGroup.scale.setScalar(scale);
+
+    if (t >= 1) {
+      this.scene.remove(this.reconstructGroup);
+      this.clearTrapGeometry(this.reconstructGroup);
+      this.reconstructGroup = null;
+    }
   }
 
   handleXRAction(controller) {
@@ -571,31 +791,37 @@ class VRRenderer {
       const group = new THREE.Group();
 
       const outer = new THREE.Mesh(
-        new THREE.SphereGeometry(1, 20, 14),
-        this.makeEmissiveMaterial(COLORS.metaball, 1.9, 0.23)
+        new THREE.SphereGeometry(1, 24, 18),
+        this.makeEmissiveMaterial(COLORS.metaball, 2.15, 0.22)
       );
 
       const glow = new THREE.Mesh(
-        new THREE.SphereGeometry(1.12, 16, 12),
-        this.makeGlowMaterial(COLORS.white, 0.18)
+        new THREE.SphereGeometry(1.08, 18, 14),
+        this.makeGlowMaterial(COLORS.white, 0.17)
+      );
+
+      const core = new THREE.Mesh(
+        new THREE.SphereGeometry(0.26, 16, 12),
+        this.makeEmissiveMaterial(COLORS.white, 3.0, 0.15)
       );
 
       const pickup = new THREE.Mesh(
-        new THREE.SphereGeometry(0.3, 14, 10),
+        new THREE.SphereGeometry(0.28, 14, 10),
         new THREE.MeshStandardMaterial({
           color: COLORS.black,
-          roughness: 0.2,
-          metalness: 0.05,
-          emissive: 0x000000,
-          emissiveIntensity: 0
+          roughness: 0.16,
+          metalness: 0.08,
+          emissive: COLORS.black,
+          emissiveIntensity: 0.05
         })
       );
       pickup.visible = false;
 
-      group.add(outer, glow, pickup);
+      group.add(outer, glow, core, pickup);
       group.userData.kind = "metaball";
       group.userData.outer = outer;
       group.userData.glow = glow;
+      group.userData.core = core;
       group.userData.pickup = pickup;
       this.worldRoot.add(group);
       return group;
@@ -603,14 +829,30 @@ class VRRenderer {
 
     if (entity.type === "spike") {
       const count = this.world.spikePointCount(entity);
+      const geometry = this.rebuildSpikeGeometry(count);
       const mesh = new THREE.Mesh(
-        this.rebuildSpikeGeometry(count),
-        this.makeEmissiveMaterial(COLORS.spike, 1.8, 0.3)
+        geometry,
+        this.makeEmissiveMaterial(COLORS.spike, 2.0, 0.28)
       );
-      mesh.userData.kind = "spike";
-      mesh.userData.pointCount = count;
-      this.worldRoot.add(mesh);
-      return mesh;
+      mesh.material.flatShading = true;
+
+      const edge = new THREE.LineSegments(
+        new THREE.EdgesGeometry(geometry),
+        new THREE.LineBasicMaterial({
+          color: COLORS.spike,
+          transparent: true,
+          opacity: 0.8
+        })
+      );
+
+      const group = new THREE.Group();
+      group.add(mesh, edge);
+      group.userData.kind = "spike";
+      group.userData.mesh = mesh;
+      group.userData.edge = edge;
+      group.userData.pointCount = count;
+      this.worldRoot.add(group);
+      return group;
     }
 
     if (entity.type === "glitch") {
@@ -618,19 +860,29 @@ class VRRenderer {
 
       const core = new THREE.Mesh(
         new THREE.IcosahedronGeometry(1, 1),
-        this.makeEmissiveMaterial(COLORS.glitch, 2.0, 0.22)
+        this.makeEmissiveMaterial(COLORS.glitch, 2.35, 0.2)
       );
-      core.scale.set(1, 0.82, 1.12);
+      core.scale.set(1, 0.84, 1.08);
 
       const shell = new THREE.Mesh(
-        new THREE.IcosahedronGeometry(1.16, 1),
-        this.makeGlowMaterial(COLORS.glitch, 0.12)
+        new THREE.IcosahedronGeometry(1.13, 1),
+        this.makeGlowMaterial(COLORS.glitch, 0.13)
       );
 
-      group.add(core, shell);
+      const edges = new THREE.LineSegments(
+        new THREE.EdgesGeometry(new THREE.IcosahedronGeometry(1.03, 1)),
+        new THREE.LineBasicMaterial({
+          color: COLORS.glitch,
+          transparent: true,
+          opacity: 0.7
+        })
+      );
+
+      group.add(core, shell, edges);
       group.userData.kind = "glitch";
       group.userData.core = core;
       group.userData.shell = shell;
+      group.userData.edges = edges;
       this.worldRoot.add(group);
       return group;
     }
@@ -648,31 +900,38 @@ class VRRenderer {
     object.position.set(worldX, worldY + radius, worldZ);
 
     if (entity.type === "metaball") {
-      const radiusScale = radius / 0.35;
-      object.userData.outer.scale.setScalar(radiusScale);
-      object.userData.glow.scale.setScalar(radiusScale);
+      object.userData.outer.scale.setScalar(radius);
+      object.userData.glow.scale.setScalar(radius * 1.08);
+      object.userData.core.scale.setScalar(radius * 0.26);
 
       const stored = entity.pickup && finiteOr(entity.pickup.storedXp) > 0;
       object.userData.pickup.visible = stored;
-      object.userData.pickup.scale.setScalar(Math.max(0.18, radiusScale * 0.34));
+      object.userData.pickup.scale.setScalar(Math.max(0.2, radius * 0.34 / 0.28));
     } else if (entity.type === "spike") {
       const pointCount = this.world.spikePointCount(entity);
+      const mesh = object.userData.mesh;
       if (object.userData.pointCount !== pointCount) {
-        const oldGeometry = object.geometry;
-        object.geometry = this.rebuildSpikeGeometry(pointCount);
+        const oldGeometry = mesh.geometry;
+        const oldEdgeGeometry = object.userData.edge.geometry;
+        const geometry = this.rebuildSpikeGeometry(pointCount);
+        mesh.geometry = geometry;
+        object.userData.edge.geometry = new THREE.EdgesGeometry(geometry);
         object.userData.pointCount = pointCount;
-        if (!this.entityGeometryCacheHasGeometry(oldGeometry)) oldGeometry.dispose();
+        oldGeometry.dispose();
+        oldEdgeGeometry.dispose();
       }
 
-      object.scale.setScalar(radius);
+      mesh.scale.setScalar(radius);
+      object.userData.edge.scale.setScalar(radius);
       const direction = finiteOr(entity.direction);
       object.rotation.set(0, direction, 0);
     } else if (entity.type === "glitch") {
-      const coreScale = radius / 0.35;
-      object.userData.core.scale.set(coreScale, coreScale * 0.82, coreScale * 1.12);
-      object.userData.shell.scale.setScalar(coreScale * 1.05);
-      object.rotation.y += 0.01;
-      object.rotation.x += 0.006;
+      object.userData.core.scale.set(radius, radius * 0.84, radius * 1.08);
+      object.userData.shell.scale.setScalar(radius * 1.08);
+      object.userData.edges.scale.setScalar(radius * 1.03);
+      object.rotation.y += 0.012;
+      object.rotation.x += 0.008;
+      object.rotation.z += 0.004;
     }
   }
 
@@ -1024,8 +1283,13 @@ class VRRenderer {
         this.updateTrapVisual();
       } else {
         this.trapGroup.visible = false;
+        if (this.lastTrapActive && this.trapVisualSnapshot) {
+          this.beginCrackReconstruction(time);
+        }
+        this.lastTrapActive = false;
       }
 
+      this.updateCrackReconstruction(time);
       this.renderedObjectsCount();
 
       this.renderer.render(this.scene, this.camera);
