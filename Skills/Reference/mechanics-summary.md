@@ -74,7 +74,7 @@ The player starts at 16 XP and loses 1 XP every 100 seconds.
 
 ## Player trap
 
-On Spike capture, the world becomes black and glowing cracks appear in front of the player. The player must drag crack points toward the center until the crack is repaired.
+On Spike capture, the world becomes black and a red three-dimensional reality crack appears in front of the player. Each crack branch ends in a tiny red orb. The player drags each endpoint toward the center until it seals. After the final endpoint is repaired, the remaining crack briefly reconstructs inward and disappears.
 
 ## Player Trap implementation
 Spike contact captures the Player and creates a 12-point crack with a central target. Active hand positions drag nearby points toward the center. All points must seal before the Player is released. Capture and crack progress are persisted.
