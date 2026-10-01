@@ -10,7 +10,7 @@ The hands act as thrusters and control surfaces for movement.
 
 The left hand displays the player's current XP.
 
-Looking at the left hand opens the player's menu.
+Looking at the palm side of the left hand opens the player's menu. No wrist-to-hand XP line is part of the final visual design.
 
 The player starts with 16 XP.
 
