@@ -177,3 +177,8 @@ Verify that the immersive scene is composed of genuine 3D meshes, that head move
 The authoritative simulation harness in `vr/tests.js` currently passes 19/19 tests. It covers prototype reset, XP/vertex mapping, immediate and timed contact drains, contact reset, Glitch steering/removal, Spike splitting/destruction, Glitch Spike consumption, Metaball reproduction, 100-second timers, Player movement/capture, trap release, persistence round trips and malformed snapshots, fixed-step throttling, debug snapshot isolation, bounded event history, and the wall-split regression.
 
 Run the browser test mode at `vr/index.html?test=1`. This mode instantiates isolated `VRWorldState` instances and does not replace the normal simulation owner. A green automated result does not substitute for target-device WebXR, iPhone Safari, mobile fallback, or Quest-class performance verification.
+
+## Immersive visual verification
+Verify that Metaballs and Glitches use their authoritative physical radius without accidental unit-sphere over-scaling. Verify that Spikes remain clearly smaller than the previous oversized placeholder geometry and retain XP-linked polygon detail. Verify that Glitches read as irregular 3D objects rather than smooth circular placeholders. Verify the Player body and hand visuals remain proportionate to a standing VR player.
+
+Verify Player Trap presentation: the captured scene is black, the crack is red and genuinely 3D, every branch ends in a tiny visible red orb, sealed endpoints converge to the center and remove their branch, and final repair produces a brief inward reconstruction before the visual disappears. Verify that the visual animation does not create or alter authoritative trap state.
