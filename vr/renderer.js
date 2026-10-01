@@ -1161,6 +1161,7 @@ class VRRenderer {
     sprite.scale.set(width, height, 1);
     sprite.material.opacity = 0.35 + Math.random() * 0.2;
     sprite.material.rotation = Math.random() * Math.PI;
+    sprite.visible = Math.random() > 0.14;
 
     sprite.userData.nextChange =
       time +
@@ -1186,8 +1187,8 @@ class VRRenderer {
       const blobHeight = visualRadius * 0.78;
       object.position.set(worldX, finiteOr(entity.z) * WORLD_SCALE + blobHeight, worldZ);
       object.userData.outer.scale.setScalar(visualRadius);
-      object.userData.coreGlow.scale.setScalar(visualRadius);
-      object.userData.core.scale.setScalar(visualRadius);
+      object.userData.coreGlow.scale.setScalar(1);
+      object.userData.core.scale.setScalar(1);
       object.userData.pickup.visible = !!(entity.pickup && finiteOr(entity.pickup.storedXp) > 0);
       object.userData.pickup.scale.setScalar(0.55 + visualRadius * 0.025);
 
