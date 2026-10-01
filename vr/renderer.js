@@ -65,6 +65,7 @@ class VRRenderer {
     this.worldRoot = null;
     this.floor = null;
     this.grid = null;
+    this.sky = null;
     this.startGate = null;
     this.startButton = null;
     this.startLabel = null;
@@ -75,6 +76,12 @@ class VRRenderer {
     this.lastTrapActive = false;
     this.crackReconstructStart = 0;
     this.playerGroup = null;
+    this.playerBody = null;
+    this.playerArmLeft = null;
+    this.playerHandLeft = null;
+    this.playerArmRight = null;
+    this.playerHandRight = null;
+    this.playerXpPlate = null;
 
     this.entityObjects = new Map();
     this.entityGeometryCache = new Map();
@@ -85,8 +92,10 @@ class VRRenderer {
     this.hands = [];
     this.controllerRays = [];
     this.inputMeshes = [];
+    this.glitchTextures = { red: null, blue: null };
 
     this.raycaster = new THREE.Raycaster();
+    this.clock = new THREE.Clock();
     this.tempVec3 = new THREE.Vector3();
     this.tempVec3b = new THREE.Vector3();
     this.tempQuat = new THREE.Quaternion();
@@ -283,40 +292,82 @@ class VRRenderer {
   }
 
   buildEnvironment() {
-    const floorGeometry = new THREE.PlaneGeometry(FLOOR_SIZE, FLOOR_SIZE);
-    const floorMaterial = new THREE.MeshStandardMaterial({
-      color: COLORS.floor,
-      roughness: 0.94,
-      metalness: 0.02
+    this.scene.fog = null;
+
+    const skyGeometry = new THREE.SphereGeometry(38, 64, 48);
+    const skyMaterial = new THREE.ShaderMaterial({
+      side: THREE.BackSide,
+      depthWrite: false,
+      depthTest: false,
+      uniforms: {
+        uTop: { value: new THREE.Color(0xf3f4f6) },
+        uHorizon: { value: new THREE.Color(0x4a4e55) },
+        uBottom: { value: new THREE.Color(0x020204) }
+      },
+      vertexShader: `
+        varying float vSkyHeight;
+        void main() {
+          vSkyHeight = normalize(position).y;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform vec3 uTop;
+        uniform vec3 uHorizon;
+        uniform vec3 uBottom;
+        varying float vSkyHeight;
+        void main() {
+          float upper = smoothstep(0.0, 0.92, max(vSkyHeight, 0.0));
+          float lower = smoothstep(0.0, 1.0, max(-vSkyHeight, 0.0));
+          vec3 color = mix(uHorizon, uTop, upper * upper);
+          color = mix(color, uBottom, lower * lower * lower);
+          gl_FragColor = vec4(color, 1.0);
+        }
+      `
     });
 
-    this.floor = new THREE.Mesh(floorGeometry, floorMaterial);
-    this.floor.rotation.x = -Math.PI / 2;
-    this.floor.position.y = 0;
-    this.floor.receiveShadow = false;
-    this.scene.add(this.floor);
+    this.sky = new THREE.Mesh(skyGeometry, skyMaterial);
+    this.sky.renderOrder = -1000;
+    this.sky.frustumCulled = false;
+    this.scene.add(this.sky);
 
-    this.grid = new THREE.GridHelper(
-      GRID_SIZE,
-      GRID_DIVISIONS,
-      COLORS.gridCenter,
-      COLORS.grid
+    const dotVertices = [];
+    const spacing = 0.5;
+    const half = 16;
+    for (let x = -half; x <= half + 0.001; x += spacing) {
+      for (let z = -half; z <= half + 0.001; z += spacing) {
+        dotVertices.push(x, 0, z);
+      }
+    }
+
+    const dotGeometry = new THREE.BufferGeometry();
+    dotGeometry.setAttribute(
+      "position",
+      new THREE.Float32BufferAttribute(dotVertices, 3)
     );
+    const dotMaterial = new THREE.PointsMaterial({
+      color: 0x52565d,
+      size: 0.028,
+      sizeAttenuation: true,
+      transparent: true,
+      opacity: 0.9,
+      depthWrite: true
+    });
+
+    this.grid = new THREE.Points(dotGeometry, dotMaterial);
     this.grid.position.y = 0.012;
-    this.grid.material.transparent = true;
-    this.grid.material.opacity = 0.36;
     this.scene.add(this.grid);
 
     const horizonRing = new THREE.Mesh(
-      new THREE.TorusGeometry(9.5, 0.018, 6, 96),
+      new THREE.TorusGeometry(9.5, 0.006, 5, 96),
       new THREE.MeshBasicMaterial({
-        color: 0x252b34,
+        color: 0x343940,
         transparent: true,
-        opacity: 0.6
+        opacity: 0.24
       })
     );
     horizonRing.rotation.x = Math.PI / 2;
-    horizonRing.position.y = 0.025;
+    horizonRing.position.y = 0.02;
     this.scene.add(horizonRing);
   }
 
@@ -337,8 +388,165 @@ class VRRenderer {
       transparent: true,
       opacity,
       blending: THREE.AdditiveBlending,
-      depthWrite: false
+      depthWrite: false,
+      depthTest: true
     });
+  }
+
+  makeBlobGeometry() {
+    const geometry = new THREE.IcosahedronGeometry(1, 4);
+    const position = geometry.attributes.position;
+
+    for (let i = 0; i < position.count; i += 1) {
+      const x = position.getX(i);
+      const y = position.getY(i);
+      const z = position.getZ(i);
+
+      const length = Math.max(0.0001, Math.hypot(x, y, z));
+      const nx = x / length;
+      const ny = y / length;
+      const nz = z / length;
+
+      const wave =
+        1 +
+        0.065 * Math.sin(nx * 5.4 + nz * 2.1) +
+        0.045 * Math.sin(nz * 7.1 - nx * 1.8) +
+        0.032 * Math.cos((nx + nz) * 9.0);
+
+      const horizontal = wave * (0.98 + 0.035 * Math.sin(ny * 4.0));
+      let finalY = ny * wave * 0.78;
+
+      if (finalY < -0.38) {
+        finalY = -0.59 + (finalY + 0.59) * 0.32;
+      }
+
+      position.setXYZ(
+        i,
+        nx * horizontal,
+        finalY,
+        nz * horizontal
+      );
+    }
+
+    geometry.computeVertexNormals();
+    return geometry;
+  }
+
+  makeGlitchTexture(color) {
+    const canvas = document.createElement("canvas");
+    canvas.width = 64;
+    canvas.height = 64;
+    const context = canvas.getContext("2d");
+    context.clearRect(0, 0, 64, 64);
+
+    context.fillStyle = color;
+    context.globalAlpha = 0.95;
+    context.fillRect(7, 11, 50, 39);
+    context.fillRect(18, 4, 29, 56);
+
+    context.globalCompositeOperation = "destination-out";
+    context.globalAlpha = 0.34;
+    context.fillRect(10, 18, 44, 5);
+    context.fillRect(23, 37, 32, 6);
+    context.globalCompositeOperation = "source-over";
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    return texture;
+  }
+
+  getGlitchTextures() {
+    if (!this.glitchTextures.red) {
+      this.glitchTextures.red = this.makeGlitchTexture("#ff0055");
+      this.glitchTextures.blue = this.makeGlitchTexture("#3b82f6");
+    }
+    return this.glitchTextures;
+  }
+
+  buildPlayerVisual() {
+    this.playerGroup = new THREE.Group();
+
+    this.playerBody = new THREE.Mesh(
+      new THREE.OctahedronGeometry(0.14, 0),
+      this.makeEmissiveMaterial(COLORS.player, 2.0, 0.25)
+    );
+    this.playerBody.scale.set(1, 1.12, 1);
+    this.playerBody.position.set(0, 1.43, 0);
+
+    const armMaterial = this.makeEmissiveMaterial(COLORS.player, 1.65, 0.28);
+
+    this.playerArmLeft = new THREE.Mesh(
+      new THREE.OctahedronGeometry(1, 0),
+      armMaterial.clone()
+    );
+    this.playerArmLeft.scale.set(0.045, 0.27, 0.075);
+    this.playerArmLeft.position.set(-0.28, 1.25, -0.08);
+
+    this.playerArmRight = new THREE.Mesh(
+      new THREE.OctahedronGeometry(1, 0),
+      armMaterial.clone()
+    );
+    this.playerArmRight.scale.set(0.045, 0.27, 0.075);
+    this.playerArmRight.position.set(0.28, 1.25, -0.08);
+
+    const createHandWedge = () => {
+      const shape = new THREE.Shape();
+      shape.moveTo(-0.04, 0.12);
+      shape.lineTo(0.045, 0.12);
+      shape.lineTo(0.13, -0.17);
+      shape.lineTo(0.0, -0.28);
+      shape.lineTo(-0.13, -0.17);
+      shape.closePath();
+
+      const geometry = new THREE.ExtrudeGeometry(shape, {
+        depth: 0.07,
+        bevelEnabled: true,
+        bevelSegments: 2,
+        bevelSize: 0.012,
+        bevelThickness: 0.01,
+        steps: 1
+      });
+      geometry.translate(0, 0, -0.035);
+      geometry.rotateX(Math.PI);
+      return geometry;
+    };
+
+    this.playerHandLeft = new THREE.Mesh(
+      createHandWedge(),
+      armMaterial.clone()
+    );
+    this.playerHandLeft.position.set(-0.28, 0.98, -0.22);
+    this.playerHandLeft.rotation.z = -0.08;
+
+    this.playerHandRight = new THREE.Mesh(
+      createHandWedge(),
+      armMaterial.clone()
+    );
+    this.playerHandRight.position.set(0.28, 0.98, -0.22);
+    this.playerHandRight.rotation.z = 0.08;
+    this.playerHandRight.scale.x = -1;
+
+    this.playerXpPlate = new THREE.Mesh(
+      new THREE.RingGeometry(0.048, 0.062, 20),
+      new THREE.MeshBasicMaterial({
+        color: COLORS.white,
+        transparent: true,
+        opacity: 0.9,
+        side: THREE.DoubleSide
+      })
+    );
+    this.playerXpPlate.position.set(-0.28, 0.86, -0.28);
+    this.playerXpPlate.rotation.set(Math.PI / 2, 0, 0);
+
+    this.playerGroup.add(
+      this.playerBody,
+      this.playerArmLeft,
+      this.playerHandLeft,
+      this.playerArmRight,
+      this.playerHandRight,
+      this.playerXpPlate
+    );
+    this.scene.add(this.playerGroup);
   }
 
   buildPlayerVisual() {
@@ -790,66 +998,76 @@ class VRRenderer {
     if (entity.type === "metaball") {
       const group = new THREE.Group();
 
-      const outer = new THREE.Mesh(
-        new THREE.SphereGeometry(1, 24, 18),
-        this.makeEmissiveMaterial(COLORS.metaball, 2.15, 0.22)
+      const outerMaterial = this.makeEmissiveMaterial(
+        COLORS.metaball,
+        1.4,
+        0.34
       );
+      outerMaterial.side = THREE.DoubleSide;
 
-      const glow = new THREE.Mesh(
-        new THREE.SphereGeometry(1.08, 18, 14),
-        this.makeGlowMaterial(COLORS.white, 0.17)
+      const innerMaterial = new THREE.MeshStandardMaterial({
+        color: COLORS.metaball,
+        roughness: 0.62,
+        metalness: 0.0,
+        emissive: COLORS.metaball,
+        emissiveIntensity: 0.35,
+        transparent: true,
+        opacity: 0.48,
+        side: THREE.DoubleSide,
+        depthWrite: false
+      });
+
+      const outer = new THREE.Mesh(this.makeBlobGeometry(), outerMaterial);
+      const coreGlow = new THREE.Mesh(
+        new THREE.SphereGeometry(0.27, 18, 14),
+        this.makeGlowMaterial(COLORS.white, 0.13)
       );
-
       const core = new THREE.Mesh(
-        new THREE.SphereGeometry(0.26, 16, 12),
-        this.makeEmissiveMaterial(COLORS.white, 3.0, 0.15)
+        new THREE.SphereGeometry(0.18, 16, 12),
+        this.makeEmissiveMaterial(COLORS.white, 3.6, 0.12)
       );
-
       const pickup = new THREE.Mesh(
-        new THREE.SphereGeometry(0.28, 14, 10),
-        new THREE.MeshStandardMaterial({
-          color: COLORS.black,
-          roughness: 0.16,
-          metalness: 0.08,
-          emissive: COLORS.black,
-          emissiveIntensity: 0.05
-        })
+        new THREE.SphereGeometry(0.058, 14, 10),
+        this.makeEmissiveMaterial(COLORS.black, 0.05, 0.2)
       );
       pickup.visible = false;
 
-      group.add(outer, glow, core, pickup);
+      group.add(outer, coreGlow, core, pickup);
       group.userData.kind = "metaball";
       group.userData.outer = outer;
-      group.userData.glow = glow;
+      group.userData.outerMaterial = outerMaterial;
+      group.userData.innerMaterial = innerMaterial;
+      group.userData.coreGlow = coreGlow;
       group.userData.core = core;
       group.userData.pickup = pickup;
+      group.userData.baseRadius = 2.5;
       this.worldRoot.add(group);
       return group;
     }
 
     if (entity.type === "spike") {
       const count = this.world.spikePointCount(entity);
-      const geometry = this.rebuildSpikeGeometry(count);
+      const geometry = this.createSpikePolyhedron(count);
       const mesh = new THREE.Mesh(
         geometry,
-        this.makeEmissiveMaterial(COLORS.spike, 2.0, 0.28)
+        this.makeEmissiveMaterial(COLORS.spike, 2.0, 0.26)
       );
       mesh.material.flatShading = true;
 
-      const edge = new THREE.LineSegments(
+      const edges = new THREE.LineSegments(
         new THREE.EdgesGeometry(geometry),
         new THREE.LineBasicMaterial({
           color: COLORS.spike,
           transparent: true,
-          opacity: 0.8
+          opacity: 0.86
         })
       );
 
       const group = new THREE.Group();
-      group.add(mesh, edge);
+      group.add(mesh, edges);
       group.userData.kind = "spike";
       group.userData.mesh = mesh;
-      group.userData.edge = edge;
+      group.userData.edges = edges;
       group.userData.pointCount = count;
       this.worldRoot.add(group);
       return group;
@@ -857,32 +1075,31 @@ class VRRenderer {
 
     if (entity.type === "glitch") {
       const group = new THREE.Group();
+      const textures = this.getGlitchTextures();
+      const fragments = [];
 
-      const core = new THREE.Mesh(
-        new THREE.IcosahedronGeometry(1, 1),
-        this.makeEmissiveMaterial(COLORS.glitch, 2.35, 0.2)
-      );
-      core.scale.set(1, 0.84, 1.08);
-
-      const shell = new THREE.Mesh(
-        new THREE.IcosahedronGeometry(1.13, 1),
-        this.makeGlowMaterial(COLORS.glitch, 0.13)
-      );
-
-      const edges = new THREE.LineSegments(
-        new THREE.EdgesGeometry(new THREE.IcosahedronGeometry(1.03, 1)),
-        new THREE.LineBasicMaterial({
-          color: COLORS.glitch,
+      for (let i = 0; i < 18; i += 1) {
+        const isRed = i % 2 === 0;
+        const material = new THREE.SpriteMaterial({
+          map: isRed ? textures.red : textures.blue,
+          color: 0xffffff,
           transparent: true,
-          opacity: 0.7
-        })
-      );
+          opacity: 0.5,
+          depthWrite: false,
+          depthTest: true,
+          fog: false
+        });
+        const sprite = new THREE.Sprite(material);
+        sprite.userData.nextChange = 0;
+        sprite.userData.phase = Math.random() * Math.PI * 2;
+        sprite.userData.index = i;
+        group.add(sprite);
+        fragments.push(sprite);
+      }
 
-      group.add(core, shell, edges);
       group.userData.kind = "glitch";
-      group.userData.core = core;
-      group.userData.shell = shell;
-      group.userData.edges = edges;
+      group.userData.fragments = fragments;
+      group.userData.visualRadius = 0.9;
       this.worldRoot.add(group);
       return group;
     }
@@ -890,49 +1107,134 @@ class VRRenderer {
     return null;
   }
 
+  createSpikePolyhedron(pointCount) {
+    const count = clamp(Math.floor(pointCount), 3, 32);
+    const vertices = [];
+    const indices = [];
+    const topIndex = 0;
+    const bottomIndex = 1;
+    vertices.push(0, 0.82, 0);
+    vertices.push(0, -0.82, 0);
+
+    for (let i = 0; i < count; i += 1) {
+      const angle = Math.PI * 2 * i / count;
+      const radial = i % 2 === 0 ? 1.0 : 0.83;
+      vertices.push(
+        Math.cos(angle) * radial,
+        0,
+        Math.sin(angle) * radial
+      );
+    }
+
+    for (let i = 0; i < count; i += 1) {
+      const next = (i + 1) % count;
+      const a = 2 + i;
+      const b = 2 + next;
+
+      indices.push(topIndex, a, b);
+      indices.push(bottomIndex, b, a);
+    }
+
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute(
+      "position",
+      new THREE.Float32BufferAttribute(vertices, 3)
+    );
+    geometry.setIndex(indices);
+    geometry.computeVertexNormals();
+    return geometry;
+  }
+
+  randomizeGlitchFragment(sprite, radius, time) {
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.acos(2 * Math.random() - 1);
+    const shellRadius = radius * Math.pow(Math.random(), 0.55);
+
+    sprite.position.set(
+      Math.sin(phi) * Math.cos(theta) * shellRadius,
+      Math.cos(phi) * shellRadius,
+      Math.sin(phi) * Math.sin(theta) * shellRadius
+    );
+
+    const width = 0.09 + Math.random() * 0.28;
+    const height = 0.045 + Math.random() * 0.17;
+    sprite.scale.set(width, height, 1);
+    sprite.material.opacity = 0.35 + Math.random() * 0.2;
+    sprite.material.rotation = Math.random() * Math.PI;
+
+    sprite.userData.nextChange =
+      time +
+      55 +
+      Math.random() * 180;
+  }
+
+  updateGlitchFragments(group, radius, time) {
+    const fragments = group.userData.fragments || [];
+    for (const fragment of fragments) {
+      if (time < fragment.userData.nextChange) continue;
+      this.randomizeGlitchFragment(fragment, radius, time);
+    }
+  }
+
   updateEntityObject(entity, object) {
     const player = this.world.player;
     const worldX = finiteOr(entity.x) * WORLD_SCALE;
-    const worldY = finiteOr(entity.z) * WORLD_SCALE;
     const worldZ = -finiteOr(entity.y) * WORLD_SCALE;
 
-    const radius = Math.max(0.02, finiteOr(entity.radius) * WORLD_SCALE);
-    object.position.set(worldX, worldY + radius, worldZ);
-
     if (entity.type === "metaball") {
-      object.userData.outer.scale.setScalar(radius);
-      object.userData.glow.scale.setScalar(radius * 1.08);
-      object.userData.core.scale.setScalar(radius * 0.26);
+      const visualRadius = object.userData.baseRadius;
+      const blobHeight = visualRadius * 0.78;
+      object.position.set(worldX, finiteOr(entity.z) * WORLD_SCALE + blobHeight, worldZ);
+      object.userData.outer.scale.setScalar(visualRadius);
+      object.userData.coreGlow.scale.setScalar(visualRadius);
+      object.userData.core.scale.setScalar(visualRadius);
+      object.userData.pickup.visible = !!(entity.pickup && finiteOr(entity.pickup.storedXp) > 0);
+      object.userData.pickup.scale.setScalar(0.55 + visualRadius * 0.025);
 
-      const stored = entity.pickup && finiteOr(entity.pickup.storedXp) > 0;
-      object.userData.pickup.visible = stored;
-      object.userData.pickup.scale.setScalar(Math.max(0.2, radius * 0.34 / 0.28));
+      const xrCamera = this.renderer && this.renderer.xr.isPresenting
+        ? this.renderer.xr.getCamera()
+        : this.camera;
+      const viewCamera = xrCamera && xrCamera.cameras && xrCamera.cameras.length
+        ? xrCamera.cameras[0]
+        : xrCamera;
+
+      let inside = false;
+      if (viewCamera) {
+        const cameraPosition = new THREE.Vector3();
+        const center = new THREE.Vector3();
+        viewCamera.getWorldPosition(cameraPosition);
+        object.getWorldPosition(center);
+        inside = cameraPosition.distanceTo(center) < visualRadius * 0.94;
+      }
+
+      object.userData.outer.material = inside
+        ? object.userData.innerMaterial
+        : object.userData.outerMaterial;
+      object.userData.outer.material.opacity = inside ? 0.48 : 1.0;
+      object.userData.outer.material.transparent = inside;
+      object.userData.outer.material.depthWrite = !inside;
     } else if (entity.type === "spike") {
       const pointCount = this.world.spikePointCount(entity);
       const mesh = object.userData.mesh;
       if (object.userData.pointCount !== pointCount) {
         const oldGeometry = mesh.geometry;
-        const oldEdgeGeometry = object.userData.edge.geometry;
-        const geometry = this.rebuildSpikeGeometry(pointCount);
+        const oldEdgeGeometry = object.userData.edges.geometry;
+        const geometry = this.createSpikePolyhedron(pointCount);
         mesh.geometry = geometry;
-        object.userData.edge.geometry = new THREE.EdgesGeometry(geometry);
+        object.userData.edges.geometry = new THREE.EdgesGeometry(geometry);
         object.userData.pointCount = pointCount;
-        // Spike mesh geometry is cached by vertex count, so the old mesh
-        // geometry must remain alive for other Spikes that share that cache.
+        oldGeometry.dispose();
         oldEdgeGeometry.dispose();
       }
 
-      mesh.scale.setScalar(radius);
-      object.userData.edge.scale.setScalar(radius);
-      const direction = finiteOr(entity.direction);
-      object.rotation.set(0, direction, 0);
+      mesh.scale.setScalar(0.305);
+      object.userData.edges.scale.setScalar(0.305);
+      object.position.set(worldX, finiteOr(entity.z) * WORLD_SCALE + 1.05, worldZ);
+      object.rotation.set(0, finiteOr(entity.direction), 0);
     } else if (entity.type === "glitch") {
-      object.userData.core.scale.set(radius, radius * 0.84, radius * 1.08);
-      object.userData.shell.scale.setScalar(radius * 1.08);
-      object.userData.edges.scale.setScalar(radius * 1.03);
-      object.rotation.y += 0.012;
-      object.rotation.x += 0.008;
-      object.rotation.z += 0.004;
+      const radius = object.userData.visualRadius;
+      object.position.set(worldX, finiteOr(entity.z) * WORLD_SCALE + 0.95, worldZ);
+      this.updateGlitchFragments(object, radius, performance.now());
     }
   }
 
