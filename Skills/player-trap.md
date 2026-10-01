@@ -16,7 +16,7 @@ The exact number of crack points, required distance threshold, timing, and other
 The trap is gameplay state, not merely a visual effect. Capture, crack progress, and release state must exist in the authoritative simulation.
 
 ## Step 9 implementation
-The authoritative simulation now captures the Player on Spike contact. Capture clears Player velocity and movement input and creates a 12-point crack around a central target in Player world space. Active left or right hand positions can drag nearby crack points toward the center. Points seal when they reach the configurable repair distance, and when all points are sealed the Player is released and the trap state is cleared.
+The authoritative simulation now captures the Player on Spike contact. Capture clears Player velocity and movement input and creates a 12-point crack around a central target in Player world space. The Player must explicitly grab a crack endpoint with an active hand/controller input. While held, that endpoint follows the hand. Releasing it near the center seals it; releasing it elsewhere leaves it unsealed so it can be grabbed again. When all points are sealed the Player is released and the trap state is cleared.
 
 Current prototype values are centralized in vr/simulation.js: 12 crack points, 90-unit initial crack radius, 34-unit hand reach, and 18-unit repair distance. The crack state is persisted with the Player so a capture cannot disappear merely because the page is refreshed.
 
