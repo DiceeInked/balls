@@ -1479,13 +1479,15 @@ class VRRenderer {
         x: player.x,
         y: player.y,
         z: player.z,
-        active: false
+        active: false,
+        grab: false
       },
       rightHand: rightHand || {
         x: player.x,
         y: player.y,
         z: player.z,
-        active: false
+        active: false,
+        grab: false
       },
       gazeAtLeftHand
     });
