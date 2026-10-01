@@ -2,7 +2,9 @@
 
 Metaballs are yellow.
 
-A Metaball has a fixed physical size. Its XP does not make the Metaball physically larger.
+A Metaball has a fixed gameplay size, while the immersive presentation is intentionally huge relative to the Player, approximately small-one-story-building scale. Its XP does not make the Metaball physically larger.
+
+The immersive silhouette is an organic squished blob rather than a perfect sphere. From outside it reads as a single large yellow blob, not a force-field shell. When the Player is inside it, its surface becomes about 50% transparent while remaining yellow, allowing the outside world to remain visible through the Metaball.
 
 Metaballs can gain XP by bouncing off walls or other collidable objects. The current configurable prototype award is 1 XP per qualifying wall bounce.
 
