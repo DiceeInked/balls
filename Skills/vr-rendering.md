@@ -51,7 +51,7 @@ The fixed diagnostic probe is also a real 3D mesh in the XR scene. Its purpose i
 
 Normal immersive rendering uses a dark neutral 3D environment with a large floor, a player-centered reference grid, atmospheric fog, and strong but conservative lighting.
 
-When the Player is captured, the scene background becomes black, normal environment geometry is hidden, and the authoritative crack points and center are rendered as luminous 3D lines and markers. Trap state remains entirely owned by the simulation.
+When the Player is captured, the scene background becomes black, normal environment geometry is hidden, and the authoritative trap is rendered as a red three-dimensional reality crack. Each branch is an irregular 3D fissure with a tiny red endpoint orb and a visible center target. Sealed branches disappear into the center. After the final repair, the renderer performs a short inward reconstruction/healing animation before removing the visual. Trap state remains entirely owned by the simulation.
 
 ## Color and visibility
 
@@ -61,7 +61,7 @@ The authoritative prototype colors remain:
 - Glitches: cyan #00FFC8FF
 - Player: blue
 - XP pickup: black
-- Trap cracks: bright white
+- Trap cracks: red `#FF1744`, with a brighter red core and a softer red glow
 
 Materials deliberately use emissive output so gameplay objects remain clearly visible in a dark VR environment without relying on fragile per-object lights.
 
