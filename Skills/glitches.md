@@ -1,6 +1,6 @@
 # Glitches
 
-Glitches are cyan/blue entities with a fixed physical size.
+Glitches have a fixed invisible spherical collision volume and are visually represented by chaotic red and blue 2D fragments around that volume. The fragments are roughly 50% transparent, continuously appear/disappear, teleport, resize, and remain viewer-facing, producing a smoke/cloud-like glitch effect rather than a visible sphere.
 
 XP does not change a Glitch's physical size. XP controls its steering strength and curvature toward its current target, the player in the current prototype.
 
@@ -36,6 +36,6 @@ Glitch and player interaction:
 - The player loses the transferred XP.
 - The contact is not a generic physical bounce.
 
-Glitches should have a visually chaotic, glitch-like presentation rather than a smooth orb-like appearance. During the movement prototype they are intentionally rendered as cyan circles so their physical hitbox is easy to inspect. The final visual effect must not be mistaken for their physical hitbox.
+The visible glitch fragments must not draw a definite circular outline. They only communicate the approximate location and extent of the invisible spherical hitbox. The visible effect must never replace or redefine the authoritative collision volume.
 
 The authoritative prototype color is exactly RGBA #00FFC8FF.
