@@ -60,6 +60,7 @@ vr/index.html: 2D preview and reset control.
 state.js: shared legacy world-state bridge.
 Skills/: living project specification.
 Skills/Reference/: reference copies of the mechanics summary and implementation order.
+Skills/visual-design.md: authoritative immersive visual design specification.
 
 ## Verification checkpoint
 Simulation syntax has been tested.
@@ -72,7 +73,7 @@ Player/Glitch transfer direction has been tested.
 Spike consumption and random child spawning have been tested.
 Spike removal/finalization and persistence round trips have been tested.
 The VR Spike split now follows the working original prototype's smaller 55%-radius children, perpendicular separation, ±0.24 directional fan-out, and 8-frame collision cooldown. The split regression was checked against the updated rules.
-Player Trap capture, 12-point crack creation, trap persistence, repair/release, captured movement lock, and malformed snapshot rejection have been smoke-tested.
+Player Trap capture, 12-point crack creation, trap persistence, explicit grab/release repair state, captured movement lock, and malformed snapshot rejection have been smoke-tested.
 The current VR simulation, desktop preview, legacy state bridge, and Step 10 renderer are source-level complete. The desktop preview no longer depends on WebXR availability, remains live while immersive XR is active, the immersive environment follows the deferred visual specification in Skills/vr-rendering.md, the VR button remains usable for diagnostics on ordinary computers, and actual immersive WebXR device verification remains pending.
 
 ## Change workflow
@@ -104,3 +105,7 @@ The live project is served through GitHub Pages. Vercel is not the deployment ta
 
 ## Rendering architecture reset
 The immersive renderer was replaced with a clean Three.js-based 3D pipeline. Three.js WebGLRenderer owns WebXR presentation, stereoscopic cameras, XR frame timing, and the XR framebuffer path. The game still keeps vr/simulation.js authoritative, but immersive rendering is no longer built from the previous hand-written raw WebGL shader/framebuffer system. Detailed future visual requirements are recorded in Skills/vr-rendering.md and are not yet implemented.
+
+
+## Latest visual-design checkpoint
+The immersive visual specification is centralized in Skills/visual-design.md. It defines the Player hand shape, giant organic Metaball presentation and inside transparency, floating one-foot-radius Spike appearance, red/blue billboard Glitch fragments around an invisible spherical hitbox, the invisible dotted-grid floor, the light-to-dark spherical sky gradient, and the red 3D Player Trap reality crack with endpoint balls. Metaball follow/inertia behavior remains explicitly deferred.
