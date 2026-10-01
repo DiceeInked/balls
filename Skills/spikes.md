@@ -1,6 +1,6 @@
 # Spikes
 
-Spikes are red polygonal entities. Their physical size is fixed, while their rendered vertex count is derived from XP.
+Spikes are red polygonal entities. Their physical size is fixed, while their rendered vertex count is derived from XP. In immersive VR they are floating 3D polyhedral objects, not flat shapes on the floor, with an approximate radius of one foot.
 
 The current prototype maps Spike XP to vertices as:
 - 3 minimum vertices
@@ -34,7 +34,7 @@ Spike-player contact can capture the player and trigger the player trap describe
 
 ## Current prototype visualization
 
-The Canvas preview renders Spikes as XP-linked polygons rather than circular placeholder graphics. The physical hitbox remains circular until the later 3D collision/rendering work.
+The Canvas preview renders Spikes as XP-linked polygons. The immersive VR renderer presents the authoritative Spike as a genuine floating 3D polyhedron while preserving the same XP-linked point-count rule.
 
 ## Original-prototype split behavior
 The authoritative VR split follows the working original prototype's important separation mechanics: child radius is 55% of the parent, children spawn on opposite sides along the perpendicular to the parent's current direction, and their velocities fan by ±0.24 radians around that direction. New children receive an 8-frame collision cooldown. For a wall hit, the parent direction is reflected first, so both children inherit directions away from the wall. This prevents immediate wall or sibling recursive splitting.
