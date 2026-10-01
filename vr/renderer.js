@@ -917,7 +917,8 @@ class VRRenderer {
         mesh.geometry = geometry;
         object.userData.edge.geometry = new THREE.EdgesGeometry(geometry);
         object.userData.pointCount = pointCount;
-        oldGeometry.dispose();
+        // Spike mesh geometry is cached by vertex count, so the old mesh
+        // geometry must remain alive for other Spikes that share that cache.
         oldEdgeGeometry.dispose();
       }
 
@@ -968,7 +969,21 @@ class VRRenderer {
     for (const [id, object] of this.entityObjects) {
       if (liveIds.has(id)) continue;
       this.worldRoot.remove(object);
-      disposeObject(object);
+      if (object.userData && object.userData.kind === "spike") {
+        // The main Spike geometry is shared through entityGeometryCache.
+        // Dispose only per-object resources here.
+        if (object.userData.edge && object.userData.edge.geometry) {
+          object.userData.edge.geometry.dispose();
+        }
+        if (object.userData.mesh && object.userData.mesh.material) {
+          object.userData.mesh.material.dispose();
+        }
+        if (object.userData.edge && object.userData.edge.material) {
+          object.userData.edge.material.dispose();
+        }
+      } else {
+        disposeObject(object);
+      }
       this.entityObjects.delete(id);
     }
   }
