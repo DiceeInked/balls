@@ -263,7 +263,7 @@
       this.timerEvents.length=0;
       this.droppedSimulationTime=0;
       this.nextEntityId=1;
-      this.player={id:this.allocateEntityId(),type:"player",x:this.bounds.width*.5,y:this.bounds.height*.5,z:0,vx:0,vy:0,vz:0,heading:0,xp:16,radius:Math.min(this.bounds.width,this.bounds.height)*PROTOTYPE_RADIUS_RATIO,captured:false,timer100:0,movementInput:{x:0,y:0,z:0},head:{pitch:0,yaw:0,roll:0},leftHand:{x:0,y:0,z:0,active:false},rightHand:{x:0,y:0,z:0,active:false},gazeAtLeftHand:false,menuOpen:false,trap:null};
+      this.player={id:this.allocateEntityId(),type:"player",x:this.bounds.width*.5,y:this.bounds.height*.5,z:0,vx:0,vy:0,vz:0,heading:0,xp:16,radius:Math.min(this.bounds.width,this.bounds.height)*PROTOTYPE_RADIUS_RATIO,captured:false,timer100:0,movementInput:{x:0,y:0,z:0},head:{pitch:0,yaw:0,roll:0},leftHand:{x:0,y:0,z:0,active:false,grab:false},rightHand:{x:0,y:0,z:0,active:false,grab:false},gazeAtLeftHand:false,menuOpen:false,trap:null};
       this.entities.set(this.player.id,this.player);
       this.persistence.majorDirty=false;
       return this.resetPrototypeEntities();
@@ -292,7 +292,7 @@
       this.player.movementInput={x:tx*scale,y:ty*scale,z:tz*scale};
       const head=source.head&&typeof source.head==="object"?source.head:{};
       this.player.head={pitch:Number.isFinite(head.pitch)?head.pitch:0,yaw:Number.isFinite(head.yaw)?head.yaw:0,roll:Number.isFinite(head.roll)?head.roll:0};
-      const copyHand=(hand)=>({x:Number.isFinite(hand&&hand.x)?hand.x:0,y:Number.isFinite(hand&&hand.y)?hand.y:0,z:Number.isFinite(hand&&hand.z)?hand.z:0,active:!!(hand&&hand.active)});
+      const copyHand=(hand)=>({x:Number.isFinite(hand&&hand.x)?hand.x:0,y:Number.isFinite(hand&&hand.y)?hand.y:0,z:Number.isFinite(hand&&hand.z)?hand.z:0,active:!!(hand&&hand.active),grab:!!(hand&&hand.grab)});
       this.player.leftHand=copyHand(source.leftHand); this.player.rightHand=copyHand(source.rightHand);
       this.player.gazeAtLeftHand=!!source.gazeAtLeftHand; this.player.menuOpen=this.player.gazeAtLeftHand;
     }
@@ -316,7 +316,7 @@
         points.push({x:player.x+Math.cos(angle)*radius,y:player.y+Math.sin(angle)*radius,z:player.z+1,sealed:false});
       }
       player.captured=true;player.vx=0;player.vy=0;player.vz=0;player.movementInput={x:0,y:0,z:0};
-      player.trap={active:true,sourceSpikeId:spike.id,center:{x:player.x,y:player.y,z:player.z+1},points:points};
+      player.trap={active:true,sourceSpikeId:spike.id,center:{x:player.x,y:player.y,z:player.z+1},points:points,grabbedPointIndex:null,grabbedBy:null};
       this.persistence.majorDirty=true;
       this.recordEvent("player-captured",{playerId:player.id,sourceSpikeId:spike.id,pointCount:points.length});
       return true;
@@ -325,18 +325,91 @@
     updatePlayerTrap(dt){
       const player=this.player,trap=player&&player.trap;
       if(!player||!player.captured||!trap||!trap.active)return;
-      const hands=[player.leftHand,player.rightHand];
-      const dragFactor=Math.min(1,Math.max(0,dt)*TRAP_DRAG_SPEED);
-      for(const point of trap.points){
-        if(point.sealed)continue;
-        for(const hand of hands){
-          if(!hand||!hand.active)continue;
-          if(Math.hypot(hand.x-point.x,hand.y-point.y,hand.z-point.z)>TRAP_HAND_REACH)continue;
-          point.x+=(trap.center.x-point.x)*dragFactor;point.y+=(trap.center.y-point.y)*dragFactor;point.z+=(trap.center.z-point.z)*dragFactor;break;
+
+      const hands=[
+        {state:player.leftHand,index:0},
+        {state:player.rightHand,index:1}
+      ];
+
+      const activeGrabbers=hands.filter(hand=>hand.state&&hand.state.active&&hand.state.grab);
+
+      if(trap.grabbedPointIndex!==null){
+        const grabber=hands[trap.grabbedBy===1?1:0];
+        const hand=grabber&&grabber.state;
+
+        if(!hand||!hand.active||!hand.grab){
+          const point=trap.points[trap.grabbedPointIndex];
+          if(point&&!point.sealed&&Math.hypot(point.x-trap.center.x,point.y-trap.center.y,point.z-trap.center.z)<=TRAP_REPAIR_DISTANCE){
+            point.x=trap.center.x;
+            point.y=trap.center.y;
+            point.z=trap.center.z;
+            point.sealed=true;
+          }
+          trap.grabbedPointIndex=null;
+          trap.grabbedBy=null;
+          this.persistence.majorDirty=true;
         }
-        if(Math.hypot(point.x-trap.center.x,point.y-trap.center.y,point.z-trap.center.z)<=TRAP_REPAIR_DISTANCE){point.x=trap.center.x;point.y=trap.center.y;point.z=trap.center.z;point.sealed=true;}
       }
-      if(trap.points.length>0&&trap.points.every(point=>point.sealed)){player.captured=false;player.trap=null;player.vx=0;player.vy=0;player.vz=0;this.persistence.majorDirty=true;this.recordEvent("player-released",{playerId:player.id});}
+
+      if(trap.grabbedPointIndex===null){
+        for(const grabber of activeGrabbers){
+          let nearest=-1;
+          let nearestDistance=Infinity;
+
+          for(let i=0;i<trap.points.length;i++){
+            const point=trap.points[i];
+            if(!point||point.sealed)continue;
+            const distance=Math.hypot(
+              grabber.state.x-point.x,
+              grabber.state.y-point.y,
+              grabber.state.z-point.z
+            );
+            if(distance<=TRAP_HAND_REACH&&distance<nearestDistance){
+              nearest=i;
+              nearestDistance=distance;
+            }
+          }
+
+          if(nearest>=0){
+            trap.grabbedPointIndex=nearest;
+            trap.grabbedBy=grabber.index;
+            this.persistence.majorDirty=true;
+            break;
+          }
+        }
+      }
+
+      if(trap.grabbedPointIndex!==null){
+        const grabber=hands[trap.grabbedBy===1?1:0];
+        const hand=grabber&&grabber.state;
+        const point=trap.points[trap.grabbedPointIndex];
+
+        if(hand&&hand.active&&hand.grab&&point&&!point.sealed){
+          point.x=hand.x;
+          point.y=hand.y;
+          point.z=hand.z;
+
+          if(Math.hypot(point.x-trap.center.x,point.y-trap.center.y,point.z-trap.center.z)<=TRAP_REPAIR_DISTANCE){
+            point.x=trap.center.x;
+            point.y=trap.center.y;
+            point.z=trap.center.z;
+            point.sealed=true;
+            trap.grabbedPointIndex=null;
+            trap.grabbedBy=null;
+            this.persistence.majorDirty=true;
+          }
+        }
+      }
+
+      if(trap.points.length>0&&trap.points.every(point=>point.sealed)){
+        player.captured=false;
+        player.trap=null;
+        player.vx=0;
+        player.vy=0;
+        player.vz=0;
+        this.persistence.majorDirty=true;
+        this.recordEvent("player-released",{playerId:player.id});
+      }
     }
 
     spikePointCount(e){return e&&e.type==="spike"?Math.max(3,Math.min(32,3+Math.floor(this.normalizeXp(e.xp)/4))):3;}
@@ -668,7 +741,7 @@
       }
     }
 
-    restoreTrapState(source){if(!source||source.active!==true||!Array.isArray(source.points)||source.points.length!==TRAP_POINT_COUNT)return null;const center=source.center;if(!center||![center.x,center.y,center.z].every(Number.isFinite))return null;const points=[];for(const point of source.points){if(!point||![point.x,point.y,point.z].every(Number.isFinite))return null;points.push({x:point.x,y:point.y,z:point.z,sealed:!!point.sealed});}return {active:true,sourceSpikeId:Number.isFinite(source.sourceSpikeId)?source.sourceSpikeId:null,center:{x:center.x,y:center.y,z:center.z},points};}
+    restoreTrapState(source){if(!source||source.active!==true||!Array.isArray(source.points)||source.points.length!==TRAP_POINT_COUNT)return null;const center=source.center;if(!center||![center.x,center.y,center.z].every(Number.isFinite))return null;const points=[];for(const point of source.points){if(!point||![point.x,point.y,point.z].every(Number.isFinite))return null;points.push({x:point.x,y:point.y,z:point.z,sealed:!!point.sealed});}const grabbedPointIndex=Number.isInteger(source.grabbedPointIndex)&&source.grabbedPointIndex>=0&&source.grabbedPointIndex<TRAP_POINT_COUNT?source.grabbedPointIndex:null;const grabbedBy=grabbedPointIndex!==null&&(source.grabbedBy===0||source.grabbedBy===1)?source.grabbedBy:null;return {active:true,sourceSpikeId:Number.isFinite(source.sourceSpikeId)?source.sourceSpikeId:null,center:{x:center.x,y:center.y,z:center.z},points,grabbedPointIndex,grabbedBy};}
 
     snapshot(){
       return{
@@ -694,7 +767,7 @@
           };
         }),
         bounds:{width:this.bounds.width,height:this.bounds.height},
-        player:Object.assign({},this.player,{movementInput:Object.assign({},this.player.movementInput),head:Object.assign({},this.player.head),leftHand:Object.assign({},this.player.leftHand),rightHand:Object.assign({},this.player.rightHand),trap:this.player.trap?{active:true,sourceSpikeId:this.player.trap.sourceSpikeId,center:Object.assign({},this.player.trap.center),points:this.player.trap.points.map(function(point){return Object.assign({},point);})}:null,pickup:this.player.pickup?Object.assign({},this.player.pickup):undefined}),
+        player:Object.assign({},this.player,{movementInput:Object.assign({},this.player.movementInput),head:Object.assign({},this.player.head),leftHand:Object.assign({},this.player.leftHand),rightHand:Object.assign({},this.player.rightHand),trap:this.player.trap?{active:true,sourceSpikeId:this.player.trap.sourceSpikeId,center:Object.assign({},this.player.trap.center),points:this.player.trap.points.map(function(point){return Object.assign({},point);}),grabbedPointIndex:Number.isInteger(this.player.trap.grabbedPointIndex)?this.player.trap.grabbedPointIndex:null,grabbedBy:Number.isInteger(this.player.trap.grabbedBy)?this.player.trap.grabbedBy:null}:null,pickup:this.player.pickup?Object.assign({},this.player.pickup):undefined}),
         entities:Array.from(this.entities.values()).map(function(entity){
           return Object.assign({},entity,{pickup:entity.pickup?Object.assign({},entity.pickup):undefined});
         }),
