@@ -48,7 +48,7 @@ Player tests:
 - Passive 100-second drain removes exactly 1 XP and clamps at zero
 - Glitch drain
 - Spike capture
-- Crack repair and release
+- Crack endpoint grab, drag, release, sealing, and release
 - XP pickup collection
 
 System tests:
